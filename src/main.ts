@@ -662,6 +662,18 @@ function getEnergySources(myMinTransfer: number, allowStorage = false, allowAnyL
   return sources;
 }
 
+function totalDroppedEnergy() {
+  let energy = 0;
+
+  for (const i in Game.rooms) {
+    energy += Game.rooms[i]
+      .find(FIND_DROPPED_RESOURCES)
+      .reduce((aggregated, item) => aggregated + getEnergy(item), 0 /*initial*/);
+  }
+
+  return energy;
+}
+
 function getEnergySourceTask(myMinTransfer: number, pos: RoomPosition, allowStorage = true, allowAnyLink = true, allowSource = true) {
   let sources: any[] = [];
 
@@ -1513,10 +1525,14 @@ function creepCost(creep: Creep) {
 }
 
 function carriersNeeded() {
+  if (totalDroppedEnergy() > 1000) return true;
+
   if ((getEnergySources(100).length / 2) > getCreepCountByRole('carrier')) return true;
+
   for (const i in Game.rooms) {
     if (Game.rooms[i].find(FIND_STRUCTURES).filter(structure => (structure.structureType === STRUCTURE_CONTAINER) && isFull(structure)).length >= 1) return true;
   }
+
   return false;
 }
 
