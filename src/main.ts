@@ -515,15 +515,42 @@ function memorizeCreepState(creep: Creep, destination: undefined | Destination |
   creep.memory.empty = isEmpty(creep);
   creep.memory.full = isFull(creep);
   if (destination) {
-    let range = creep.pos.getRangeTo(destination);
-    if (range) {
-      if (creep.memory.rangeToDestination > range) {
-        creep.memory.timeApproachedDestination = Game.time;
+    let destinationPos = pos(destination);
+    if (destinationPos && !posEquals(creep.pos, destinationPos)) {
+      let range = creep.pos.getRangeTo(destinationPos);
+      if (!isFinite(range)) {
+        let rangeToExit = rangeToExitTowardsPos(creep.pos, destinationPos);
+        if (rangeToExit) range = rangeToExit;
       }
-      creep.memory.rangeToDestination = range;
+      if (range) {
+        if (creep.memory.rangeToDestination > range) {
+          creep.memory.timeApproachedDestination = Game.time;
+        }
+        creep.memory.rangeToDestination = range;
+      }
     }
   }
   updateConstructionSiteScoreForCreep(creep);
+}
+
+function rangeToExitTowardsPos(from: RoomPosition, to: RoomPosition) {
+  let findExit = Game.map.findExit(from.roomName, to.roomName);
+  if (findExit === ERR_NO_PATH) {
+    msg('rangeToExitTowardsPos()', 'no path between rooms: ' + from + ' - ' + to);
+  } else if (findExit === ERR_INVALID_ARGS) {
+    msg('rangeToExitTowardsPos()',
+      'passed invalid arguments to Game.map.findExit(). Finding exit from ' + from + ' to ' + to);
+  } else {
+    let exit = from.findClosestByPath(findExit);
+    if (isRoomPosition(exit)) return from.getRangeTo(exit);
+  }
+  return;
+}
+
+function pos(object: Destination) {
+  if (object instanceof RoomPosition) return object;
+  if ('pos' in object) return object.pos;
+  return;
 }
 
 function posEquals(a: RoomPosition, b: RoomPosition) {
