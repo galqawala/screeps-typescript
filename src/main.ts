@@ -16,6 +16,7 @@ declare global {
     | "upgradeController"
     | "withdraw";
   type Destination = ConstructionSite | Creep | RoomPosition | Source | Structure;
+  type DestinationId = Id<Structure | ConstructionSite | Source | Creep>;
 
   interface Memory {
     username: string;
@@ -62,7 +63,7 @@ declare global {
     action: undefined | Action;
     lastAction: undefined | Action;
     lastActionOutcome: ScreepsReturnCode;
-    lastBlockedIds: (Id<Structure | Creep | ConstructionSite | Source> | RoomPosition | undefined)[];
+    lastBlockedIds: DestinationId[];
     awaitingDeliveryFrom: undefined | string; //Creep name
   }
 
@@ -699,7 +700,7 @@ function getTaskForSpawner(creep: Creep) {
   }
   if (!isEmpty(creep)) {
     tasks = tasks.concat(
-      getGlobalEnergyStructures().map(d => {
+      getGlobalEnergyStructures(creep).map(d => {
         return { action: "transfer", destination: d };
       })
     );
@@ -806,18 +807,6 @@ function getEnergySources(
   }
 
   return sources;
-}
-
-function totalDroppedEnergy() {
-  let energy = 0;
-
-  for (const i in Game.rooms) {
-    energy += Game.rooms[i]
-      .find(FIND_DROPPED_RESOURCES)
-      .reduce((aggregated, item) => aggregated + getEnergy(item), 0 /*initial*/);
-  }
-
-  return energy;
 }
 
 function getEnergySourceTask(
@@ -1257,7 +1246,7 @@ function getEnergyStructures(room: Room) {
     );
 }
 
-function getGlobalEnergyStructures() {
+function getGlobalEnergyStructures(creep: Creep) {
   let structures: AnyOwnedStructure[] = [];
   for (const i in Game.rooms) {
     let room = Game.rooms[i];
@@ -1268,7 +1257,8 @@ function getGlobalEnergyStructures() {
           structure =>
             (structure.structureType === STRUCTURE_EXTENSION ||
               structure.structureType === STRUCTURE_SPAWN) &&
-            !isFull(structure)
+            !isFull(structure) &&
+            !isBlocked(creep, structure)
         )
     );
   }
