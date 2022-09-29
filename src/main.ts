@@ -1559,10 +1559,10 @@ function handleSpawn(spawn: StructureSpawn) {
         (aggregated, item) => aggregated + (item.memory.role === roleToSpawn ? creepCost(item) : 0),
         0 /*initial*/
       ) || 0;
-    let budget = Math.min(costOfCurrentCreepsInTheRole / 3, room.energyCapacityAvailable);
+    let budget = Math.floor(Math.min(costOfCurrentCreepsInTheRole / 3, room.energyCapacityAvailable));
 
     if (room.energyAvailable >= budget) {
-      spawnCreep(spawn, roleToSpawn, room.energyAvailable, body);
+      spawnCreep(spawn, roleToSpawn, budget, body);
     }
   }
 }
