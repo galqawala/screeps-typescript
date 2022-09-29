@@ -1424,7 +1424,7 @@ function harvestersNeeded(pos: RoomPosition) {
 
   for (const i in Game.rooms) {
     if (Game.rooms[i].find(FIND_MY_STRUCTURES)
-      .filter(structure => (structure.structureType === STRUCTURE_STORAGE) && getEnergy(structure) < 2000).length >= 1) return true;
+      .filter(structure => (structure.structureType === STRUCTURE_STORAGE) && getEnergy(structure) < 10000).length >= 1) return true;
   }
 
   return false;
