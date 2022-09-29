@@ -1585,7 +1585,6 @@ function handleSpawn(spawn: StructureSpawn) {
     if (getCreepCountByRole("spawner") < Object.keys(Game.creeps).length / 9) {
       roleToSpawn = "spawner";
     } else if (carriersNeeded()) {
-      msg(spawn, "we need more carriers");
       roleToSpawn = "carrier";
     } else if (harvestersNeeded(spawn.pos)) {
       spawnHarvester(spawn);
@@ -1796,7 +1795,7 @@ function creepCost(creep: Creep) {
 function carriersNeeded() {
   let totalEnergyToHaulBefore = Memory.time[Game.time - 100]?.totalEnergyToHaul;
   let totalEnergyToHaulNow = Memory.time[Game.time - 1]?.totalEnergyToHaul;
-  return totalEnergyToHaulNow > totalEnergyToHaulBefore && totalEnergyToHaulNow > 850;
+  return totalEnergyToHaulNow > totalEnergyToHaulBefore && totalEnergyToHaulNow > 1000;
 }
 
 function totalEnergyToHaul() {
