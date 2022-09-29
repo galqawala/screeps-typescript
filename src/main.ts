@@ -1389,7 +1389,7 @@ function handleSpawn(spawn: StructureSpawn) {
   if (!(spawn.spawning)) {
     let roleToSpawn: Role; let body;
 
-    if (getCreepCountByRole('spawner') <= 0) {
+    if (getCreepCountByRole('spawner') < Object.keys(Game.creeps).length / 9) {
       roleToSpawn = 'spawner';
     } else if (carriersNeeded()) {
       roleToSpawn = 'carrier';
