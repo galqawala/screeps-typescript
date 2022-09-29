@@ -490,7 +490,7 @@ function handleTower(tower: StructureTower) {
   for (const targetCreep of creeps) {
     let score = targetScore(tower, targetCreep);
     msg(tower, "target creep: " + targetCreep + ", score: " + score);
-    if (bestTargetScore > score) {
+    if (bestTargetScore < score) {
       bestTargetScore = score;
       bestTarget = targetCreep;
     }
@@ -498,7 +498,7 @@ function handleTower(tower: StructureTower) {
   let myStructures = tower.room.find(FIND_MY_STRUCTURES).filter(target => target.hits < target.hitsMax / 2);
   for (const targetStructure of myStructures) {
     let score = targetScore(tower, targetStructure);
-    if (bestTargetScore > score) {
+    if (bestTargetScore < score) {
       bestTargetScore = score;
       bestTarget = targetStructure;
     }
@@ -508,7 +508,7 @@ function handleTower(tower: StructureTower) {
     .filter(target => !isOwnedStructure(target) || target.hits < target.hitsMax / 2);
   for (const targetStructure of structures) {
     let score = targetScore(tower, targetStructure);
-    if (bestTargetScore > score) {
+    if (bestTargetScore < score) {
       bestTargetScore = score;
       bestTarget = targetStructure;
     }
@@ -518,7 +518,7 @@ function handleTower(tower: StructureTower) {
     .filter(target => target.my === false || target.hits < target.hitsMax / 2);
   for (const targetPowerCreep of powerCreeps) {
     let score = targetScore(tower, targetPowerCreep);
-    if (bestTargetScore > score) {
+    if (bestTargetScore < score) {
       bestTargetScore = score;
       bestTarget = targetPowerCreep;
     }
