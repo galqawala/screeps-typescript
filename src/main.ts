@@ -1,3 +1,5 @@
+//ToDo: less move parts & more roads
+
 // When compiling TS to JS and bundling with rollup, the line numbers and file names in error messages change
 // This utility uses source maps to get the line numbers and file names of the original, TS source code
 import { ErrorMapper } from "utils/ErrorMapper";
@@ -490,7 +492,6 @@ function handleTower(tower: StructureTower) {
     .filter(target => target.my === false || target.hits < target.hitsMax / 2);
   for (const targetCreep of creeps) {
     let score = targetScore(tower, targetCreep);
-    msg(tower, "target creep: " + targetCreep + ", score: " + score);
     if (bestTargetScore < score) {
       bestTargetScore = score;
       bestTarget = targetCreep;
@@ -526,8 +527,6 @@ function handleTower(tower: StructureTower) {
   }
 
   if (!bestTarget) return;
-
-  msg(tower, "target: " + bestTarget);
 
   if ("my" in bestTarget && bestTarget.my === false) {
     tower.attack(bestTarget);
