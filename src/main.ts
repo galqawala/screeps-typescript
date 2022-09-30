@@ -2048,7 +2048,7 @@ function handleCreep(creep: Creep) {
     if (
       (creep.memory.timeApproachedDestination > (creep.memory.lastOkActionTime || 0) ||
         (destination instanceof RoomPosition && creep.memory.rangeToDestination > 0)) &&
-      creep.memory.timeApproachedDestination < Game.time - 20
+      creep.memory.timeApproachedDestination < Game.time - 25
     ) {
       msg(
         creep,
