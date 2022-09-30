@@ -1,4 +1,3 @@
-//ToDo: lower the CPU usage
 //ToDo: less move parts & more roads
 //ToDo: more spawns for simultaneous spawning
 
@@ -102,14 +101,24 @@ function isRoomPosition(item: any): item is RoomPosition {
 
 //Main loop
 export const loop = ErrorMapper.wrapLoop(() => {
-  if (!Memory.username) setUsername();
+  if (Object.keys(Memory.time).length > 5000) purgeTimeMemory();
+  if (!Memory.username) {
+    setUsername();
+  }
   for (const c in Game.creeps) handleHarvester(Game.creeps[c]) || handleCreep(Game.creeps[c]);
   for (const s in Game.spawns) handleSpawn(Game.spawns[s]);
   for (const r in Game.rooms) handleRoom(Game.rooms[r]);
-
   if (!Memory.time) Memory.time = {};
   if (!(Game.time in Memory.time)) Memory.time[Game.time] = { totalEnergyToHaul: totalEnergyToHaul() };
 });
+
+function purgeTimeMemory() {
+  let remove = true;
+  for (const time in Memory.time) {
+    if (remove) delete Memory.time[time];
+    remove = !remove;
+  }
+}
 
 const setUsername = function () {
   //room controllers
