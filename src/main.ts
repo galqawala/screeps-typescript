@@ -1608,13 +1608,13 @@ function harvestersNeeded(pos: RoomPosition) {
 
   if (!source) return false; //nothing to harvest
 
+  if (Memory.harvestersNeeded) return true;
+
   if (
-    source.pos.findInRange(FIND_STRUCTURES, 1).filter(target => target.structureType === STRUCTURE_LINK)
-      .length > 1
+    source.pos.findInRange(FIND_MY_STRUCTURES, 1).filter(target => target.structureType === STRUCTURE_LINK)
+      .length > 0
   )
     return true; //always keep sources with link manned;
-
-  if (Memory.harvestersNeeded) return true;
 
   for (const i in Game.rooms) {
     if (
