@@ -683,6 +683,7 @@ function setDestination(creep: Creep, destination: Destination) {
 }
 
 function getNewDestination(creep: Creep) {
+  if (creep.spawning) return;
   let role = creep.memory.role;
   let task;
 
@@ -696,7 +697,7 @@ function getNewDestination(creep: Creep) {
     let destination = closest(creep.pos, getReservableControllers());
     if (destination) task = { action: "reserveController", destination: destination };
   } else if (role === "explorer") {
-    let destination = getExit(creep.pos);
+    let destination = getExit(creep.pos, !creep.ticksToLive || creep.ticksToLive > 150, false);
     if (destination) task = { action: "moveTo", destination: destination };
   }
 
@@ -1279,11 +1280,13 @@ function isRoomSafe(roomName: string, currentRoomName: string) {
   return true;
 }
 
-function getExit(pos: RoomPosition) {
+function getExit(pos: RoomPosition, safeOnly: boolean = true, harvestableOnly: boolean = true) {
   if (!pos) return;
   let exits = Game.map.describeExits(pos.roomName);
   let accessibleRooms = Object.values(exits).filter(
-    roomName => isRoomSafe(roomName, pos.roomName) && Memory.rooms[roomName].canHarvest
+    roomName =>
+      (!safeOnly || isRoomSafe(roomName, pos.roomName)) &&
+      (!harvestableOnly || Memory.rooms[roomName].canHarvest)
   );
   let destinationRoomName = randomItem(accessibleRooms);
   let findExit = Game.map.findExit(pos.roomName, destinationRoomName);
