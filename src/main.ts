@@ -89,9 +89,7 @@ function isOwnedStructure(structure: Structure): structure is AnyOwnedStructure 
 function isLink(structure: Structure): structure is StructureLink {
   return structure.structureType === STRUCTURE_LINK;
 }
-function isSpawnOrExtension(
-  structure: Structure | null | undefined
-): structure is StructureSpawn | StructureExtension {
+function isSpawnOrExtension(structure: Structure | null | undefined): structure is StructureSpawn | StructureExtension {
   if (!structure) return false;
   return structure.structureType === STRUCTURE_SPAWN || structure.structureType === STRUCTURE_EXTENSION;
 }
@@ -163,9 +161,7 @@ function handleHarvester(creep: Creep) {
   if (!isEmpty(creep)) {
     //repair my structures
     let myTarget = creep.pos.findClosestByPath(
-      creep.pos
-        .findInRange(FIND_MY_STRUCTURES, 3)
-        .filter(target => target.my !== false && target.hits < target.hitsMax)
+      creep.pos.findInRange(FIND_MY_STRUCTURES, 3).filter(target => target.my !== false && target.hits < target.hitsMax)
     );
     if (myTarget) creep.repair(myTarget);
     //repair unowned structures
@@ -211,9 +207,7 @@ function unloadCreep(creep: Creep) {
         target =>
           !isFull(target) &&
           target.my !== false &&
-          (target.memory.role === "carrier" ||
-            target.memory.role === "spawner" ||
-            target.memory.role === "worker")
+          (target.memory.role === "carrier" || target.memory.role === "spawner" || target.memory.role === "worker")
       )
   );
   if (targetCreep) {
@@ -294,9 +288,7 @@ function bodyPartToAddByRatio(
 
 function handleRoom(room: Room) {
   //control the towers
-  let towers = <StructureTower[]>(
-    room.find(FIND_MY_STRUCTURES).filter(tower => tower.structureType === STRUCTURE_TOWER)
-  );
+  let towers = <StructureTower[]>room.find(FIND_MY_STRUCTURES).filter(tower => tower.structureType === STRUCTURE_TOWER);
   for (const t of towers) {
     handleTower(t);
   }
@@ -383,9 +375,7 @@ function handleHostilesInRoom(room: Room) {
 
   //enable safe mode if necessary
   if (hostilesPresent) {
-    let towerCount = room
-      .find(FIND_MY_STRUCTURES)
-      .filter(tower => tower.structureType === STRUCTURE_TOWER).length;
+    let towerCount = room.find(FIND_MY_STRUCTURES).filter(tower => tower.structureType === STRUCTURE_TOWER).length;
     if (towerCount <= 0) {
       if (room.controller && room.controller.activateSafeMode() === OK) {
         msg(room.controller, "safe mode activated!", true);
@@ -440,15 +430,13 @@ function blockedByStructure(pos: RoomPosition) {
   return (
     pos
       .lookFor(LOOK_STRUCTURES)
-      .filter(structure => (OBSTACLE_OBJECT_TYPES as StructureConstant[]).includes(structure.structureType))
-      .length > 0
+      .filter(structure => (OBSTACLE_OBJECT_TYPES as StructureConstant[]).includes(structure.structureType)).length > 0
   );
 }
 
 function containsPosition(list: RoomPosition[], pos: RoomPosition) {
   return (
-    list.filter(listPos => listPos.x === pos.x && listPos.y === pos.y && listPos.roomName === pos.roomName)
-      .length > 0
+    list.filter(listPos => listPos.x === pos.x && listPos.y === pos.y && listPos.roomName === pos.roomName).length > 0
   );
 }
 
@@ -487,9 +475,7 @@ function handleLinks(room: Room) {
 function handleTower(tower: StructureTower) {
   let bestTarget;
   let bestTargetScore = Number.NEGATIVE_INFINITY;
-  let creeps = tower.room
-    .find(FIND_CREEPS)
-    .filter(target => target.my === false || target.hits < target.hitsMax / 2);
+  let creeps = tower.room.find(FIND_CREEPS).filter(target => target.my === false || target.hits < target.hitsMax / 2);
   for (const targetCreep of creeps) {
     let score = targetScore(tower, targetCreep);
     if (bestTargetScore < score) {
@@ -774,12 +760,7 @@ function getEnergyDestinations() {
   return targets;
 }
 
-function getEnergySources(
-  myMinTransfer: number,
-  allowStorage = false,
-  allowAnyLink = false,
-  allowSource = false
-) {
+function getEnergySources(myMinTransfer: number, allowStorage = false, allowAnyLink = false, allowSource = false) {
   let sources: any[] = [];
 
   for (const i in Game.rooms) {
@@ -846,9 +827,7 @@ function getEnergyInRoom(
   allowAnyLink = true,
   allowSource = true
 ) {
-  let sources: any[] = room
-    .find(FIND_DROPPED_RESOURCES)
-    .filter(resource => getEnergy(resource) >= myMinTransfer);
+  let sources: any[] = room.find(FIND_DROPPED_RESOURCES).filter(resource => getEnergy(resource) >= myMinTransfer);
   sources = sources.concat(room.find(FIND_TOMBSTONES).filter(tomb => getEnergy(tomb) >= myMinTransfer));
   sources = sources.concat(room.find(FIND_RUINS).filter(ruin => getEnergy(ruin) >= myMinTransfer));
   sources = sources.concat(
@@ -887,10 +866,7 @@ function action(creep: Creep, destination: Destination) {
   ) {
     actionOutcome = creep.withdraw(destination, RESOURCE_ENERGY);
     if (actionOutcome === OK) resetSpecificDestinationFromCreeps(destination);
-  } else if (
-    creep.memory.action === "transfer" &&
-    (destination instanceof Creep || destination instanceof Structure)
-  ) {
+  } else if (creep.memory.action === "transfer" && (destination instanceof Creep || destination instanceof Structure)) {
     actionOutcome = transfer(creep, destination);
     if (actionOutcome === OK) resetSpecificDestinationFromCreeps(destination);
   } else if (creep.memory.action === "upgradeController" && destination instanceof StructureController) {
@@ -1018,15 +994,11 @@ function isDownstreamLink(link: Structure) {
 
 function getRepairTaskInRange(pos: RoomPosition) {
   let destination = pos.findClosestByPath(
-    pos
-      .findInRange(FIND_MY_STRUCTURES, 3)
-      .filter(target => target.my !== false && target.hits < target.hitsMax)
+    pos.findInRange(FIND_MY_STRUCTURES, 3).filter(target => target.my !== false && target.hits < target.hitsMax)
   );
   if (destination) return { action: "repair", destination: destination };
   let unowned = pos.findClosestByPath(
-    pos
-      .findInRange(FIND_STRUCTURES, 3)
-      .filter(target => !isOwnedStructure(target) && target.hits < target.hitsMax)
+    pos.findInRange(FIND_STRUCTURES, 3).filter(target => !isOwnedStructure(target) && target.hits < target.hitsMax)
   );
   if (unowned) return { action: "repair", destination: unowned };
   return;
@@ -1089,9 +1061,7 @@ function getRepairTask(creep: Creep) {
     destinations = destinations.concat(
       room
         .find(FIND_STRUCTURES)
-        .filter(
-          target => worthRepair(creep.pos, target) && !isUnderRepair(target) && !isBlocked(creep, target)
-        )
+        .filter(target => worthRepair(creep.pos, target) && !isUnderRepair(target) && !isBlocked(creep, target))
     );
   }
 
@@ -1254,8 +1224,7 @@ function getGlobalEnergyStructures(creep: Creep) {
         .find(FIND_MY_STRUCTURES)
         .filter(
           structure =>
-            (structure.structureType === STRUCTURE_EXTENSION ||
-              structure.structureType === STRUCTURE_SPAWN) &&
+            (structure.structureType === STRUCTURE_EXTENSION || structure.structureType === STRUCTURE_SPAWN) &&
             !isFull(structure) &&
             !isBlocked(creep, structure)
         )
@@ -1470,6 +1439,7 @@ function adjustConstructionSiteScoreForLink(score: number, pos: RoomPosition) {
   let penalty = pos.findClosestByPath(FIND_EXIT);
   if (penalty) {
     score /= pos.getRangeTo(penalty);
+    score /= pos.getRangeTo(penalty);
   }
   //distance to other links increases the score
   let shortestRange;
@@ -1596,9 +1566,7 @@ function handleSpawn(spawn: StructureSpawn) {
         (aggregated, item) => aggregated + (item.memory.role === roleToSpawn ? creepCost(item) : 0),
         0 /*initial*/
       ) || 0;
-    let budget = Math.floor(
-      Math.min(Math.max(costOfCurrentCreepsInTheRole, minBudget), room.energyCapacityAvailable)
-    );
+    let budget = Math.floor(Math.min(Math.max(costOfCurrentCreepsInTheRole, minBudget), room.energyCapacityAvailable));
 
     if (room.energyAvailable >= budget) {
       spawnCreep(spawn, roleToSpawn, budget, body);
@@ -1614,8 +1582,7 @@ function harvestersNeeded(pos: RoomPosition) {
   if (Memory.harvestersNeeded) return true;
 
   if (
-    source.pos.findInRange(FIND_MY_STRUCTURES, 1).filter(target => target.structureType === STRUCTURE_LINK)
-      .length > 0
+    source.pos.findInRange(FIND_MY_STRUCTURES, 1).filter(target => target.structureType === STRUCTURE_LINK).length > 0
   )
     return true; //always keep sources with link manned;
 
@@ -1623,8 +1590,7 @@ function harvestersNeeded(pos: RoomPosition) {
     if (
       Game.rooms[i]
         .find(FIND_MY_STRUCTURES)
-        .filter(structure => structure.structureType === STRUCTURE_STORAGE && getEnergy(structure) < 10000)
-        .length >= 1
+        .filter(structure => structure.structureType === STRUCTURE_STORAGE && getEnergy(structure) < 10000).length >= 1
     )
       return true;
   }
@@ -1691,8 +1657,7 @@ function getSpawnsAndExtensionsSorted(room: Room) {
   let all = room
     .find(FIND_MY_STRUCTURES)
     .filter(
-      structure =>
-        structure.structureType === STRUCTURE_EXTENSION || structure.structureType === STRUCTURE_SPAWN
+      structure => structure.structureType === STRUCTURE_EXTENSION || structure.structureType === STRUCTURE_SPAWN
     );
 
   return room.memory.sortedSpawnStructureIds
@@ -1758,8 +1723,7 @@ function getHarvestSpotForSource(source: Source) {
       if (blockedByStructure(pos)) continue;
       let score =
         (hasStructureInRange(pos, STRUCTURE_LINK, 1, true) ? 1 : 0) +
-        pos.lookFor(LOOK_STRUCTURES).filter(structure => structure.structureType === STRUCTURE_CONTAINER)
-          .length +
+        pos.lookFor(LOOK_STRUCTURES).filter(structure => structure.structureType === STRUCTURE_CONTAINER).length +
         pos.findInRange(FIND_SOURCES, 1).length;
       if (bestScore < score) {
         bestScore = score;
@@ -1911,9 +1875,7 @@ function needStructure(room: Room, structureType: BuildableStructureConstant) {
 }
 
 function countStructures(room: Room, structureType: StructureConstant, includeConstructionSites: boolean) {
-  let count = room
-    .find(FIND_MY_STRUCTURES)
-    .filter(structure => structure.structureType === structureType).length;
+  let count = room.find(FIND_MY_STRUCTURES).filter(structure => structure.structureType === structureType).length;
   if (includeConstructionSites) {
     count += room
       .find(FIND_MY_CONSTRUCTION_SITES)
@@ -1964,8 +1926,7 @@ function resetDestination(creep: Creep) {
   //reset properties
   if (!creep.memory.destination) return;
   let destination;
-  if (!(creep.memory.destination instanceof RoomPosition))
-    destination = Game.getObjectById(creep.memory.destination);
+  if (!(creep.memory.destination instanceof RoomPosition)) destination = Game.getObjectById(creep.memory.destination);
   creep.memory.destination = undefined;
   creep.memory.destinationSetTime = Game.time;
   creep.memory.timeApproachedDestination = Game.time;
@@ -2055,10 +2016,7 @@ function handleCreep(creep: Creep) {
     ) {
       msg(
         creep,
-        "timeout! time: " +
-          Game.time +
-          " timeApproachedDestination: " +
-          creep.memory.timeApproachedDestination
+        "timeout! time: " + Game.time + " timeApproachedDestination: " + creep.memory.timeApproachedDestination
       );
       creep.say("⌛️");
       resetDestination(creep);
