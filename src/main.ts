@@ -1,3 +1,4 @@
+//ToDo: lower the CPU usage
 //ToDo: less move parts & more roads
 
 // When compiling TS to JS and bundling with rollup, the line numbers and file names in error messages change
@@ -244,10 +245,12 @@ const strictEntries = <T extends Record<string, any>>(object: T): [keyof T, T[ke
 function bodyByRatio(ratios: Partial<Record<BodyPartConstant, number>>, maxCost: number) {
   let partAmounts: Partial<Record<BodyPartConstant, number>> = {};
   let cost = 0;
+  let partCount = 0;
 
   strictEntries(ratios).forEach(([part, _]) => {
     partAmounts[part] = 1;
     cost += BODYPART_COST[part];
+    partCount++;
   });
 
   for (;;) {
@@ -257,6 +260,8 @@ function bodyByRatio(ratios: Partial<Record<BodyPartConstant, number>>, maxCost:
     if (cost + BODYPART_COST[nextPart] > maxCost) break;
     partAmounts[nextPart] = (partAmounts[nextPart] || 0) + 1;
     cost += BODYPART_COST[nextPart];
+    partCount++;
+    if (partCount >= 50) break;
   }
 
   let body: BodyPartConstant[] = [];
@@ -772,40 +777,6 @@ function getEnergyDestinations() {
   }
 
   return targets;
-}
-
-function getEnergySources(
-  myMinTransfer: number,
-  allowStorage = false,
-  allowAnyLink = false,
-  allowSource = false
-) {
-  let sources: any[] = [];
-
-  for (const i in Game.rooms) {
-    let room = Game.rooms[i];
-    sources = sources
-      .concat(room.find(FIND_DROPPED_RESOURCES).filter(resource => getEnergy(resource) >= myMinTransfer))
-      .concat(room.find(FIND_TOMBSTONES).filter(tomb => getEnergy(tomb) >= myMinTransfer))
-      .concat(room.find(FIND_RUINS).filter(ruin => getEnergy(ruin) >= myMinTransfer))
-      .concat(
-        room
-          .find(FIND_STRUCTURES)
-          .filter(
-            structure =>
-              (structure.structureType === STRUCTURE_CONTAINER ||
-                (structure.structureType === STRUCTURE_STORAGE && allowStorage) ||
-                (isLink(structure) && allowAnyLink) ||
-                isDownstreamLink(structure)) &&
-              getEnergy(structure) >= myMinTransfer
-          )
-      );
-    if (allowSource && canHarvestInRoom(room)) {
-      sources = sources.concat(room.find(FIND_SOURCES_ACTIVE));
-    }
-  }
-
-  return sources;
 }
 
 function getEnergySourceTask(
@@ -1833,13 +1804,12 @@ function spawnCreep(
 
   if (!body || bodyCost(body) > spawn.room.energyAvailable) return;
 
-  if (
-    body &&
-    spawn.spawnCreep(body, name, {
-      memory: initialCreepMemory(roleToSpawn, undefined, undefined, spawn.pos),
-      energyStructures: energyStructures
-    }) === OK
-  ) {
+  let outcome = spawn.spawnCreep(body, name, {
+    memory: initialCreepMemory(roleToSpawn, undefined, undefined, spawn.pos),
+    energyStructures: energyStructures
+  });
+
+  if (outcome === OK) {
     msg(
       spawn,
       "Spawning: " +
@@ -1853,6 +1823,8 @@ function spawnCreep(
         "/" +
         spawn.room.energyCapacityAvailable
     );
+  } else {
+    msg(spawn, "Failed to spawn creep: " + outcome);
   }
 }
 
