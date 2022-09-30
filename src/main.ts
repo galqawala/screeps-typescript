@@ -1568,7 +1568,7 @@ function handleSpawn(spawn: StructureSpawn) {
     } else if (harvestersNeeded(spawn.pos)) {
       spawnHarvester(spawn);
       return;
-    } else if (getCreepCountByRole("reserver") < getReservableControllers().length) {
+    } else if (getCreepCountByRole("reserver", false, 200) < getReservableControllers().length) {
       roleToSpawn = "reserver";
     } else if (getCreepCountByRole("explorer") <= 0) {
       roleToSpawn = "explorer";
