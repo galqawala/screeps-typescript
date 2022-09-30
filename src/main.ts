@@ -1571,6 +1571,7 @@ function handleSpawn(spawn: StructureSpawn) {
   if (!spawn.spawning) {
     let roleToSpawn: Role;
     let body;
+    let minBudget = 0;
 
     if (getCreepCountByRole("spawner") < Object.keys(Game.creeps).length / 9) {
       roleToSpawn = "spawner";
@@ -1586,6 +1587,7 @@ function handleSpawn(spawn: StructureSpawn) {
       body = [MOVE];
     } else if (room.energyAvailable >= room.energyCapacityAvailable) {
       roleToSpawn = "worker";
+      minBudget = 300;
     } else {
       return;
     }
@@ -1595,7 +1597,9 @@ function handleSpawn(spawn: StructureSpawn) {
         (aggregated, item) => aggregated + (item.memory.role === roleToSpawn ? creepCost(item) : 0),
         0 /*initial*/
       ) || 0;
-    let budget = Math.floor(Math.min(costOfCurrentCreepsInTheRole, room.energyCapacityAvailable));
+    let budget = Math.floor(
+      Math.min(Math.max(costOfCurrentCreepsInTheRole, minBudget), room.energyCapacityAvailable)
+    );
 
     if (room.energyAvailable >= budget) {
       spawnCreep(spawn, roleToSpawn, budget, body);
@@ -1815,7 +1819,7 @@ function spawnCreep(
   Each MOVE body part decreases fatigue points by 2 per tick.
   The creep cannot move when its fatigue is greater than zero.    */
   if (!body) {
-    if (roleToSpawn === "worker") body = bodyByRatio({ move: 4, work: 3, carry: 1 }, energyAvailable);
+    if (roleToSpawn === "worker") body = bodyByRatio({ move: 3, work: 4, carry: 1 }, energyAvailable);
     else if (roleToSpawn === "carrier" || roleToSpawn === "spawner")
       body = bodyByRatio({ move: 1, carry: 1 }, energyAvailable);
     else if (roleToSpawn === "reserver") body = bodyByRatio({ move: 1, claim: 1 }, energyAvailable);
