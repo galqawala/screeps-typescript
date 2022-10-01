@@ -175,7 +175,7 @@ function getReservableControllers() {
     controllers.push(controller);
   }
   return controllers
-    .map(value => ({ value, sort: Math.random() }))
+    .map(value => ({ value, sort: value.reservation?.ticksToEnd || 0 }))
     .sort((a, b) => a.sort - b.sort)
     .map(({ value }) => value);
 }
@@ -803,7 +803,7 @@ function getNewDestination(creep: Creep) {
   } else if (role === "spawner") {
     task = getTaskForSpawner(creep);
   } else if (role === "reserver") {
-    const destination = getClosest(creep.pos, getReservableControllers());
+    const destination = getReservableControllers()[0];
     if (destination) task = { action: "reserveController", destination };
   } else if (role === "explorer") {
     const destination = getExit(creep.pos, !creep.ticksToLive || creep.ticksToLive > 150, false);
