@@ -1106,14 +1106,18 @@ function postAction(creep: Creep, destination: Destination, actionOutcome: Scree
       creep.say("😓");
       roadNeeded(creep.pos);
     } else if (actionOutcome === ERR_NOT_OWNER) {
-      creep.say("👮");
-      resetDestination(creep);
-      const exit = getExit(creep.pos);
-      if (exit) {
-        creep.memory.destination = exit;
-        creep.memory.destinationSetTime = Game.time;
-      }
+      handleNotOwner(creep);
     }
+  }
+}
+
+function handleNotOwner(creep: Creep) {
+  creep.say("👮");
+  resetDestination(creep);
+  const exit = getExit(creep.pos);
+  if (exit) {
+    creep.memory.destination = exit;
+    creep.memory.destinationSetTime = Game.time;
   }
 }
 
@@ -2220,11 +2224,11 @@ function hexToHSL(hex: string) {
 function handleCreep(creep: Creep) {
   if (creep.spawning) return;
 
-  let destination = getDestinationFromMemory(creep);
-
   if (creep.memory.awaitingDeliveryFrom && !Game.creeps[creep.memory.awaitingDeliveryFrom]) {
     creep.memory.awaitingDeliveryFrom = undefined; // no longer await delivery from a dead creep
   }
+
+  let destination = getDestinationFromMemory(creep);
 
   // create a new plan if situation requires
   if (!destination && (!creep.memory.awaitingDeliveryFrom || atEdge(creep.pos))) {
@@ -2245,22 +2249,22 @@ function handleCreep(creep: Creep) {
       postAction(creep, destination, actionOutcome);
     }
 
-    if (cantGetToDestination(creep, destination)) {
-      creep.say("⌛️");
-      resetDestination(creep);
-      memorizeBlockedObject(creep, destination);
-    }
+    handleBlockedDestination(creep, destination);
   }
 
   memorizeCreepState(creep, destination);
 }
 
-function cantGetToDestination(creep: Creep, destination: Destination) {
-  return (
+function handleBlockedDestination(creep: Creep, destination: Destination) {
+  if (
     (creep.memory.timeApproachedDestination > (creep.memory.lastOkActionTime || 0) ||
       (destination instanceof RoomPosition && creep.memory.rangeToDestination > 0)) &&
     creep.memory.timeApproachedDestination < Game.time - 25
-  );
+  ) {
+    creep.say("⌛️");
+    resetDestination(creep);
+    memorizeBlockedObject(creep, destination);
+  }
 }
 
 function getTaskForWorker(creep: Creep) {
