@@ -1624,7 +1624,9 @@ function harvestersNeeded(pos: RoomPosition) {
 function getSourceToHarvest(pos: RoomPosition) {
   let sources: Source[] = [];
   for (const r in Game.rooms) {
-    sources = sources.concat(Game.rooms[r].find(FIND_SOURCES).filter(source => !sourceHasHarvester(source)));
+    let room = Game.rooms[r];
+    if (!canHarvestInRoom(room)) continue;
+    sources = sources.concat(room.find(FIND_SOURCES).filter(source => !sourceHasHarvester(source)));
   }
   if (sources.length < 1) return;
   let source = pos.findClosestByPath(sources); //same room
@@ -1669,7 +1671,9 @@ function spawnHarvester(spawn: StructureSpawn) {
         "/" +
         spawn.room.energyAvailable +
         "/" +
-        spawn.room.energyCapacityAvailable
+        spawn.room.energyCapacityAvailable +
+        " for " +
+        harvestPos
     );
   }
   return true;
