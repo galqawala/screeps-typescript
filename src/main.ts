@@ -106,6 +106,11 @@ declare global {
     score: number;
     target: Creep | PowerCreep | AnyOwnedStructure | AnyStructure;
   }
+
+  interface ScoredPos {
+    score: number;
+    pos: RoomPosition;
+  }
 }
 
 // Type guards
@@ -1003,10 +1008,6 @@ function nonWorkerTakeAction(creep: Creep, destination: Destination) {
     msg(creep, "doesn't have action for destination: " + destination.toString(), true);
   }
 
-  if (actionOutcome !== undefined) {
-    creep.memory.lastActionOutcome = actionOutcome;
-    if (actionOutcome === OK) creep.memory.lastOkActionTime = Game.time;
-  }
   return actionOutcome;
 }
 
@@ -1044,10 +1045,6 @@ function workerTakeAction(creep: Creep, destination: Destination) {
     msg(creep, "doesn't have action for destination: " + destination.toString(), true);
   }
 
-  if (actionOutcome !== undefined) {
-    creep.memory.lastActionOutcome = actionOutcome;
-    if (actionOutcome === OK) creep.memory.lastOkActionTime = Game.time;
-  }
   return actionOutcome;
 }
 
@@ -1494,20 +1491,8 @@ function getPosForStorage(room: Room) {
   if (!room) return;
   const controller = room.controller;
   if (!controller) return;
-
-  let targetPos;
-  const linkFilter = {
-    filter: { structureType: STRUCTURE_LINK }
-  };
-  const link = controller.pos.findClosestByRange(FIND_MY_STRUCTURES, linkFilter);
-  if (link) {
-    targetPos = link.pos;
-  } else {
-    const site = controller.pos.findClosestByRange(FIND_MY_CONSTRUCTION_SITES, linkFilter);
-    if (site) targetPos = site.pos;
-  }
+  const targetPos = getPosOfLinkByTheController(controller);
   if (!targetPos) return;
-  if (targetPos.getRangeTo(controller.pos) > 6) return;
 
   let bestScore = Number.NEGATIVE_INFINITY;
   let bestPos;
@@ -1530,20 +1515,29 @@ function getPosForStorage(room: Room) {
   return bestPos;
 }
 
+function getPosOfLinkByTheController(controller: StructureController) {
+  let targetPos;
+  const linkFilter = {
+    filter: { structureType: STRUCTURE_LINK }
+  };
+  const link = controller.pos.findClosestByRange(FIND_MY_STRUCTURES, linkFilter);
+  if (link) {
+    targetPos = link.pos;
+  } else {
+    const site = controller.pos.findClosestByRange(FIND_MY_CONSTRUCTION_SITES, linkFilter);
+    if (site) targetPos = site.pos;
+  }
+  if (!targetPos) return;
+  if (targetPos.getRangeTo(controller.pos) > 6) return;
+  return targetPos;
+}
+
 function getPrimaryPosForLink(room: Room) {
   // around controller and sources
   const range = 3;
   const terrain = new Room.Terrain(room.name);
 
-  let placesRequiringLink: (StructureController | Source)[] = [];
-  if (room.controller) placesRequiringLink.push(room.controller);
-  placesRequiringLink = placesRequiringLink.concat(
-    room
-      .find(FIND_SOURCES)
-      .map(value => ({ value, sort: Math.random() }))
-      .sort((a, b) => a.sort - b.sort)
-      .map(({ value }) => value)
-  );
+  const placesRequiringLink: (StructureController | Source)[] = getPlacesRequiringLink(room);
 
   for (const target of placesRequiringLink) {
     if (target && !hasStructureInRange(target.pos, STRUCTURE_LINK, 6, true)) {
@@ -1569,6 +1563,19 @@ function getPrimaryPosForLink(room: Room) {
     }
   }
   return;
+}
+
+function getPlacesRequiringLink(room: Room) {
+  let placesRequiringLink: (StructureController | Source)[] = [];
+  if (room.controller) placesRequiringLink.push(room.controller);
+  placesRequiringLink = placesRequiringLink.concat(
+    room
+      .find(FIND_SOURCES)
+      .map(value => ({ value, sort: Math.random() }))
+      .sort((a, b) => a.sort - b.sort)
+      .map(({ value }) => value)
+  );
+  return placesRequiringLink;
 }
 
 function countWorkSpotsAround(pos: RoomPosition, upgrade: boolean) {
@@ -1655,9 +1662,34 @@ function getPosForConstruction(room: Room, structureType: StructureConstant) {
   if (structureType === STRUCTURE_STORAGE) return getPosForStorage(room);
   if (structureType === STRUCTURE_CONTAINER) return getPosForContainer(room);
 
-  const scores = room.memory.constructionSiteScore;
   let bestScore = Number.NEGATIVE_INFINITY;
   let bestPos;
+  const sites = getPotentialConstructionSites(room);
+
+  for (const { pos, score } of sites) {
+    let finalScore = score;
+    if (structureType === STRUCTURE_LINK) {
+      finalScore = adjustConstructionSiteScoreForLink(score, pos);
+    } else if (structureType === STRUCTURE_EXTENSION) {
+      // distance to source decreases the score
+      const extensionPenalty = pos.findClosestByRange(FIND_SOURCES);
+      if (extensionPenalty) {
+        finalScore /= pos.getRangeTo(extensionPenalty);
+      }
+    }
+
+    if (bestScore < finalScore) {
+      bestScore = finalScore;
+      bestPos = pos;
+    }
+  }
+
+  return bestPos;
+}
+
+function getPotentialConstructionSites(room: Room) {
+  const scores = room.memory.constructionSiteScore;
+  const sites: ScoredPos[] = [];
 
   for (let x = 2; x <= 47; x++) {
     for (let y = 2; y <= 47; y++) {
@@ -1666,26 +1698,15 @@ function getPosForConstruction(room: Room, structureType: StructureConstant) {
       const pos = room.getPositionAt(x, y);
       if (!pos) continue;
       if (!isPosSuitableForConstruction(pos)) continue;
-      let score = scores[x][y];
-
-      if (structureType === STRUCTURE_LINK) {
-        score = adjustConstructionSiteScoreForLink(score, pos);
-      } else if (structureType === STRUCTURE_EXTENSION) {
-        // distance to source decreases the score
-        const extensionPenalty = pos.findClosestByRange(FIND_SOURCES);
-        if (extensionPenalty) {
-          score /= pos.getRangeTo(extensionPenalty);
-        }
-      }
-
-      if (bestScore < score) {
-        bestScore = score;
-        bestPos = pos;
-      }
+      const score = scores[x][y];
+      if (!score) continue;
+      const scoredPos: ScoredPos = { score, pos };
+      if (!scoredPos) continue;
+      sites.push(scoredPos);
     }
   }
 
-  return bestPos;
+  return sites;
 }
 
 function isPosSuitableForConstruction(pos: RoomPosition) {
@@ -1854,7 +1875,7 @@ function spawnMsg(
   roleToSpawn: Role,
   name: string,
   body: BodyPartConstant[],
-  harvestPos: RoomPosition
+  harvestPos: RoomPosition | undefined
 ) {
   msg(
     spawn,
@@ -1869,7 +1890,7 @@ function spawnMsg(
       "/" +
       spawn.room.energyCapacityAvailable.toString() +
       " for " +
-      harvestPos.toString()
+      (harvestPos ? harvestPos.toString() : "")
   );
 }
 
@@ -2027,19 +2048,7 @@ function spawnCreep(
   });
 
   if (outcome === OK) {
-    msg(
-      spawn,
-      "Spawning: " +
-        roleToSpawn +
-        " (" +
-        name +
-        "), cost: " +
-        bodyCost(body).toString() +
-        "/" +
-        energyAvailable.toString() +
-        "/" +
-        spawn.room.energyCapacityAvailable.toString()
-    );
+    spawnMsg(spawn, roleToSpawn, name, body, undefined);
   } else {
     msg(spawn, "Failed to spawn creep: " + outcome.toString());
   }
@@ -2230,14 +2239,13 @@ function handleCreep(creep: Creep) {
     } else {
       actionOutcome = nonWorkerTakeAction(creep, destination);
     }
+    if (actionOutcome !== undefined) {
+      creep.memory.lastActionOutcome = actionOutcome;
+      if (actionOutcome === OK) creep.memory.lastOkActionTime = Game.time;
+      postAction(creep, destination, actionOutcome);
+    }
 
-    if (actionOutcome) postAction(creep, destination, actionOutcome);
-
-    if (
-      (creep.memory.timeApproachedDestination > (creep.memory.lastOkActionTime || 0) ||
-        (destination instanceof RoomPosition && creep.memory.rangeToDestination > 0)) &&
-      creep.memory.timeApproachedDestination < Game.time - 25
-    ) {
+    if (cantGetToDestination(creep, destination)) {
       creep.say("⌛️");
       resetDestination(creep);
       memorizeBlockedObject(creep, destination);
@@ -2245,6 +2253,14 @@ function handleCreep(creep: Creep) {
   }
 
   memorizeCreepState(creep, destination);
+}
+
+function cantGetToDestination(creep: Creep, destination: Destination) {
+  return (
+    (creep.memory.timeApproachedDestination > (creep.memory.lastOkActionTime || 0) ||
+      (destination instanceof RoomPosition && creep.memory.rangeToDestination > 0)) &&
+    creep.memory.timeApproachedDestination < Game.time - 25
+  );
 }
 
 function getTaskForWorker(creep: Creep) {
