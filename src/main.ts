@@ -1,15 +1,3 @@
-/*
-ToDo: use this instead of " as ":
-
-function keys<T extends Record<any, unknown>>(record: T): (keyof T)[] {
-  return Object.keys(record);
-}
-
-If you don't want to wrap `Object.keys`, I think this should work too:
-
-const keys: <T extends Record<any, unknown>>(record: T) => Array<keyof T> = Object.keys;
-*/
-
 //  ToDo: less move parts & more roads
 //  ToDo: more spawns for simultaneous spawning
 //  ToDo: destroy invader cores
@@ -177,6 +165,7 @@ function getReservableControllers() {
     if (!controller) continue;
     if (controller.owner) continue;
     if (reservationOk(controller)) continue;
+    if (reservedByOthers(controller)) continue;
     controllers.push(controller);
   }
   return controllers
@@ -191,6 +180,13 @@ function reservationOk(controller: StructureController) {
   if (reservation.username !== Memory.username) return false;
   if (reservation.ticksToEnd < 2500) return false;
   return true;
+}
+
+function reservedByOthers(controller: StructureController) {
+  const reservation = controller.reservation;
+  if (!reservation) return false;
+  if (reservation.username !== Memory.username) return true;
+  return false;
 }
 
 function recycleCreep(creep: Creep) {
