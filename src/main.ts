@@ -225,7 +225,6 @@ function handleHarvester(creep: Creep) {
   // move
   if (creep.name in Game.flags) {
     const flag = Game.flags[creep.name];
-    const pathColor = hashColor(creep.memory.role);
     creep.moveTo(flag, { visualizePathStyle: { stroke: hashColor(creep.memory.role) } });
   }
   if (!isEmpty(creep)) {
@@ -1142,7 +1141,7 @@ function roadNeeded(pos: RoomPosition) {
     const flag = Game.flags[flagName];
     if (!flag.memory.roadScore) flag.memory.roadScore = 0;
     flag.memory.roadScore++;
-    flag.setColor(color1, color2);
+    flag.setColor(color1, color2); /* handles the first setColor or setPosition per tick! */
   } else {
     pos.createFlag(flagName, color1, color2);
   }
@@ -1303,8 +1302,7 @@ function workerSpendEnergyTask(creep: Creep) {
       const color2 = COLOR_PURPLE;
       if (flagName in Game.flags) {
         const flag = Game.flags[flagName];
-        flag.setPosition(pos);
-        flag.setColor(color1, color2);
+        flag.setPosition(pos); /* handles the first setColor or setPosition per tick! */
       } else {
         pos.createFlag(flagName, color1, color2);
       }
@@ -1920,8 +1918,7 @@ function setDestinationFlag(flagName: string, pos: RoomPosition) {
   const color2 = COLOR_GREEN;
   if (flagName in Game.flags) {
     const flag = Game.flags[flagName];
-    flag.setColor(color1, color2);
-    flag.setPosition(pos);
+    flag.setPosition(pos); /* handles the first setColor or setPosition per tick! */
   } else {
     pos.createFlag(flagName, color1, color2);
   }
