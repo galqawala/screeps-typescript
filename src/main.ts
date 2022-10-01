@@ -225,20 +225,7 @@ function handleHarvester(creep: Creep) {
     creep.moveTo(flag, { visualizePathStyle: { stroke: pathColor } });
   }
   if (!isEmpty(creep)) {
-    // repair my structures
-    const myTarget = creep.pos.findClosestByPath(
-      creep.pos
-        .findInRange(FIND_MY_STRUCTURES, 3)
-        .filter(myStructure => myStructure.my !== false && myStructure.hits < myStructure.hitsMax)
-    );
-    if (myTarget) creep.repair(myTarget);
-    // repair unowned structures
-    const target = creep.pos.findClosestByPath(
-      creep.pos
-        .findInRange(FIND_STRUCTURES, 3)
-        .filter(structure => !isOwnedStructure(structure) && structure.hits < structure.hitsMax)
-    );
-    if (target) creep.repair(target);
+    repair(creep);
     // build
     const site = creep.pos.findClosestByPath(creep.pos.findInRange(FIND_MY_CONSTRUCTION_SITES, 3));
     if (site) creep.build(site);
@@ -258,6 +245,23 @@ function handleHarvester(creep: Creep) {
   }
   // done
   return true;
+}
+
+function repair(creep: Creep) {
+  // repair my structures
+  const myTarget = creep.pos.findClosestByPath(
+    creep.pos
+      .findInRange(FIND_MY_STRUCTURES, 3)
+      .filter(myStructure => myStructure.my !== false && myStructure.hits < myStructure.hitsMax)
+  );
+  if (myTarget) creep.repair(myTarget);
+  // repair unowned structures
+  const target = creep.pos.findClosestByPath(
+    creep.pos
+      .findInRange(FIND_STRUCTURES, 3)
+      .filter(structure => !isOwnedStructure(structure) && structure.hits < structure.hitsMax)
+  );
+  if (target) creep.repair(target);
 }
 
 function unloadCreep(creep: Creep) {
@@ -968,9 +972,45 @@ function getEnergyInRoom(
   return sources;
 }
 
-function takeAction(creep: Creep, destination: Destination) {
+function nonWorkerTakeAction(creep: Creep, destination: Destination) {
   let actionOutcome;
+  if (!destination) return;
 
+  if (
+    creep.memory.action === "withdraw" &&
+    (destination instanceof Structure || destination instanceof Tombstone || destination instanceof Ruin)
+  ) {
+    actionOutcome = creep.withdraw(destination, RESOURCE_ENERGY);
+    if (actionOutcome === OK) resetSpecificDestinationFromCreeps(destination);
+  } else if (
+    creep.memory.action === "transfer" &&
+    (destination instanceof Creep || destination instanceof Structure)
+  ) {
+    actionOutcome = transfer(creep, destination);
+    if (actionOutcome === OK) resetSpecificDestinationFromCreeps(destination);
+  } else if (creep.memory.action === "pickup" && destination instanceof Resource) {
+    actionOutcome = creep.pickup(destination);
+    if (actionOutcome === OK) resetSpecificDestinationFromCreeps(destination);
+  } else if (creep.memory.action === "moveTo") {
+    const pathColor = hashColor(creep.memory.role);
+    actionOutcome = creep.moveTo(destination, { visualizePathStyle: { stroke: pathColor } });
+  } else if (creep.memory.action === "reserveController" && destination instanceof StructureController) {
+    actionOutcome = creep.reserveController(destination);
+  } else if (creep.memory.action) {
+    msg(creep, "can't handle action: " + creep.memory.action, true);
+  } else if (destination) {
+    msg(creep, "doesn't have action for destination: " + destination.toString(), true);
+  }
+
+  if (actionOutcome !== undefined) {
+    creep.memory.lastActionOutcome = actionOutcome;
+    if (actionOutcome === OK) creep.memory.lastOkActionTime = Game.time;
+  }
+  return actionOutcome;
+}
+
+function workerTakeAction(creep: Creep, destination: Destination) {
+  let actionOutcome;
   if (!destination) return;
 
   if (creep.memory.action === "repair" && destination instanceof Structure) {
@@ -989,12 +1029,6 @@ function takeAction(creep: Creep, destination: Destination) {
     if (actionOutcome === OK) resetSpecificDestinationFromCreeps(destination);
   } else if (creep.memory.action === "upgradeController" && destination instanceof StructureController) {
     actionOutcome = creep.upgradeController(destination);
-  } else if (
-    creep.memory.action === "harvest" &&
-    (destination instanceof Source || destination instanceof Mineral || destination instanceof Deposit)
-  ) {
-    actionOutcome = creep.harvest(destination);
-    Memory.harvestersNeeded = true; // we need dedicated harvesters
   } else if (creep.memory.action === "pickup" && destination instanceof Resource) {
     actionOutcome = creep.pickup(destination);
     if (actionOutcome === OK) resetSpecificDestinationFromCreeps(destination);
@@ -1003,12 +1037,10 @@ function takeAction(creep: Creep, destination: Destination) {
     actionOutcome = creep.moveTo(destination, { visualizePathStyle: { stroke: pathColor } });
   } else if (creep.memory.action === "build" && destination instanceof ConstructionSite) {
     actionOutcome = creep.build(destination);
-  } else if (creep.memory.action === "reserveController" && destination instanceof StructureController) {
-    actionOutcome = creep.reserveController(destination);
   } else if (creep.memory.action) {
-    msg(creep, "takeAction() can't handle action: " + creep.memory.action, true);
+    msg(creep, "can't handle action: " + creep.memory.action, true);
   } else if (destination) {
-    msg(creep, "takeAction() doesn't have action for destination: " + destination.toString(), true);
+    msg(creep, "doesn't have action for destination: " + destination.toString(), true);
   }
 
   if (actionOutcome !== undefined) {
@@ -1074,18 +1106,7 @@ function postAction(creep: Creep, destination: Destination, actionOutcome: Scree
         memorizeBlockedObject(creep, destination);
     } else if (actionOutcome === ERR_TIRED) {
       creep.say("😓");
-      const flagName =
-        creep.pos.roomName + "_" + creep.pos.x.toString() + "_" + creep.pos.y.toString() + "_RoadNeeded";
-      const color1 = COLOR_WHITE;
-      const color2 = COLOR_BROWN;
-      if (flagName in Game.flags) {
-        const flag = Game.flags[flagName];
-        if (!flag.memory.roadScore) flag.memory.roadScore = 0;
-        flag.memory.roadScore++;
-        flag.setColor(color1, color2);
-      } else {
-        creep.pos.createFlag(flagName, color1, color2);
-      }
+      roadNeeded(creep.pos);
     } else if (actionOutcome === ERR_NOT_OWNER) {
       creep.say("👮");
       resetDestination(creep);
@@ -1095,6 +1116,20 @@ function postAction(creep: Creep, destination: Destination, actionOutcome: Scree
         creep.memory.destinationSetTime = Game.time;
       }
     }
+  }
+}
+
+function roadNeeded(pos: RoomPosition) {
+  const flagName = pos.roomName + "_" + pos.x.toString() + "_" + pos.y.toString() + "_RoadNeeded";
+  const color1 = COLOR_WHITE;
+  const color2 = COLOR_BROWN;
+  if (flagName in Game.flags) {
+    const flag = Game.flags[flagName];
+    if (!flag.memory.roadScore) flag.memory.roadScore = 0;
+    flag.memory.roadScore++;
+    flag.setColor(color1, color2);
+  } else {
+    pos.createFlag(flagName, color1, color2);
   }
 }
 
@@ -2176,7 +2211,13 @@ function handleCreep(creep: Creep) {
   }
 
   if (destination) {
-    const actionOutcome = takeAction(creep, destination);
+    let actionOutcome;
+    if (creep.memory.role === "worker") {
+      actionOutcome = workerTakeAction(creep, destination);
+    } else {
+      actionOutcome = nonWorkerTakeAction(creep, destination);
+    }
+
     if (actionOutcome) postAction(creep, destination, actionOutcome);
 
     if (
