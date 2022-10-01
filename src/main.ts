@@ -210,8 +210,7 @@ function recycleCreep(creep: Creep) {
     if (creep.pos.getRangeTo(destination) <= 1 && destination instanceof StructureSpawn) {
       destination.recycleCreep(creep);
     } else {
-      const pathColor = hashColor(creep.memory.role);
-      creep.moveTo(destination, { visualizePathStyle: { stroke: pathColor } });
+      creep.moveTo(destination, { visualizePathStyle: { stroke: hashColor(creep.memory.role) } });
     }
   }
 }
@@ -227,7 +226,7 @@ function handleHarvester(creep: Creep) {
   if (creep.name in Game.flags) {
     const flag = Game.flags[creep.name];
     const pathColor = hashColor(creep.memory.role);
-    creep.moveTo(flag, { visualizePathStyle: { stroke: pathColor } });
+    creep.moveTo(flag, { visualizePathStyle: { stroke: hashColor(creep.memory.role) } });
   }
   if (!isEmpty(creep)) {
     repair(creep);
@@ -986,20 +985,18 @@ function nonWorkerTakeAction(creep: Creep, destination: Destination) {
     creep.memory.action === "withdraw" &&
     (destination instanceof Structure || destination instanceof Tombstone || destination instanceof Ruin)
   ) {
-    actionOutcome = creep.withdraw(destination, RESOURCE_ENERGY);
-    if (actionOutcome === OK) resetSpecificDestinationFromCreeps(destination);
+    actionOutcome = withdraw(creep, destination);
   } else if (
     creep.memory.action === "transfer" &&
     (destination instanceof Creep || destination instanceof Structure)
   ) {
     actionOutcome = transfer(creep, destination);
-    if (actionOutcome === OK) resetSpecificDestinationFromCreeps(destination);
   } else if (creep.memory.action === "pickup" && destination instanceof Resource) {
-    actionOutcome = creep.pickup(destination);
-    if (actionOutcome === OK) resetSpecificDestinationFromCreeps(destination);
+    actionOutcome = pickup(creep, destination);
   } else if (creep.memory.action === "moveTo") {
-    const pathColor = hashColor(creep.memory.role);
-    actionOutcome = creep.moveTo(destination, { visualizePathStyle: { stroke: pathColor } });
+    actionOutcome = creep.moveTo(destination, {
+      visualizePathStyle: { stroke: hashColor(creep.memory.role) }
+    });
   } else if (creep.memory.action === "reserveController" && destination instanceof StructureController) {
     actionOutcome = creep.reserveController(destination);
   } else if (creep.memory.action) {
@@ -1009,6 +1006,15 @@ function nonWorkerTakeAction(creep: Creep, destination: Destination) {
   }
 
   return actionOutcome;
+}
+
+function withdraw(creep: Creep, destination: Destination) {
+  if (destination instanceof Structure || destination instanceof Tombstone || destination instanceof Ruin) {
+    const actionOutcome = creep.withdraw(destination, RESOURCE_ENERGY);
+    if (actionOutcome === OK) resetSpecificDestinationFromCreeps(destination);
+    return actionOutcome;
+  }
+  return;
 }
 
 function workerTakeAction(creep: Creep, destination: Destination) {
@@ -1021,22 +1027,20 @@ function workerTakeAction(creep: Creep, destination: Destination) {
     creep.memory.action === "withdraw" &&
     (destination instanceof Structure || destination instanceof Tombstone || destination instanceof Ruin)
   ) {
-    actionOutcome = creep.withdraw(destination, RESOURCE_ENERGY);
-    if (actionOutcome === OK) resetSpecificDestinationFromCreeps(destination);
+    actionOutcome = withdraw(creep, destination);
   } else if (
     creep.memory.action === "transfer" &&
     (destination instanceof Creep || destination instanceof Structure)
   ) {
     actionOutcome = transfer(creep, destination);
-    if (actionOutcome === OK) resetSpecificDestinationFromCreeps(destination);
   } else if (creep.memory.action === "upgradeController" && destination instanceof StructureController) {
     actionOutcome = creep.upgradeController(destination);
   } else if (creep.memory.action === "pickup" && destination instanceof Resource) {
-    actionOutcome = creep.pickup(destination);
-    if (actionOutcome === OK) resetSpecificDestinationFromCreeps(destination);
+    actionOutcome = pickup(creep, destination);
   } else if (creep.memory.action === "moveTo") {
-    const pathColor = hashColor(creep.memory.role);
-    actionOutcome = creep.moveTo(destination, { visualizePathStyle: { stroke: pathColor } });
+    actionOutcome = creep.moveTo(destination, {
+      visualizePathStyle: { stroke: hashColor(creep.memory.role) }
+    });
   } else if (creep.memory.action === "build" && destination instanceof ConstructionSite) {
     actionOutcome = creep.build(destination);
   } else if (creep.memory.action) {
@@ -1046,6 +1050,15 @@ function workerTakeAction(creep: Creep, destination: Destination) {
   }
 
   return actionOutcome;
+}
+
+function pickup(creep: Creep, destination: Destination) {
+  if (destination instanceof Resource) {
+    const actionOutcome = creep.pickup(destination);
+    if (actionOutcome === OK) resetSpecificDestinationFromCreeps(destination);
+    return actionOutcome;
+  }
+  return;
 }
 
 function resetSpecificDestinationFromCreeps(destination: Destination) {
@@ -1076,6 +1089,7 @@ function transfer(creep: Creep, destination: Creep | Structure<StructureConstant
       resetDestination(destination);
     }
   }
+  if (actionOutcome === OK) resetSpecificDestinationFromCreeps(destination);
   return actionOutcome;
 }
 
@@ -1084,8 +1098,7 @@ function postAction(creep: Creep, destination: Destination, actionOutcome: Scree
     creep.memory.lastOkActionTime = Game.time;
   } else if (destination) {
     if (actionOutcome === ERR_NOT_IN_RANGE && (destination instanceof RoomPosition || "pos" in destination)) {
-      const pathColor = hashColor(creep.memory.role);
-      creep.moveTo(destination, { visualizePathStyle: { stroke: pathColor } });
+      creep.moveTo(destination, { visualizePathStyle: { stroke: hashColor(creep.memory.role) } });
     } else if (actionOutcome === ERR_FULL) {
       resetDestination(creep);
       handleCreep(creep);
@@ -1231,6 +1244,10 @@ function creepsOnWayToPos(pos: RoomPosition) {
     const creep = Game.creeps[i];
     const destination = creep.memory.destination;
     if (destination instanceof RoomPosition && posEquals(destination, pos)) return true;
+  }
+  const flags = pos.lookFor(LOOK_FLAGS);
+  for (const flag of flags) {
+    if (flag.name in Game.creeps) return true;
   }
   return false;
 }
@@ -1893,8 +1910,8 @@ function spawnMsg(
       spawn.room.energyAvailable.toString() +
       "/" +
       spawn.room.energyCapacityAvailable.toString() +
-      " for " +
-      (harvestPos ? harvestPos.toString() : "")
+      " " +
+      (harvestPos ? "for " + harvestPos.toString() : "")
   );
 }
 
@@ -2059,7 +2076,7 @@ function spawnCreep(
 }
 
 function msg(
-  context: StructureSpawn | AnyStructure | Room | Creep | RoomPosition | string,
+  context: StructureSpawn | AnyStructure | Room | Creep | RoomPosition | string | Flag,
   text: string,
   email = false
 ) {
