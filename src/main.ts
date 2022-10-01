@@ -276,16 +276,7 @@ function unloadCreep(creep: Creep) {
   }
   const targetCreep = pos.findClosestByPath(
     // carrier
-    pos
-      .findInRange(FIND_CREEPS, 1)
-      .filter(
-        target =>
-          !isFull(target) &&
-          target.my !== false &&
-          (target.memory.role === "carrier" ||
-            target.memory.role === "spawner" ||
-            target.memory.role === "worker")
-      )
+    pos.findInRange(FIND_CREEPS, 1).filter(wantsEnergy)
   );
   if (targetCreep) {
     creep.transfer(targetCreep, RESOURCE_ENERGY);
@@ -307,6 +298,12 @@ function unloadCreep(creep: Creep) {
     creep.transfer(structure, RESOURCE_ENERGY);
     return;
   }
+}
+
+function wantsEnergy(target: Creep) {
+  return (
+    !isFull(target) && target.my !== false && ["carrier", "spawner", "worker"].includes(target.memory.role)
+  );
 }
 
 function bodyByRatio(ratios: Partial<Record<BodyPartConstant, number>>, maxCost: number) {
@@ -1509,13 +1506,12 @@ function getPosForStorage(room: Room) {
   if (!targetPos) return;
   if (targetPos.getRangeTo(controller.pos) > 6) return;
 
-  const range = 1; // next to the link
   let bestScore = -1;
   let bestPos;
   const terrain = new Room.Terrain(room.name);
 
-  for (let x = targetPos.x - range; x <= targetPos.x + range; x++) {
-    for (let y = targetPos.y - range; y <= targetPos.y + range; y++) {
+  for (let x = targetPos.x - 1; x <= targetPos.x + 1; x++) {
+    for (let y = targetPos.y - 1; y <= targetPos.y + 1; y++) {
       if (x === targetPos.x && y === targetPos.y) continue;
       if (terrain.get(x, y) === TERRAIN_MASK_WALL) continue;
       const pos = new RoomPosition(x, y, room.name);
@@ -1753,19 +1749,26 @@ function handleSpawn(spawn: StructureSpawn) {
       return;
     }
 
-    const costOfCurrentCreepsInTheRole =
-      Object.values(Game.creeps).reduce(
-        (aggregated, item) => aggregated + (item.memory.role === roleToSpawn ? creepCost(item) : 0),
-        0 /* initial*/
-      ) || 0;
     const budget = Math.floor(
-      Math.min(Math.max(costOfCurrentCreepsInTheRole, minBudget), room.energyCapacityAvailable)
+      Math.min(
+        Math.max(getCostOfCurrentCreepsInTheRole(roleToSpawn), minBudget),
+        room.energyCapacityAvailable
+      )
     );
 
     if (room.energyAvailable >= budget) {
       spawnCreep(spawn, roleToSpawn, budget, body);
     }
   }
+}
+
+function getCostOfCurrentCreepsInTheRole(role: Role) {
+  return (
+    Object.values(Game.creeps).reduce(
+      (aggregated, item) => aggregated + (item.memory.role === role ? creepCost(item) : 0),
+      0 /* initial*/
+    ) || 0
+  );
 }
 
 function harvestersNeeded(pos: RoomPosition) {
@@ -1836,23 +1839,33 @@ function spawnHarvester(spawn: StructureSpawn) {
   if (spawn.spawnCreep(body, name, { memory, energyStructures }) === OK) {
     Memory.harvestersNeeded = false;
     setDestinationFlag(name, harvestPos);
-    msg(
-      spawn,
-      "Spawning: " +
-        roleToSpawn +
-        " (" +
-        name +
-        "), cost: " +
-        bodyCost(body).toString() +
-        "/" +
-        spawn.room.energyAvailable.toString() +
-        "/" +
-        spawn.room.energyCapacityAvailable.toString() +
-        " for " +
-        harvestPos.toString()
-    );
+    spawnMsg(spawn, roleToSpawn, name, body, harvestPos);
   }
   return true;
+}
+
+function spawnMsg(
+  spawn: StructureSpawn,
+  roleToSpawn: Role,
+  name: string,
+  body: BodyPartConstant[],
+  harvestPos: RoomPosition
+) {
+  msg(
+    spawn,
+    "Spawning: " +
+      roleToSpawn +
+      " (" +
+      name +
+      "), cost: " +
+      bodyCost(body).toString() +
+      "/" +
+      spawn.room.energyAvailable.toString() +
+      "/" +
+      spawn.room.energyCapacityAvailable.toString() +
+      " for " +
+      harvestPos.toString()
+  );
 }
 
 function setDestinationFlag(flagName: string, pos: RoomPosition) {
@@ -1992,11 +2005,6 @@ function spawnCreep(
   energyAvailable: number,
   body: undefined | BodyPartConstant[]
 ) {
-  /*  https://screeps.com/forum/topic/3044/how-does-each-bodypart-affect-fatigue/4
-  Each body part except MOVE and empty CARRY generate fatigue.
-  1 point per body part on roads, 2 on plain land, 10 on swamp.
-  Each MOVE body part decreases fatigue points by 2 per tick.
-  The creep cannot move when its fatigue is greater than zero.    */
   if (!body) {
     if (roleToSpawn === "worker") body = bodyByRatio({ move: 3, work: 4, carry: 1 }, energyAvailable);
     else if (roleToSpawn === "carrier" || roleToSpawn === "spawner")
@@ -2044,7 +2052,7 @@ function msg(
 }
 
 function nameForCreep(role: Role) {
-  const characters = "ABCDEFGHJKLMNPQRTUVWXYZ2346789";
+  const characters = "ABCDEFHJKLMNPQRTUVWXYZ234789";
   let name = role.substring(0, 1).toUpperCase();
   while (Game.creeps[name]) {
     name += characters.charAt(Math.floor(Math.random() * characters.length));
@@ -2225,13 +2233,6 @@ function handleCreep(creep: Creep) {
         (destination instanceof RoomPosition && creep.memory.rangeToDestination > 0)) &&
       creep.memory.timeApproachedDestination < Game.time - 25
     ) {
-      msg(
-        creep,
-        "timeout! time: " +
-          Game.time.toString() +
-          " timeApproachedDestination: " +
-          creep.memory.timeApproachedDestination.toString()
-      );
       creep.say("⌛️");
       resetDestination(creep);
       memorizeBlockedObject(creep, destination);
