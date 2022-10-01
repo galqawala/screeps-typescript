@@ -13,6 +13,7 @@ declare global {
     | "harvest"
     | "moveTo"
     | "pickup"
+    | "recycleCreep"
     | "repair"
     | "reserveController"
     | "transfer"
@@ -157,9 +158,36 @@ function reservationOk(controller: StructureController) {
   return true;
 }
 
+function recycleCreep(creep: Creep) {
+  creep.say("💀");
+  let destination;
+  let oldDestination = creep.memory.destination;
+  if (typeof oldDestination === "string") destination = Game.getObjectById(oldDestination);
+
+  if (!destination) {
+    let destination = closest(creep.pos, Object.values(Game.spawns));
+    if (destination) {
+      setDestination(creep, destination);
+    }
+  }
+
+  if (destination) {
+    if (creep.pos.getRangeTo(destination) <= 1 && destination instanceof StructureSpawn) {
+      destination.recycleCreep(creep);
+    } else {
+      let pathColor = hashColor(creep.memory.role);
+      creep.moveTo(destination, { visualizePathStyle: { stroke: pathColor } });
+    }
+  }
+}
+
 function handleHarvester(creep: Creep) {
   if (creep.memory.role !== "harvester") return false;
   if (creep.spawning) return true;
+  if (creep.memory.action === "recycleCreep") {
+    recycleCreep(creep);
+    return true;
+  }
   //move
   if (creep.memory.targetPos) {
     let destination = new RoomPosition(
@@ -197,7 +225,10 @@ function handleHarvester(creep: Creep) {
   let sourceId = creep.memory.sourceId;
   if (sourceId) {
     let source = Game.getObjectById(sourceId);
-    if (source) creep.harvest(source);
+    if (source) {
+      let outcome = creep.harvest(source);
+      if (outcome === ERR_NOT_OWNER) creep.memory.action = "recycleCreep";
+    }
   }
   //done
   return true;
@@ -1524,6 +1555,9 @@ function isPosSuitableForConstruction(pos: RoomPosition) {
     let content = contents[i];
     if (content.type !== "terrain") return false;
     if (content.terrain === "wall") return false;
+    if (hasStructureInRange(pos, STRUCTURE_STORAGE, 2, true)) return false;
+    if (hasStructureInRange(pos, STRUCTURE_CONTROLLER, 2, true)) return false;
+    if (hasStructureInRange(pos, STRUCTURE_LINK, 2, true)) return false;
     if (isWorkerSpot(pos)) return false;
   }
   if (pos.findInRange(FIND_SOURCES, 2).length) return false;
