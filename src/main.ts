@@ -687,13 +687,7 @@ function getDestinationFromMemory(creep: Creep) {
       }
     }
 
-    if (
-      creep.memory.action === "repair" &&
-      destination &&
-      "hits" in destination &&
-      destination instanceof Structure &&
-      !needsRepair(destination)
-    ) {
+    if (destination && finishedRepair(creep, destination)) {
       return resetDestination(creep); // abandon the old plan after repair target doesn't need any more repair
     }
 
@@ -709,6 +703,16 @@ function getDestinationFromMemory(creep: Creep) {
   }
 
   return destination;
+}
+
+function finishedRepair(creep: Creep, destination: Destination) {
+  return (
+    creep.memory.action === "repair" &&
+    destination &&
+    "hits" in destination &&
+    destination instanceof Structure &&
+    !needsRepair(destination)
+  );
 }
 
 function destinationRoom(destination: Destination) {
@@ -1492,21 +1496,20 @@ function getPosForStorage(room: Room) {
   if (!controller) return;
 
   let targetPos;
-  const link = controller.pos.findClosestByRange(FIND_MY_STRUCTURES, {
+  const linkFilter = {
     filter: { structureType: STRUCTURE_LINK }
-  });
+  };
+  const link = controller.pos.findClosestByRange(FIND_MY_STRUCTURES, linkFilter);
   if (link) {
     targetPos = link.pos;
   } else {
-    const site = controller.pos.findClosestByRange(FIND_MY_CONSTRUCTION_SITES, {
-      filter: { structureType: STRUCTURE_LINK }
-    });
+    const site = controller.pos.findClosestByRange(FIND_MY_CONSTRUCTION_SITES, linkFilter);
     if (site) targetPos = site.pos;
   }
   if (!targetPos) return;
   if (targetPos.getRangeTo(controller.pos) > 6) return;
 
-  let bestScore = -1;
+  let bestScore = Number.NEGATIVE_INFINITY;
   let bestPos;
   const terrain = new Room.Terrain(room.name);
 
