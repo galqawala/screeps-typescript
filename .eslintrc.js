@@ -1,4 +1,24 @@
 module.exports = {
+  // https://stackoverflow.com/a/64488474
+  parser: '@typescript-eslint/parser',
+  plugins: ["@typescript-eslint"],
+  overrides: [
+    {
+      files: ['*.ts', '*.tsx'], // Your TypeScript files extension
+
+      // As mentioned in the comments, you should extend TypeScript plugins here,
+      // instead of extending them outside the `overrides`.
+      // If you don't want to extend any rules, you don't need an `extends` attribute.
+      extends: [
+        'plugin:@typescript-eslint/recommended',
+        'plugin:@typescript-eslint/recommended-requiring-type-checking',
+      ],
+
+      parserOptions: {
+        project: ['./tsconfig.json'], // Specify it only for TypeScript files
+      },
+    },
+  ],
   env: {
     browser: true,
     es6: true,
@@ -6,20 +26,14 @@ module.exports = {
   },
   extends: [
     "eslint:recommended",
-    "plugin:@typescript-eslint/recommended",
-    "plugin:@typescript-eslint/recommended-requiring-type-checking",
     "plugin:prettier/recommended",
-    "prettier/@typescript-eslint",
     "plugin:import/errors",
-    "plugin:import/warnings",
-    "plugin:import/typescript"
+    "plugin:import/warnings"
   ],
-  parser: "@typescript-eslint/parser",
   parserOptions: {
     project: "tsconfig.json",
     sourceType: "module"
   },
-  plugins: ["@typescript-eslint", "import"],
   settings: {
     "import/parsers": {
       "@typescript-eslint/parser": [".ts", ".tsx"]
@@ -59,10 +73,21 @@ module.exports = {
     "eol-last": "off",
     eqeqeq: ["error", "smart"],
     "guard-for-in": "off",
-    "id-blacklist": ["error", "any", "Number", "number", "String", "string", "Boolean", "boolean", "Undefined"],
+    "id-blacklist": [
+      "error",
+      "any",
+      "Number",
+      "number",
+      "String",
+      "string",
+      "Boolean",
+      "boolean",
+      "Undefined"
+    ],
     "id-match": "error",
     "linebreak-style": "off",
     "max-classes-per-file": ["error", 1],
+    "max-lines-per-function": ["error", 1000],
     "new-parens": "off",
     "newline-per-chained-call": "off",
     "no-bitwise": "error",
@@ -84,6 +109,6 @@ module.exports = {
     "quote-props": "off",
     radix: "error",
     "sort-imports": "warn",
-    "spaced-comment": "error",
+    "spaced-comment": "error"
   }
 };
