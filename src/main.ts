@@ -1742,6 +1742,7 @@ function handleSpawn(spawn: StructureSpawn) {
       return;
     } else if (getCreepCountByRole("reserver", false, 200) < getReservableControllers().length) {
       roleToSpawn = "reserver";
+      minBudget = 1300;
     } else if (getCreepCountByRole("explorer") <= 0) {
       roleToSpawn = "explorer";
       body = [MOVE];
@@ -1752,17 +1753,18 @@ function handleSpawn(spawn: StructureSpawn) {
       return;
     }
 
-    const budget = Math.floor(
-      Math.min(
-        Math.max(getCostOfCurrentCreepsInTheRole(roleToSpawn), minBudget),
-        room.energyCapacityAvailable
-      )
-    );
+    const budget = getSpawnBudget(roleToSpawn, minBudget, room.energyCapacityAvailable);
 
     if (room.energyAvailable >= budget) {
       spawnCreep(spawn, roleToSpawn, budget, body);
     }
   }
+}
+
+function getSpawnBudget(roleToSpawn: Role, minBudget: number, energyCapacityAvailable: number) {
+  return Math.floor(
+    Math.min(Math.max(getCostOfCurrentCreepsInTheRole(roleToSpawn), minBudget), energyCapacityAvailable)
+  );
 }
 
 function getCostOfCurrentCreepsInTheRole(role: Role) {
