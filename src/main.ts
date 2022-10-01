@@ -76,7 +76,6 @@ declare global {
 
   interface CreepMemory {
     role: Role;
-    targetPos: undefined | RoomPosition;
     sourceId: undefined | Id<Source>;
     empty: boolean;
     full: boolean;
@@ -101,6 +100,11 @@ declare global {
   interface Task {
     action: Action;
     destination: Destination;
+  }
+
+  interface ScoredTarget {
+    score: number;
+    target: Creep | PowerCreep | AnyOwnedStructure | AnyStructure;
   }
 }
 
@@ -168,7 +172,6 @@ function getReservableControllers() {
     if (!controller) continue;
     if (controller.owner) continue;
     if (reservationOk(controller)) continue;
-    msg(controller, "could be reserved in " + controller.room.name);
     controllers.push(controller);
   }
   return controllers
@@ -216,14 +219,10 @@ function handleHarvester(creep: Creep) {
     return true;
   }
   // move
-  if (creep.memory.targetPos) {
-    const destination = new RoomPosition(
-      creep.memory.targetPos.x,
-      creep.memory.targetPos.y,
-      creep.memory.targetPos.roomName
-    );
+  if (creep.name in Game.flags) {
+    const flag = Game.flags[creep.name];
     const pathColor = hashColor(creep.memory.role);
-    creep.moveTo(destination, { visualizePathStyle: { stroke: pathColor } });
+    creep.moveTo(flag, { visualizePathStyle: { stroke: pathColor } });
   }
   if (!isEmpty(creep)) {
     // repair my structures
@@ -557,7 +556,7 @@ function handleLinks(room: Room) {
   }
 }
 
-function handleTower(tower: StructureTower) {
+function getTowerTargetCreep(tower: StructureTower) {
   let bestTarget;
   let bestTargetScore = Number.NEGATIVE_INFINITY;
   const creeps = tower.room
@@ -570,24 +569,16 @@ function handleTower(tower: StructureTower) {
       bestTarget = targetCreep;
     }
   }
-  const myStructures = tower.room.find(FIND_MY_STRUCTURES).filter(target => target.hits < target.hitsMax / 2);
-  for (const targetStructure of myStructures) {
-    const score = targetScore(tower, targetStructure);
-    if (bestTargetScore < score) {
-      bestTargetScore = score;
-      bestTarget = targetStructure;
-    }
+  if (bestTarget) {
+    const scoredTarget: ScoredTarget = { score: bestTargetScore, target: bestTarget };
+    return scoredTarget;
   }
-  const structures = tower.room
-    .find(FIND_STRUCTURES)
-    .filter(target => !isOwnedStructure(target) || target.hits < target.hitsMax / 2);
-  for (const targetStructure of structures) {
-    const score = targetScore(tower, targetStructure);
-    if (bestTargetScore < score) {
-      bestTargetScore = score;
-      bestTarget = targetStructure;
-    }
-  }
+  return;
+}
+
+function getTowerTargetPowerCreep(tower: StructureTower) {
+  let bestTarget;
+  let bestTargetScore = Number.NEGATIVE_INFINITY;
   const powerCreeps = tower.room
     .find(FIND_POWER_CREEPS)
     .filter(target => target.my === false || target.hits < target.hitsMax / 2);
@@ -598,8 +589,65 @@ function handleTower(tower: StructureTower) {
       bestTarget = targetPowerCreep;
     }
   }
+  if (bestTarget) {
+    const scoredTarget: ScoredTarget = { score: bestTargetScore, target: bestTarget };
+    return scoredTarget;
+  }
+  return;
+}
 
-  if (!bestTarget) return;
+function getTowerTargetMyStructure(tower: StructureTower) {
+  let bestTarget;
+  let bestTargetScore = Number.NEGATIVE_INFINITY;
+  const myStructures = tower.room.find(FIND_MY_STRUCTURES).filter(target => target.hits < target.hitsMax / 2);
+  for (const targetStructure of myStructures) {
+    const score = targetScore(tower, targetStructure);
+    if (bestTargetScore < score) {
+      bestTargetScore = score;
+      bestTarget = targetStructure;
+    }
+  }
+  if (bestTarget) {
+    const scoredTarget: ScoredTarget = { score: bestTargetScore, target: bestTarget };
+    return scoredTarget;
+  }
+  return;
+}
+
+function getTowerTargetStructure(tower: StructureTower) {
+  let bestTarget;
+  let bestTargetScore = Number.NEGATIVE_INFINITY;
+  const structures = tower.room
+    .find(FIND_STRUCTURES)
+    .filter(target => !isOwnedStructure(target) || target.hits < target.hitsMax / 2);
+  for (const targetStructure of structures) {
+    const score = targetScore(tower, targetStructure);
+    if (bestTargetScore < score) {
+      bestTargetScore = score;
+      bestTarget = targetStructure;
+    }
+  }
+  if (bestTarget) {
+    const scoredTarget: ScoredTarget = { score: bestTargetScore, target: bestTarget };
+    return scoredTarget;
+  }
+  return;
+}
+
+function handleTower(tower: StructureTower) {
+  const creep = getTowerTargetCreep(tower);
+  const powerCreep = getTowerTargetPowerCreep(tower);
+  const myStructure = getTowerTargetMyStructure(tower);
+  const structure = getTowerTargetStructure(tower);
+
+  const targets = [];
+  if (creep) targets.push(creep);
+  if (powerCreep) targets.push(powerCreep);
+  if (myStructure) targets.push(myStructure);
+  if (structure) targets.push(structure);
+
+  if (targets.length < 1) return;
+  const bestTarget = targets.sort((a, b) => b?.score - a?.score)[0].target;
 
   if ("my" in bestTarget && bestTarget.my === false) {
     tower.attack(bestTarget);
@@ -1749,9 +1797,10 @@ function spawnHarvester(spawn: StructureSpawn) {
   const harvestPos = getHarvestSpotForSource(source);
   if (!harvestPos) return;
   constructContainerIfNeeded(harvestPos);
-  const memory = initialCreepMemory(roleToSpawn, source.id, harvestPos, spawn.pos);
+  const memory = initialCreepMemory(roleToSpawn, source.id, spawn.pos);
   if (spawn.spawnCreep(body, name, { memory, energyStructures }) === OK) {
     Memory.harvestersNeeded = false;
+    setDestinationFlag(name, harvestPos);
     msg(
       spawn,
       "Spawning: " +
@@ -1769,6 +1818,18 @@ function spawnHarvester(spawn: StructureSpawn) {
     );
   }
   return true;
+}
+
+function setDestinationFlag(flagName: string, pos: RoomPosition) {
+  const color1 = COLOR_ORANGE;
+  const color2 = COLOR_GREEN;
+  if (flagName in Game.flags) {
+    const flag = Game.flags[flagName];
+    flag.setColor(color1, color2);
+    flag.setPosition(pos);
+  } else {
+    pos.createFlag(flagName, color1, color2);
+  }
 }
 
 function getSpawnsAndExtensionsSorted(room: Room) {
@@ -1792,15 +1853,9 @@ function getSpawnsAndExtensionsSorted(room: Room) {
     .filter(isSpawnOrExtension);
 }
 
-function initialCreepMemory(
-  role: Role,
-  sourceId: undefined | Id<Source>,
-  targetPos: undefined | RoomPosition,
-  pos: RoomPosition
-) {
+function initialCreepMemory(role: Role, sourceId: undefined | Id<Source>, pos: RoomPosition) {
   return {
     role,
-    targetPos,
     sourceId,
     empty: true,
     full: false,
@@ -1919,7 +1974,7 @@ function spawnCreep(
   if (!body || bodyCost(body) > spawn.room.energyAvailable) return;
 
   const outcome = spawn.spawnCreep(body, name, {
-    memory: initialCreepMemory(roleToSpawn, undefined, undefined, spawn.pos),
+    memory: initialCreepMemory(roleToSpawn, undefined, spawn.pos),
     energyStructures
   });
 
