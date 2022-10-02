@@ -2272,8 +2272,7 @@ function getCreepCountByRole(role: Role, inactiveOnly = false, minTicksToLive = 
     return (
       creep.memory.role === role &&
       (!inactiveOnly || creep.memory.lastActionOutcome !== OK) &&
-      creep.ticksToLive &&
-      creep.ticksToLive >= minTicksToLive
+      (!creep.ticksToLive || creep.ticksToLive >= minTicksToLive)
     );
   }).length;
 }
