@@ -1,4 +1,6 @@
-//  ToDo: destroy invader cores
+//  ToDo: replace the timeout logic with one that detects creep entering or staying at earlier position again
+//  ToDo: only contrust and repair roads in high traffic positions
+//  ToDo: can't handle action harvest (worker)
 
 // When compiling TS to JS and bundling with rollup, the line numbers and file names in error messages change
 // This utility uses source maps to get the line numbers and file names of the original, TS source code
@@ -6,7 +8,7 @@ import { ErrorMapper } from "utils/ErrorMapper";
 import { Md5 } from "ts-md5";
 
 declare global {
-  type Role = "carrier" | "explorer" | "harvester" | "reserver" | "spawner" | "worker";
+  type Role = "attacker" | "carrier" | "explorer" | "harvester" | "reserver" | "spawner" | "worker";
   type Action =
     | "build"
     | "harvest"
@@ -106,6 +108,9 @@ function isOwnedStructure(structure: Structure): structure is AnyOwnedStructure 
 function isLink(structure: Structure): structure is StructureLink {
   return structure.structureType === STRUCTURE_LINK;
 }
+function isInvaderCore(structure: Structure): structure is StructureInvaderCore {
+  return structure.structureType === STRUCTURE_INVADER_CORE;
+}
 function isSpawnOrExtension(
   structure: Structure | null | undefined
 ): structure is StructureSpawn | StructureExtension {
@@ -123,13 +128,37 @@ export const loop = ErrorMapper.wrapLoop(() => {
     setUsername();
   }
   for (const c in Game.creeps) {
-    if (!handleHarvester(Game.creeps[c])) handleCreep(Game.creeps[c]);
+    const role = Game.creeps[c].memory.role;
+    if (role === "harvester") handleHarvester(Game.creeps[c]);
+    else if (role === "attacker") handleAttacker(Game.creeps[c]);
+    else handleCreep(Game.creeps[c]);
   }
   for (const s in Game.spawns) handleSpawn(Game.spawns[s]);
   for (const r in Game.rooms) handleRoom(Game.rooms[r]);
   if (!Memory.time) Memory.time = {};
   if (!(Game.time in Memory.time)) Memory.time[Game.time] = { totalEnergyToHaul: totalEnergyToHaul() };
 });
+
+function handleAttacker(creep: Creep) {
+  const bestTarget = getTarget(creep);
+  if (bestTarget) {
+    if (engageTarget(creep, bestTarget) === ERR_NOT_IN_RANGE) {
+      creep.moveTo(bestTarget, { visualizePathStyle: { stroke: hashColor(creep.memory.role) } });
+      engageTarget(creep, bestTarget);
+    }
+  } else {
+    const flag = Game.flags.attack;
+    if (flag) {
+      creep.moveTo(flag, { visualizePathStyle: { stroke: hashColor(creep.memory.role) } });
+    } else {
+      const target = getInvaderCore(creep.pos);
+      if (target && "pos" in target) {
+        target.pos.createFlag("attack", COLOR_CYAN, COLOR_BROWN);
+        creep.moveTo(target, { visualizePathStyle: { stroke: hashColor(creep.memory.role) } });
+      }
+    }
+  }
+}
 
 function purgeTimeMemory() {
   let remove = true;
@@ -363,7 +392,8 @@ function handleRoom(room: Room) {
     .find(FIND_MY_STRUCTURES)
     .filter(tower => tower.structureType === STRUCTURE_TOWER) as StructureTower[];
   for (const t of towers) {
-    handleTower(t);
+    const bestTarget = getTarget(t);
+    if (bestTarget) engageTarget(t, bestTarget);
   }
 
   handleHostilesInRoom(room);
@@ -539,14 +569,34 @@ function handleLinks(room: Room) {
   }
 }
 
-function getTowerTargetCreep(tower: StructureTower) {
+function canAttack(myUnit: StructureTower | Creep) {
+  if (myUnit instanceof StructureTower) return true;
+  if (myUnit.getActiveBodyparts(ATTACK) > 0) return true;
+  return false;
+}
+function canHeal(myUnit: StructureTower | Creep) {
+  if (myUnit instanceof StructureTower) return true;
+  if (myUnit.getActiveBodyparts(HEAL) > 0) return true;
+  return false;
+}
+function canRepair(myUnit: StructureTower | Creep) {
+  if (myUnit instanceof StructureTower) return true;
+  if (myUnit.getActiveBodyparts(WORK) > 0) return true;
+  return false;
+}
+
+function getTargetCreep(myUnit: StructureTower | Creep) {
   let bestTarget;
   let bestTargetScore = Number.NEGATIVE_INFINITY;
-  const creeps = tower.room
+  const creeps = myUnit.room
     .find(FIND_CREEPS)
-    .filter(target => target.my === false || target.hits < target.hitsMax / 2);
+    .filter(
+      target =>
+        (canAttack(myUnit) && target.my === false) ||
+        (canHeal(myUnit) && target.my !== false && target.hits < target.hitsMax)
+    );
   for (const targetCreep of creeps) {
-    const score = targetScore(tower, targetCreep);
+    const score = targetScore(myUnit.pos, targetCreep);
     if (bestTargetScore < score) {
       bestTargetScore = score;
       bestTarget = targetCreep;
@@ -559,14 +609,18 @@ function getTowerTargetCreep(tower: StructureTower) {
   return;
 }
 
-function getTowerTargetPowerCreep(tower: StructureTower) {
+function getTargetPowerCreep(myUnit: StructureTower | Creep) {
   let bestTarget;
   let bestTargetScore = Number.NEGATIVE_INFINITY;
-  const powerCreeps = tower.room
+  const powerCreeps = myUnit.room
     .find(FIND_POWER_CREEPS)
-    .filter(target => target.my === false || target.hits < target.hitsMax / 2);
+    .filter(
+      target =>
+        (canAttack(myUnit) && target.my === false) ||
+        (canHeal(myUnit) && target.my !== false && target.hits < target.hitsMax)
+    );
   for (const targetPowerCreep of powerCreeps) {
-    const score = targetScore(tower, targetPowerCreep);
+    const score = targetScore(myUnit.pos, targetPowerCreep);
     if (bestTargetScore < score) {
       bestTargetScore = score;
       bestTarget = targetPowerCreep;
@@ -579,32 +633,18 @@ function getTowerTargetPowerCreep(tower: StructureTower) {
   return;
 }
 
-function getTowerTargetMyStructure(tower: StructureTower) {
+function getTargetStructure(myUnit: StructureTower | Creep) {
   let bestTarget;
   let bestTargetScore = Number.NEGATIVE_INFINITY;
-  const myStructures = tower.room.find(FIND_MY_STRUCTURES).filter(target => target.hits < target.hitsMax / 2);
-  for (const targetStructure of myStructures) {
-    const score = targetScore(tower, targetStructure);
-    if (bestTargetScore < score) {
-      bestTargetScore = score;
-      bestTarget = targetStructure;
-    }
-  }
-  if (bestTarget) {
-    const scoredTarget: ScoredTarget = { score: bestTargetScore, target: bestTarget };
-    return scoredTarget;
-  }
-  return;
-}
-
-function getTowerTargetStructure(tower: StructureTower) {
-  let bestTarget;
-  let bestTargetScore = Number.NEGATIVE_INFINITY;
-  const structures = tower.room
+  const structures = myUnit.room
     .find(FIND_STRUCTURES)
-    .filter(target => !isOwnedStructure(target) || target.hits < target.hitsMax / 2);
+    .filter(
+      target =>
+        (!isEnemy(target) && canRepair(myUnit) && target.hits < target.hitsMax / 2) ||
+        (isEnemy(target) && canAttack(myUnit))
+    );
   for (const targetStructure of structures) {
-    const score = targetScore(tower, targetStructure);
+    const score = targetScore(myUnit.pos, targetStructure);
     if (bestTargetScore < score) {
       bestTargetScore = score;
       bestTarget = targetStructure;
@@ -617,32 +657,37 @@ function getTowerTargetStructure(tower: StructureTower) {
   return;
 }
 
-function handleTower(tower: StructureTower) {
-  const creep = getTowerTargetCreep(tower);
-  const powerCreep = getTowerTargetPowerCreep(tower);
-  const myStructure = getTowerTargetMyStructure(tower);
-  const structure = getTowerTargetStructure(tower);
+function isEnemy(object: Structure | Creep | PowerCreep) {
+  if (object instanceof Creep || object instanceof PowerCreep) return object.my === false;
+  return isOwnedStructure(object) && object.my === false;
+}
+
+function engageTarget(myUnit: StructureTower | Creep, target: Structure | Creep | PowerCreep) {
+  if (isEnemy(target)) {
+    return myUnit.attack(target);
+  } else if (target instanceof Creep || target instanceof PowerCreep) {
+    return myUnit.heal(target);
+  } else {
+    return myUnit.repair(target);
+  }
+}
+
+function getTarget(myUnit: StructureTower | Creep) {
+  const creep = getTargetCreep(myUnit);
+  const powerCreep = getTargetPowerCreep(myUnit);
+  const structure = getTargetStructure(myUnit);
 
   const targets = [];
   if (creep) targets.push(creep);
   if (powerCreep) targets.push(powerCreep);
-  if (myStructure) targets.push(myStructure);
   if (structure) targets.push(structure);
 
   if (targets.length < 1) return;
-  const bestTarget = targets.sort((a, b) => b?.score - a?.score)[0].target;
-
-  if ("my" in bestTarget && bestTarget.my === false) {
-    tower.attack(bestTarget);
-  } else if (bestTarget instanceof Creep || bestTarget instanceof PowerCreep) {
-    tower.heal(bestTarget);
-  } else {
-    tower.repair(bestTarget);
-  }
+  return targets.sort((a, b) => b?.score - a?.score)[0].target;
 }
 
-function targetScore(tower: StructureTower, target: Structure | Creep | PowerCreep) {
-  let score = -tower.pos.getRangeTo(target);
+function targetScore(pos: RoomPosition, target: Structure | Creep | PowerCreep) {
+  let score = -pos.getRangeTo(target);
   if ("my" in target) {
     if (target.my === false) score += 10;
     if (target.my === true) score -= 10;
@@ -683,7 +728,6 @@ function getDestinationFromMemory(creep: Creep) {
       return resetDestination(creep);
     }
   }
-
   return destination;
 }
 
@@ -1784,9 +1828,6 @@ function getStore(object: Creep | AnyStructure | Resource | Ruin | Tombstone | S
 }
 
 function handleSpawn(spawn: StructureSpawn) {
-  const room = spawn.room;
-
-  // spawn creeps
   if (!spawn.spawning) {
     let roleToSpawn: Role;
     let body;
@@ -1802,22 +1843,31 @@ function handleSpawn(spawn: StructureSpawn) {
     } else if (getCreepCountByRole("reserver", false, 200) < getReservableControllers().length) {
       roleToSpawn = "reserver";
       minBudget = 1300;
+    } else if (getInvaderCore(spawn.pos)) {
+      roleToSpawn = "attacker";
     } else if (getCreepCountByRole("explorer") <= 0) {
       roleToSpawn = "explorer";
       body = [MOVE];
-    } else if (workersNeeded(room)) {
+    } else if (workersNeeded(spawn.room)) {
       roleToSpawn = "worker";
       minBudget = 300;
     } else {
       return;
     }
 
-    const budget = getSpawnBudget(roleToSpawn, minBudget, room.energyCapacityAvailable);
-
-    if (room.energyAvailable >= budget) {
+    const budget = getSpawnBudget(roleToSpawn, minBudget, spawn.room.energyCapacityAvailable);
+    if (spawn.room.energyAvailable >= budget) {
       spawnCreep(spawn, roleToSpawn, budget, body);
     }
   }
+}
+
+function getInvaderCore(pos: RoomPosition) {
+  let cores: StructureInvaderCore[] = [];
+  for (const r in Game.rooms) {
+    cores = cores.concat(Game.rooms[r].find(FIND_HOSTILE_STRUCTURES).filter(isInvaderCore));
+  }
+  return getClosest(pos, cores);
 }
 
 function workersNeeded(room: Room) {
@@ -2086,6 +2136,7 @@ function spawnCreep(
     else if (roleToSpawn === "carrier" || roleToSpawn === "spawner")
       body = bodyByRatio({ move: 1, carry: 1 }, energyAvailable);
     else if (roleToSpawn === "reserver") body = bodyByRatio({ move: 1, claim: 1 }, energyAvailable);
+    else if (roleToSpawn === "attacker") body = bodyByRatio({ move: 1, attack: 2 }, energyAvailable);
   }
   const energyStructures = getSpawnsAndExtensionsSorted(spawn.room);
   const name = nameForCreep(roleToSpawn);
