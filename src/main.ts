@@ -1,4 +1,3 @@
-//  ToDo: can't handle action harvest (worker)
 //  ToDo: when there are no workers, direct energy towards storage
 //  ToDo: spawner amount should in relation to the harvester count (otherwise we might end up just spawning carriers and spawners)
 //  ToDo: optimize CPU usage
@@ -1063,15 +1062,6 @@ function nonWorkerTakeAction(creep: Creep, destination: Destination) {
   return actionOutcome;
 }
 
-function withdraw(creep: Creep, destination: Destination) {
-  if (destination instanceof Structure || destination instanceof Tombstone || destination instanceof Ruin) {
-    const actionOutcome = creep.withdraw(destination, RESOURCE_ENERGY);
-    if (actionOutcome === OK) resetSpecificDestinationFromCreeps(destination);
-    return actionOutcome;
-  }
-  return;
-}
-
 function workerTakeAction(creep: Creep, destination: Destination) {
   let actionOutcome;
   if (!destination) return;
@@ -1092,6 +1082,8 @@ function workerTakeAction(creep: Creep, destination: Destination) {
     actionOutcome = creep.upgradeController(destination);
   } else if (creep.memory.action === "pickup" && destination instanceof Resource) {
     actionOutcome = pickup(creep, destination);
+  } else if (creep.memory.action === "harvest" && destination instanceof Source) {
+    actionOutcome = creep.harvest(destination);
   } else if (creep.memory.action === "moveTo") {
     actionOutcome = creep.moveTo(destination, {
       visualizePathStyle: { stroke: hashColor(creep.memory.role) }
@@ -1105,6 +1097,15 @@ function workerTakeAction(creep: Creep, destination: Destination) {
   }
 
   return actionOutcome;
+}
+
+function withdraw(creep: Creep, destination: Destination) {
+  if (destination instanceof Structure || destination instanceof Tombstone || destination instanceof Ruin) {
+    const actionOutcome = creep.withdraw(destination, RESOURCE_ENERGY);
+    if (actionOutcome === OK) resetSpecificDestinationFromCreeps(destination);
+    return actionOutcome;
+  }
+  return;
 }
 
 function pickup(creep: Creep, destination: Destination) {
