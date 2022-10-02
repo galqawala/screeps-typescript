@@ -1146,6 +1146,7 @@ function postAction(creep: Creep, destination: Destination, actionOutcome: Scree
     } else if (actionOutcome === ERR_NO_PATH) {
       creep.say("🚧");
       resetDestination(creep);
+      handleCreep(creep);
     } else if (actionOutcome === ERR_INVALID_TARGET) {
       creep.say("🔎");
       resetDestination(creep);
