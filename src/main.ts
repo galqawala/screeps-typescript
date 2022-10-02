@@ -1,4 +1,3 @@
-//  ToDo: when there are no workers, direct energy towards storage
 //  ToDo: spawner amount should in relation to the harvester count (otherwise we might end up just spawning carriers and spawners)
 //  ToDo: optimize CPU usage
 //  ToDo: attackers shouldn't target controllers
@@ -564,18 +563,32 @@ function containsPosition(list: RoomPosition[], pos: RoomPosition) {
   );
 }
 
-function handleLinks(room: Room) {
-  // move energy towards the energy consumer
+function linkDownstreamPos(room: Room) {
   const flagName = room.name + "_EnergyConsumer";
   if (!(flagName in Game.flags)) return;
   const flag = Game.flags[flagName];
+  const destination = flag.pos;
+  if (getCreepCountByRole("worker", false, 0) < 1) {
+    // move energy toward storage when we have no workers
+    const storages = room
+      .find(FIND_STRUCTURES)
+      .filter(structure => structure.structureType === STRUCTURE_STORAGE);
+    if (storages.length) return storages[0].pos;
+  }
+  return destination;
+}
+
+function handleLinks(room: Room) {
+  // move energy towards the energy consumer
+  const downstreamPos = linkDownstreamPos(room);
+  if (!downstreamPos) return;
 
   const links = room
     .find(FIND_MY_STRUCTURES)
     .filter(isLink)
     .sort(function (x, y) {
       // sort: furthest/upstream -> closest/downstream
-      return y.pos.getRangeTo(flag) - x.pos.getRangeTo(flag);
+      return y.pos.getRangeTo(downstreamPos) - x.pos.getRangeTo(downstreamPos);
     });
 
   let upstreamIndex = 0;
@@ -2137,9 +2150,7 @@ function creepCost(creep: Creep) {
 }
 
 function carriersNeeded() {
-  const totalEnergyToHaulBefore = Memory.time[Game.time - 100]?.totalEnergyToHaul;
-  const totalEnergyToHaulNow = Memory.time[Game.time - 1]?.totalEnergyToHaul;
-  return totalEnergyToHaulNow > totalEnergyToHaulBefore && totalEnergyToHaulNow > 1000;
+  return totalCreepCapacity("carrier") < totalEnergyToHaul();
 }
 
 function totalEnergyToHaul() {
@@ -2155,6 +2166,14 @@ function totalEnergyToHaul() {
       .reduce((aggregated, item) => aggregated + getEnergy(item), 0 /* initial*/);
   }
   return energy;
+}
+
+function totalCreepCapacity(role: Role | undefined) {
+  return Object.values(Game.creeps).reduce(
+    (aggregated, item) =>
+      aggregated + (!role || item.memory.role === role ? item.store.getCapacity(RESOURCE_ENERGY) : 0),
+    0 /* initial*/
+  );
 }
 
 function spawnCreep(
