@@ -1,6 +1,3 @@
-//  ToDo: optimize CPU usage
-//  ToDo: attackers shouldn't target controllers
-
 // When compiling TS to JS and bundling with rollup, the line numbers and file names in error messages change
 // This utility uses source maps to get the line numbers and file names of the original, TS source code
 import { ErrorMapper } from "utils/ErrorMapper";
@@ -69,7 +66,6 @@ declare global {
     full: boolean;
     timeOfLastEnergyReceived: number;
     lastOkActionTime: number;
-    rangeToDestination: number;
     x: number;
     y: number;
     roomName: string;
@@ -125,7 +121,11 @@ function isRoomPosition(item: RoomPosition): item is RoomPosition {
 
 // Main loop
 export const loop = ErrorMapper.wrapLoop(() => {
-  if (Object.keys(Memory.time).length > 5000) purgeTimeMemory();
+  // Object.keys(Memory).map(key => key+': '+Object.keys(Memory[key]).length)
+  const memLimit = 500;
+  if (Object.keys(Memory.time).length > memLimit) purgeTimeMemory();
+  if (Object.keys(Memory.flags).length > memLimit) purgeFlagsMemory();
+  if (Object.keys(Game.flags).length > memLimit) purgeFlags();
   if (!Memory.username) {
     setUsername();
   }
@@ -141,6 +141,18 @@ export const loop = ErrorMapper.wrapLoop(() => {
   if (!(Game.time in Memory.time)) Memory.time[Game.time] = { totalEnergyToHaul: totalEnergyToHaul() };
   updateTrafficStats();
 });
+
+function purgeFlagsMemory() {
+  for (const key in Memory.flags) {
+    if (!Game.flags[key]) delete Memory.flags[key];
+  }
+}
+
+function purgeFlags() {
+  for (const flag of Object.values(Game.flags)) {
+    if (flag.name.startsWith("traffic_") && Math.random() < 0.5) flag.remove();
+  }
+}
 
 function trafficFlagName(pos: RoomPosition) {
   return "traffic_" + pos.roomName + "_" + pos.x.toString() + "_" + pos.y.toString();
@@ -457,7 +469,7 @@ function checkRoomStatus(room: Room) {
 
 function checkRoomCanHarvest(room: Room) {
   const value = canOperateInRoom(room);
-  if (room.memory.canHarvest !== value) {
+  if (room.memory && room.memory.canHarvest !== value) {
     msg(room, "Can harvest: " + room.memory.canHarvest.toString() + " ➤ " + value.toString(), true);
     room.memory.canHarvest = value;
   }
@@ -793,60 +805,16 @@ function atEdge(pos: RoomPosition) {
   return false;
 }
 
-function memorizeCreepState(creep: Creep, destination: undefined | Destination | null | void) {
+function memorizeCreepState(creep: Creep) {
   if ((creep.memory.x || -1) !== creep.pos.x || (creep.memory.y || -1) !== creep.pos.y) {
     creep.memory.x = creep.pos.x;
     creep.memory.y = creep.pos.y;
     creep.memory.roomName = creep.pos.roomName;
     creep.memory.lastMoveTime = Game.time;
-    const tailFlagName = creep.name + "_tail_" + (Game.time % 2).toString();
-    const tailFlag = Game.flags[tailFlagName];
-    if (tailFlag) {
-      if (posEquals(creep.pos, tailFlag.pos)) creep.memory.posRevisits++;
-      tailFlag.setPosition(creep.pos);
-    } else {
-      creep.pos.createFlag(tailFlagName, COLOR_CYAN, COLOR_WHITE);
-    }
   }
   creep.memory.empty = isEmpty(creep);
   creep.memory.full = isFull(creep);
-  if (destination) {
-    const destinationPos = getPos(destination);
-    if (destinationPos && !posEquals(creep.pos, destinationPos)) {
-      let range = creep.pos.getRangeTo(destinationPos);
-      if (!isFinite(range)) {
-        const rangeToExit = rangeToExitTowardsPos(creep.pos, destinationPos);
-        if (rangeToExit) range = rangeToExit;
-      }
-      if (range) creep.memory.rangeToDestination = range;
-    }
-  }
   updateConstructionSiteScoreForCreep(creep);
-}
-
-function rangeToExitTowardsPos(from: RoomPosition, to: RoomPosition) {
-  const findExit = Game.map.findExit(from.roomName, to.roomName);
-  if (findExit === ERR_NO_PATH) {
-    msg("rangeToExitTowardsPos()", "no path between rooms: " + from.toString() + " - " + to.toString());
-  } else if (findExit === ERR_INVALID_ARGS) {
-    msg(
-      "rangeToExitTowardsPos()",
-      "passed invalid arguments to Game.map.findExit(). Finding exit from " +
-        from.toString() +
-        " to " +
-        to.toString()
-    );
-  } else {
-    const exit = from.findClosestByPath(findExit);
-    if (exit && isRoomPosition(exit)) return from.getRangeTo(exit);
-  }
-  return;
-}
-
-function getPos(object: Destination) {
-  if (object instanceof RoomPosition) return object;
-  if ("pos" in object) return object.pos;
-  return;
 }
 
 function posEquals(a: RoomPosition, b: RoomPosition) {
@@ -1792,6 +1760,7 @@ function getPosForRoad(room: Room) {
   let bestScore = Number.NEGATIVE_INFINITY;
   let bestPos;
   for (const flag of flags) {
+    if (isEdge(flag.pos)) continue;
     const score = getTrafficRate(flag);
     if (bestScore < score && score > minRoadTraffic && !hasStructureAt(flag.pos, STRUCTURE_ROAD, true)) {
       bestScore = score;
@@ -1799,6 +1768,14 @@ function getPosForRoad(room: Room) {
     }
   }
   return bestPos;
+}
+
+function isEdge(pos: RoomPosition) {
+  if (pos.x <= 0) return true;
+  if (pos.y <= 0) return true;
+  if (pos.x >= 49) return true;
+  if (pos.y >= 49) return true;
+  return false;
 }
 
 function getTrafficRate(flag: Flag) {
@@ -2079,7 +2056,6 @@ function initialCreepMemory(role: Role, sourceId: undefined | Id<Source>, pos: R
     timeApproachedDestination: Game.time,
     timeOfLastEnergyReceived: Game.time,
     lastOkActionTime: Game.time,
-    rangeToDestination: 0,
     x: pos.x,
     y: pos.y,
     roomName: pos.roomName,
@@ -2414,8 +2390,7 @@ function handleCreep(creep: Creep) {
 
     handleBlockedDestination(creep, destination);
   }
-
-  memorizeCreepState(creep, destination);
+  memorizeCreepState(creep);
 }
 
 function handleBlockedDestination(creep: Creep, destination: Destination) {
