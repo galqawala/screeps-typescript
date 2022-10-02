@@ -1,6 +1,7 @@
-//  ToDo: replace the timeout logic with one that detects creep entering or staying at earlier position again
-//  ToDo: only contrust and repair roads in high traffic positions
+//  ToDo: only construct and repair roads in high traffic positions
 //  ToDo: can't handle action harvest (worker)
+//  ToDo: when there are no workers, direct energy towards storage
+//  ToDo: spawner amount should in relation to the harvester count (otherwise we might end up just spawning carriers and spawners)
 
 // When compiling TS to JS and bundling with rollup, the line numbers and file names in error messages change
 // This utility uses source maps to get the line numbers and file names of the original, TS source code
@@ -67,7 +68,6 @@ declare global {
     sourceId: undefined | Id<Source>;
     empty: boolean;
     full: boolean;
-    timeApproachedDestination: number;
     timeOfLastEnergyReceived: number;
     lastOkActionTime: number;
     rangeToDestination: number;
@@ -83,6 +83,7 @@ declare global {
     lastActionOutcome: ScreepsReturnCode;
     lastBlockedIds: DestinationId[];
     awaitingDeliveryFrom: undefined | string; // Creep name
+    posRevisits: number;
   }
 
   interface Task {
@@ -758,6 +759,14 @@ function memorizeCreepState(creep: Creep, destination: undefined | Destination |
     creep.memory.y = creep.pos.y;
     creep.memory.roomName = creep.pos.roomName;
     creep.memory.lastMoveTime = Game.time;
+    const tailFlagName = creep.name + "_tail_" + (Game.time % 2).toString();
+    const tailFlag = Game.flags[tailFlagName];
+    if (tailFlag) {
+      if (posEquals(creep.pos, tailFlag.pos)) creep.memory.posRevisits++;
+      tailFlag.setPosition(creep.pos);
+    } else {
+      creep.pos.createFlag(tailFlagName, COLOR_CYAN, COLOR_WHITE);
+    }
   }
   creep.memory.empty = isEmpty(creep);
   creep.memory.full = isFull(creep);
@@ -769,12 +778,7 @@ function memorizeCreepState(creep: Creep, destination: undefined | Destination |
         const rangeToExit = rangeToExitTowardsPos(creep.pos, destinationPos);
         if (rangeToExit) range = rangeToExit;
       }
-      if (range) {
-        if (creep.memory.rangeToDestination > range) {
-          creep.memory.timeApproachedDestination = Game.time;
-        }
-        creep.memory.rangeToDestination = range;
-      }
+      if (range) creep.memory.rangeToDestination = range;
     }
   }
   updateConstructionSiteScoreForCreep(creep);
@@ -2048,7 +2052,8 @@ function initialCreepMemory(role: Role, sourceId: undefined | Id<Source>, pos: R
     lastAction: undefined,
     lastActionOutcome: OK,
     lastBlockedIds: [],
-    awaitingDeliveryFrom: undefined // Creep name
+    awaitingDeliveryFrom: undefined, // Creep name
+    posRevisits: 0
   };
 }
 
@@ -2264,8 +2269,8 @@ function resetDestination(creep: Creep) {
     destination = Game.getObjectById(creep.memory.destination);
   creep.memory.destination = undefined;
   creep.memory.destinationSetTime = Game.time;
-  creep.memory.timeApproachedDestination = Game.time;
   creep.memory.action = undefined;
+  creep.memory.posRevisits = 0;
   if (destination && "memory" in destination && destination.memory.awaitingDeliveryFrom) {
     destination.memory.awaitingDeliveryFrom = undefined;
   }
@@ -2362,11 +2367,7 @@ function handleCreep(creep: Creep) {
 }
 
 function handleBlockedDestination(creep: Creep, destination: Destination) {
-  if (
-    (creep.memory.timeApproachedDestination > (creep.memory.lastOkActionTime || 0) ||
-      (destination instanceof RoomPosition && creep.memory.rangeToDestination > 0)) &&
-    creep.memory.timeApproachedDestination < Game.time - 25
-  ) {
+  if (creep.memory.posRevisits > 0) {
     creep.say("⌛️");
     resetDestination(creep);
     memorizeBlockedObject(creep, destination);
