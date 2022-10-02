@@ -1,4 +1,3 @@
-//  ToDo: spawner amount should in relation to the harvester count (otherwise we might end up just spawning carriers and spawners)
 //  ToDo: optimize CPU usage
 //  ToDo: attackers shouldn't target controllers
 
@@ -1877,7 +1876,7 @@ function handleSpawn(spawn: StructureSpawn) {
     let body;
     let minBudget = 0;
 
-    if (getCreepCountByRole("spawner") < Object.keys(Game.creeps).length / 9) {
+    if (getCreepCountByRole("spawner") < getCreepCountByRole("harvester") / 2) {
       roleToSpawn = "spawner";
     } else if (carriersNeeded()) {
       roleToSpawn = "carrier";
