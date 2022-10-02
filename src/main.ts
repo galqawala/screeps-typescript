@@ -470,7 +470,11 @@ function checkRoomStatus(room: Room) {
 function checkRoomCanHarvest(room: Room) {
   const value = canOperateInRoom(room);
   if (room.memory && room.memory.canHarvest !== value) {
-    msg(room, "Can harvest: " + room.memory.canHarvest.toString() + " ➤ " + value.toString(), true);
+    msg(
+      room,
+      "Can harvest: " + (room.memory.canHarvest || "-").toString() + " ➤ " + (value || "-").toString(),
+      true
+    );
     room.memory.canHarvest = value;
   }
 }
@@ -1472,7 +1476,7 @@ function canOperateInRoom(room: Room) {
   if (room.controller.my) return true; // my controller
   const reservation = room.controller.reservation;
   if (reservation && reservation.username === Memory.username) return true; // reserved to me
-  if (!room.controller.owner && !room.controller.reservation) return true; // no owner & no reservation
+  if (!room.controller.owner && !reservation) return true; // no owner & no reservation
   return false;
 }
 
