@@ -386,31 +386,9 @@ function handleRoom(room: Room) {
   if (!room.memory.harvestSpots) updateHarvestSpots(room);
 
   // check the room details
-  checkRoomConstructionSiteCount(room);
-  checkRoomStructureCount(room);
   checkRoomStatus(room);
   checkRoomCanHarvest(room);
   checkRoomEnergy(room);
-}
-
-function checkRoomConstructionSiteCount(room: Room) {
-  const value = room.find(FIND_MY_CONSTRUCTION_SITES).length;
-  if (room.memory.constructionSiteCount !== value) {
-    msg(
-      room,
-      "Construction sites: " + room.memory.constructionSiteCount.toString() + " ➤ " + value.toString(),
-      true
-    );
-    room.memory.constructionSiteCount = value;
-  }
-}
-
-function checkRoomStructureCount(room: Room) {
-  const value = room.find(FIND_STRUCTURES).length;
-  if (room.memory.structureCount !== value) {
-    msg(room, "Structures: " + room.memory.structureCount.toString() + " ➤ " + value.toString(), true);
-    room.memory.structureCount = value;
-  }
 }
 
 function checkRoomStatus(room: Room) {
@@ -1827,7 +1805,7 @@ function handleSpawn(spawn: StructureSpawn) {
     } else if (getCreepCountByRole("explorer") <= 0) {
       roleToSpawn = "explorer";
       body = [MOVE];
-    } else if (room.energyAvailable >= room.energyCapacityAvailable) {
+    } else if (workersNeeded(room)) {
       roleToSpawn = "worker";
       minBudget = 300;
     } else {
@@ -1840,6 +1818,19 @@ function handleSpawn(spawn: StructureSpawn) {
       spawnCreep(spawn, roleToSpawn, budget, body);
     }
   }
+}
+
+function workersNeeded(room: Room) {
+  for (const i in Game.rooms) {
+    if (
+      Game.rooms[i]
+        .find(FIND_MY_STRUCTURES)
+        .filter(structure => structure.structureType === STRUCTURE_STORAGE && getEnergy(structure) < 5000)
+        .length >= 1
+    )
+      return false;
+  }
+  return room.energyAvailable >= room.energyCapacityAvailable;
 }
 
 function getSpawnBudget(roleToSpawn: Role, minBudget: number, energyCapacityAvailable: number) {
@@ -2143,7 +2134,7 @@ function construct(room: Room, structureType: BuildableStructureConstant) {
         structure.destroy();
       }
     });
-    msg(room, "Creating a construction site for " + structureType + " at " + pos.toString(), true);
+    msg(room, "Creating a construction site for " + structureType + " at " + pos.toString());
     pos.createConstructionSite(structureType);
     const roadFlags = pos.lookFor(LOOK_FLAGS).filter(flag => flag.name.endsWith("_RoadNeeded"));
     for (const flag of roadFlags) flag.remove();
