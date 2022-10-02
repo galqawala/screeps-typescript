@@ -1,4 +1,3 @@
-//  ToDo: more spawns for simultaneous spawning
 //  ToDo: destroy invader cores
 
 // When compiling TS to JS and bundling with rollup, the line numbers and file names in error messages change
@@ -371,11 +370,12 @@ function handleRoom(room: Room) {
 
   // construct some structures
   const structureTypes = [
-    STRUCTURE_TOWER,
     STRUCTURE_EXTENSION,
     STRUCTURE_LINK,
+    STRUCTURE_ROAD,
+    STRUCTURE_SPAWN,
     STRUCTURE_STORAGE,
-    STRUCTURE_ROAD
+    STRUCTURE_TOWER
   ];
   structureTypes.forEach(structureType => construct(room, structureType));
 
@@ -1693,7 +1693,7 @@ function getPosForConstruction(room: Room, structureType: StructureConstant) {
     let finalScore = score;
     if (structureType === STRUCTURE_LINK) {
       finalScore = adjustConstructionSiteScoreForLink(score, pos);
-    } else if (structureType === STRUCTURE_EXTENSION) {
+    } else if (structureType === STRUCTURE_EXTENSION || structureType === STRUCTURE_SPAWN) {
       // distance to source decreases the score
       const extensionPenalty = pos.findClosestByRange(FIND_SOURCES);
       if (extensionPenalty) {
