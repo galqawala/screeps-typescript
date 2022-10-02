@@ -1,4 +1,3 @@
-//  ToDo: less move parts & more roads
 //  ToDo: more spawns for simultaneous spawning
 //  ToDo: destroy invader cores
 
@@ -371,7 +370,13 @@ function handleRoom(room: Room) {
   handleHostilesInRoom(room);
 
   // construct some structures
-  const structureTypes = [STRUCTURE_TOWER, STRUCTURE_EXTENSION, STRUCTURE_LINK, STRUCTURE_STORAGE];
+  const structureTypes = [
+    STRUCTURE_TOWER,
+    STRUCTURE_EXTENSION,
+    STRUCTURE_LINK,
+    STRUCTURE_STORAGE,
+    STRUCTURE_ROAD
+  ];
   structureTypes.forEach(structureType => construct(room, structureType));
 
   // handle the links
@@ -1130,6 +1135,7 @@ function handleNotOwner(creep: Creep) {
 }
 
 function roadNeeded(pos: RoomPosition) {
+  if (hasStructureAt(pos, STRUCTURE_ROAD, true)) return;
   const flagName = pos.roomName + "_" + pos.x.toString() + "_" + pos.y.toString() + "_RoadNeeded";
   const color1 = COLOR_WHITE;
   const color2 = COLOR_BROWN;
@@ -1626,6 +1632,29 @@ function hasStructureInRange(
   return false;
 }
 
+function hasStructureAt(
+  pos: RoomPosition,
+  structureType: StructureConstant | undefined,
+  includeConstructionSites: boolean
+) {
+  if (
+    pos
+      .lookFor(LOOK_STRUCTURES)
+      .filter(structure => !structureType || structure.structureType === structureType).length > 0
+  )
+    return true;
+
+  if (
+    includeConstructionSites &&
+    pos
+      .lookFor(LOOK_CONSTRUCTION_SITES)
+      .filter(structure => !structureType || structure.structureType === structureType).length > 0
+  )
+    return true;
+
+  return false;
+}
+
 function getPosForContainer(room: Room) {
   const harvestSpots = room.memory.harvestSpots;
 
@@ -1676,6 +1705,7 @@ function getPosForConstruction(room: Room, structureType: StructureConstant) {
   }
   if (structureType === STRUCTURE_STORAGE) return getPosForStorage(room);
   if (structureType === STRUCTURE_CONTAINER) return getPosForContainer(room);
+  if (structureType === STRUCTURE_ROAD) return getPosForRoad(room);
 
   let bestScore = Number.NEGATIVE_INFINITY;
   let bestPos;
@@ -1699,6 +1729,21 @@ function getPosForConstruction(room: Room, structureType: StructureConstant) {
     }
   }
 
+  return bestPos;
+}
+
+function getPosForRoad(room: Room) {
+  const flags = room
+    .find(FIND_FLAGS)
+    .filter(flag => flag.name.endsWith("_RoadNeeded") && flag.memory && flag.memory.roadScore > 0);
+  let bestScore = Number.NEGATIVE_INFINITY;
+  let bestPos;
+  for (const flag of flags) {
+    if (bestScore < flag.memory.roadScore) {
+      bestScore = flag.memory.roadScore;
+      bestPos = flag.pos;
+    }
+  }
   return bestPos;
 }
 
@@ -2100,6 +2145,8 @@ function construct(room: Room, structureType: BuildableStructureConstant) {
     });
     msg(room, "Creating a construction site for " + structureType + " at " + pos.toString(), true);
     pos.createConstructionSite(structureType);
+    const roadFlags = pos.lookFor(LOOK_FLAGS).filter(flag => flag.name.endsWith("_RoadNeeded"));
+    for (const flag of roadFlags) flag.remove();
     if (structureType === STRUCTURE_LINK) {
       pos
         .findInRange(FIND_STRUCTURES, 1)
@@ -2116,7 +2163,14 @@ function needStructure(room: Room, structureType: BuildableStructureConstant) {
   if (!room.controller) return false; // no controller
   if (!room.controller.my && room.controller.owner) return false; // owned by others
   const targetCount = CONTROLLER_STRUCTURES[structureType][room.controller.level];
-  return targetCount > countStructures(room, structureType, true);
+  if (targetCount > countStructures(room, structureType, true)) {
+    if (structureType === STRUCTURE_ROAD) {
+      return room.find(FIND_CONSTRUCTION_SITES).length < 1;
+    } else {
+      return true;
+    }
+  }
+  return false;
 }
 
 function countStructures(room: Room, structureType: StructureConstant, includeConstructionSites: boolean) {
