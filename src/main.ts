@@ -1,7 +1,8 @@
-//  ToDo: only construct and repair roads in high traffic positions
 //  ToDo: can't handle action harvest (worker)
 //  ToDo: when there are no workers, direct energy towards storage
 //  ToDo: spawner amount should in relation to the harvester count (otherwise we might end up just spawning carriers and spawners)
+//  ToDo: optimize CPU usage
+//  ToDo: attackers shouldn't target controllers
 
 // When compiling TS to JS and bundling with rollup, the line numbers and file names in error messages change
 // This utility uses source maps to get the line numbers and file names of the original, TS source code
@@ -42,7 +43,8 @@ declare global {
   }
 
   interface FlagMemory {
-    roadScore: number;
+    ticksOccupied: number;
+    initTime: number;
   }
 
   interface TimeMemory {
@@ -102,6 +104,8 @@ declare global {
   }
 }
 
+const minRoadTraffic = 0.01;
+
 // Type guards
 function isOwnedStructure(structure: Structure): structure is AnyOwnedStructure {
   return (structure as { my?: boolean }).my !== undefined;
@@ -138,7 +142,29 @@ export const loop = ErrorMapper.wrapLoop(() => {
   for (const r in Game.rooms) handleRoom(Game.rooms[r]);
   if (!Memory.time) Memory.time = {};
   if (!(Game.time in Memory.time)) Memory.time[Game.time] = { totalEnergyToHaul: totalEnergyToHaul() };
+  updateTrafficStats();
 });
+
+function trafficFlagName(pos: RoomPosition) {
+  return "traffic_" + pos.roomName + "_" + pos.x.toString() + "_" + pos.y.toString();
+}
+
+function updateTrafficStats() {
+  for (const creep of Object.values(Game.creeps)) {
+    const flagName = trafficFlagName(creep.pos);
+    const flag = Game.flags[flagName];
+    if (flag) {
+      if ("ticksOccupied" in flag.memory) {
+        flag.memory.ticksOccupied++;
+      } else {
+        flag.memory.ticksOccupied = 0;
+        flag.memory.initTime = Game.time;
+      }
+    } else {
+      creep.pos.createFlag(flagName, COLOR_GREEN, COLOR_GREY);
+    }
+  }
+}
 
 function handleAttacker(creep: Creep) {
   const bestTarget = getTarget(creep);
@@ -399,16 +425,18 @@ function handleRoom(room: Room) {
 
   handleHostilesInRoom(room);
 
-  // construct some structures
-  const structureTypes = [
-    STRUCTURE_EXTENSION,
-    STRUCTURE_LINK,
-    STRUCTURE_ROAD,
-    STRUCTURE_SPAWN,
-    STRUCTURE_STORAGE,
-    STRUCTURE_TOWER
-  ];
-  structureTypes.forEach(structureType => construct(room, structureType));
+  if (canOperateInRoom(room)) {
+    // construct some structures
+    const structureTypes = [
+      STRUCTURE_EXTENSION,
+      STRUCTURE_LINK,
+      STRUCTURE_ROAD,
+      STRUCTURE_SPAWN,
+      STRUCTURE_STORAGE,
+      STRUCTURE_TOWER
+    ];
+    structureTypes.forEach(structureType => construct(room, structureType));
+  }
 
   // handle the links
   handleLinks(room);
@@ -431,7 +459,7 @@ function checkRoomStatus(room: Room) {
 }
 
 function checkRoomCanHarvest(room: Room) {
-  const value = canHarvestInRoom(room);
+  const value = canOperateInRoom(room);
   if (room.memory.canHarvest !== value) {
     msg(room, "Can harvest: " + room.memory.canHarvest.toString() + " ➤ " + value.toString(), true);
     room.memory.canHarvest = value;
@@ -641,8 +669,9 @@ function getTargetStructure(myUnit: StructureTower | Creep) {
     .find(FIND_STRUCTURES)
     .filter(
       target =>
-        (!isEnemy(target) && canRepair(myUnit) && target.hits < target.hitsMax / 2) ||
-        (isEnemy(target) && canAttack(myUnit))
+        target.hitsMax > 0 &&
+        ((!isEnemy(target) && canRepair(myUnit) && target.hits < target.hitsMax / 2) ||
+          (isEnemy(target) && canAttack(myUnit)))
     );
   for (const targetStructure of structures) {
     const score = targetScore(myUnit.pos, targetStructure);
@@ -992,7 +1021,7 @@ function getEnergyInRoom(
           getEnergy(structure) >= myMinTransfer
       )
   );
-  if (allowSource && canHarvestInRoom(room)) {
+  if (allowSource && canOperateInRoom(room)) {
     const activeSources = pos.findInRange(FIND_SOURCES_ACTIVE, 1);
     if (activeSources.length) {
       sources = sources.concat(activeSources);
@@ -1143,7 +1172,6 @@ function postAction(creep: Creep, destination: Destination, actionOutcome: Scree
         memorizeBlockedObject(creep, destination);
     } else if (actionOutcome === ERR_TIRED) {
       creep.say("😓");
-      roadNeeded(creep.pos);
     } else if (actionOutcome === ERR_NOT_OWNER) {
       handleNotOwner(creep);
     }
@@ -1160,27 +1188,13 @@ function handleNotOwner(creep: Creep) {
   }
 }
 
-function roadNeeded(pos: RoomPosition) {
-  if (hasStructureAt(pos, STRUCTURE_ROAD, true)) return;
-  const flagName = pos.roomName + "_" + pos.x.toString() + "_" + pos.y.toString() + "_RoadNeeded";
-  const color1 = COLOR_WHITE;
-  const color2 = COLOR_BROWN;
-  if (flagName in Game.flags) {
-    const flag = Game.flags[flagName];
-    if (!flag.memory.roadScore) flag.memory.roadScore = 0;
-    flag.memory.roadScore++;
-    flag.setColor(color1, color2); /* handles the first setColor or setPosition per tick! */
-  } else {
-    pos.createFlag(flagName, color1, color2);
-  }
-}
-
 function needsRepair(structure: Structure) {
   if (!structure) return false;
   if (isOwnedStructure(structure) && structure.my === false) return false;
   if (!structure.hits) return false;
   if (!structure.hitsMax) return false;
   if (structure.hits >= structure.hitsMax) return false;
+  if (structure instanceof StructureRoad && getTrafficRateAt(structure.pos) < minRoadTraffic) return false;
   return true;
 }
 
@@ -1471,7 +1485,7 @@ function getGlobalEnergyStructures(creep: Creep) {
   return structures;
 }
 
-function canHarvestInRoom(room: Room) {
+function canOperateInRoom(room: Room) {
   if (!room.controller) return true; // no controller
   if (room.controller.my) return true; // my controller
   const reservation = room.controller.reservation;
@@ -1761,16 +1775,28 @@ function getPosForConstruction(room: Room, structureType: StructureConstant) {
 function getPosForRoad(room: Room) {
   const flags = room
     .find(FIND_FLAGS)
-    .filter(flag => flag.name.endsWith("_RoadNeeded") && flag.memory && flag.memory.roadScore > 0);
+    .filter(flag => flag.name.startsWith("traffic_") && flag.memory && flag.memory.ticksOccupied > 0);
   let bestScore = Number.NEGATIVE_INFINITY;
   let bestPos;
   for (const flag of flags) {
-    if (bestScore < flag.memory.roadScore) {
-      bestScore = flag.memory.roadScore;
+    const score = getTrafficRate(flag);
+    if (bestScore < score && score > minRoadTraffic && !hasStructureAt(flag.pos, STRUCTURE_ROAD, true)) {
+      bestScore = score;
       bestPos = flag.pos;
     }
   }
   return bestPos;
+}
+
+function getTrafficRate(flag: Flag) {
+  if (!flag) return 0;
+  if (!("initTime" in flag.memory)) return 0;
+  if (flag.memory.initTime >= Game.time) return 0;
+  return flag.memory.ticksOccupied / (Game.time - flag.memory.initTime);
+}
+
+function getTrafficRateAt(pos: RoomPosition) {
+  return getTrafficRate(Game.flags[trafficFlagName(pos)]);
 }
 
 function getPotentialConstructionSites(room: Room) {
@@ -1932,7 +1958,7 @@ function getSourceToHarvest(pos: RoomPosition) {
   let sources: Source[] = [];
   for (const r in Game.rooms) {
     const room = Game.rooms[r];
-    if (!canHarvestInRoom(room)) continue;
+    if (!canOperateInRoom(room)) continue;
     sources = sources.concat(
       room.find(FIND_SOURCES).filter(harvestSource => !sourceHasHarvester(harvestSource))
     );
@@ -2190,8 +2216,16 @@ function construct(room: Room, structureType: BuildableStructureConstant) {
         structure.destroy();
       }
     });
-    msg(room, "Creating a construction site for " + structureType + " at " + pos.toString());
-    pos.createConstructionSite(structureType);
+    const outcome = pos.createConstructionSite(structureType);
+    msg(
+      room,
+      "Creating a construction site for " +
+        structureType +
+        " at " +
+        pos.toString() +
+        " outcome: " +
+        outcome.toString()
+    );
     const roadFlags = pos.lookFor(LOOK_FLAGS).filter(flag => flag.name.endsWith("_RoadNeeded"));
     for (const flag of roadFlags) flag.remove();
     if (structureType === STRUCTURE_LINK) {
