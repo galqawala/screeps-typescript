@@ -20,6 +20,8 @@ declare global {
     | AnyStructure
     | ConstructionSite
     | Creep
+    | Flag
+    | PowerCreep
     | Resource
     | RoomPosition
     | Ruin
@@ -27,7 +29,7 @@ declare global {
     | Structure
     | Tombstone;
   type DestinationId = Id<
-    AnyStructure | Structure | ConstructionSite | Source | Creep | Resource | Tombstone | Ruin
+    AnyStructure | Structure | ConstructionSite | Source | Creep | Resource | Tombstone | Ruin | PowerCreep
   >;
 
   interface Memory {
@@ -37,7 +39,7 @@ declare global {
   }
 
   interface FlagMemory {
-    ticksOccupied: number;
+    steps: number;
     initTime: number;
   }
 
@@ -139,7 +141,6 @@ export const loop = ErrorMapper.wrapLoop(() => {
   for (const r in Game.rooms) handleRoom(Game.rooms[r]);
   if (!Memory.time) Memory.time = {};
   if (!(Game.time in Memory.time)) Memory.time[Game.time] = { totalEnergyToHaul: totalEnergyToHaul() };
-  updateTrafficStats();
 });
 
 function purgeFlagsMemory() {
@@ -158,39 +159,25 @@ function trafficFlagName(pos: RoomPosition) {
   return "traffic_" + pos.roomName + "_" + pos.x.toString() + "_" + pos.y.toString();
 }
 
-function updateTrafficStats() {
-  for (const creep of Object.values(Game.creeps)) {
-    const flagName = trafficFlagName(creep.pos);
-    const flag = Game.flags[flagName];
-    if (flag) {
-      if ("ticksOccupied" in flag.memory) {
-        flag.memory.ticksOccupied++;
-      } else {
-        flag.memory.ticksOccupied = 0;
-        flag.memory.initTime = Game.time;
-      }
-    } else {
-      creep.pos.createFlag(flagName, COLOR_GREEN, COLOR_GREY);
-    }
-  }
-}
-
 function handleAttacker(creep: Creep) {
   const bestTarget = getTarget(creep);
   if (bestTarget) {
     if (engageTarget(creep, bestTarget) === ERR_NOT_IN_RANGE) {
-      creep.moveTo(bestTarget, { visualizePathStyle: { stroke: hashColor(creep.memory.role) } });
+      move(creep, bestTarget);
       engageTarget(creep, bestTarget);
     }
   } else {
     const flag = Game.flags.attack;
     if (flag) {
-      creep.moveTo(flag, { visualizePathStyle: { stroke: hashColor(creep.memory.role) } });
+      move(creep, flag);
+      if (creep.room === flag.room) flag.remove(); // no targets to engage in this room
     } else {
       const target = getInvaderCore(creep.pos);
       if (target && "pos" in target) {
         target.pos.createFlag("attack", COLOR_CYAN, COLOR_BROWN);
-        creep.moveTo(target, { visualizePathStyle: { stroke: hashColor(creep.memory.role) } });
+        move(creep, target);
+      } else {
+        recycleCreep(creep); // still nothing to do
       }
     }
   }
@@ -254,6 +241,7 @@ function reservedByOthers(controller: StructureController) {
 
 function recycleCreep(creep: Creep) {
   creep.say("💀");
+  creep.memory.action = "recycleCreep";
   let destination;
   const oldDestination = creep.memory.destination;
   if (typeof oldDestination === "string") destination = Game.getObjectById(oldDestination);
@@ -269,7 +257,7 @@ function recycleCreep(creep: Creep) {
     if (creep.pos.getRangeTo(destination) <= 1 && destination instanceof StructureSpawn) {
       destination.recycleCreep(creep);
     } else {
-      creep.moveTo(destination, { visualizePathStyle: { stroke: hashColor(creep.memory.role) } });
+      move(creep, destination);
     }
   }
 }
@@ -284,7 +272,7 @@ function handleHarvester(creep: Creep) {
   // move
   if (creep.name in Game.flags) {
     const flag = Game.flags[creep.name];
-    creep.moveTo(flag, { visualizePathStyle: { stroke: hashColor(creep.memory.role) } });
+    move(creep, flag);
   }
   if (!isEmpty(creep)) {
     repair(creep);
@@ -755,13 +743,14 @@ function targetScore(pos: RoomPosition, target: Structure | Creep | PowerCreep) 
 
 function getDestinationFromMemory(creep: Creep) {
   const oldDestination = creep.memory.destination;
-  let destination;
+  let destination: Destination | undefined;
 
   if ((!creep.memory.empty && isEmpty(creep)) || (!creep.memory.full && isFull(creep))) {
     return resetDestination(creep); // abandon the old plan after getting full/empty
   } else if (oldDestination) {
     if (typeof oldDestination === "string") {
-      destination = Game.getObjectById(oldDestination);
+      const object = Game.getObjectById(oldDestination);
+      if (object) destination = object;
     } else if ("x" in oldDestination && "y" in oldDestination && "roomName" in oldDestination) {
       if (posEquals(creep.pos, oldDestination)) {
         creep.say("🛬");
@@ -1032,11 +1021,11 @@ function nonWorkerTakeAction(creep: Creep, destination: Destination) {
   } else if (creep.memory.action === "pickup" && destination instanceof Resource) {
     actionOutcome = pickup(creep, destination);
   } else if (creep.memory.action === "moveTo") {
-    actionOutcome = creep.moveTo(destination, {
-      visualizePathStyle: { stroke: hashColor(creep.memory.role) }
-    });
+    move(creep, destination);
   } else if (creep.memory.action === "reserveController" && destination instanceof StructureController) {
     actionOutcome = creep.reserveController(destination);
+  } else if (creep.memory.action === "recycleCreep" && destination instanceof StructureSpawn) {
+    actionOutcome = destination.recycleCreep(creep);
   } else if (creep.memory.action) {
     msg(creep, "can't handle action: " + creep.memory.action, true);
   } else if (destination) {
@@ -1069,11 +1058,11 @@ function workerTakeAction(creep: Creep, destination: Destination) {
   } else if (creep.memory.action === "harvest" && destination instanceof Source) {
     actionOutcome = creep.harvest(destination);
   } else if (creep.memory.action === "moveTo") {
-    actionOutcome = creep.moveTo(destination, {
-      visualizePathStyle: { stroke: hashColor(creep.memory.role) }
-    });
+    move(creep, destination);
   } else if (creep.memory.action === "build" && destination instanceof ConstructionSite) {
     actionOutcome = creep.build(destination);
+  } else if (creep.memory.action === "recycleCreep" && destination instanceof StructureSpawn) {
+    actionOutcome = destination.recycleCreep(creep);
   } else if (creep.memory.action) {
     msg(creep, "can't handle action: " + creep.memory.action, true);
   } else if (destination) {
@@ -1081,6 +1070,24 @@ function workerTakeAction(creep: Creep, destination: Destination) {
   }
 
   return actionOutcome;
+}
+
+function move(creep: Creep, destination: Destination) {
+  const flagName = trafficFlagName(creep.pos);
+  const flag = Game.flags[flagName];
+  if (flag) {
+    if ("steps" in flag.memory) {
+      flag.memory.steps++;
+    } else {
+      flag.memory.steps = 0;
+      flag.memory.initTime = Game.time;
+    }
+  } else {
+    creep.pos.createFlag(flagName, COLOR_GREEN, COLOR_GREY);
+  }
+  return creep.moveTo(destination, {
+    visualizePathStyle: { stroke: hashColor(creep.memory.role) }
+  });
 }
 
 function withdraw(creep: Creep, destination: Destination) {
@@ -1138,7 +1145,7 @@ function postAction(creep: Creep, destination: Destination, actionOutcome: Scree
     creep.memory.lastOkActionTime = Game.time;
   } else if (destination) {
     if (actionOutcome === ERR_NOT_IN_RANGE && (destination instanceof RoomPosition || "pos" in destination)) {
-      creep.moveTo(destination, { visualizePathStyle: { stroke: hashColor(creep.memory.role) } });
+      move(creep, destination);
     } else if (actionOutcome === ERR_FULL) {
       resetDestination(creep);
       handleCreep(creep);
@@ -1761,7 +1768,7 @@ function getPosForConstruction(room: Room, structureType: StructureConstant) {
 function getPosForRoad(room: Room) {
   const flags = room
     .find(FIND_FLAGS)
-    .filter(flag => flag.name.startsWith("traffic_") && flag.memory && flag.memory.ticksOccupied > 0);
+    .filter(flag => flag.name.startsWith("traffic_") && flag.memory && flag.memory.steps > 0);
   let bestScore = Number.NEGATIVE_INFINITY;
   let bestPos;
   for (const flag of flags) {
@@ -1787,7 +1794,7 @@ function getTrafficRate(flag: Flag) {
   if (!flag) return 0;
   if (!("initTime" in flag.memory)) return 0;
   if (flag.memory.initTime >= Game.time) return 0;
-  return flag.memory.ticksOccupied / (Game.time - flag.memory.initTime);
+  return (flag.memory.steps || 0) / (Game.time - flag.memory.initTime);
 }
 
 function getTrafficRateAt(pos: RoomPosition) {
@@ -1865,7 +1872,7 @@ function handleSpawn(spawn: StructureSpawn) {
     } else if (harvestersNeeded(spawn.pos)) {
       spawnHarvester(spawn);
       return;
-    } else if (getCreepCountByRole("reserver", false, 200) < getReservableControllers().length) {
+    } else if (getCreepCountByRole("reserver") < getReservableControllers().length) {
       roleToSpawn = "reserver";
       minBudget = 1300;
     } else if (getInvaderCore(spawn.pos)) {
@@ -2304,7 +2311,7 @@ function resetDestination(creep: Creep) {
   creep.memory.destinationSetTime = Game.time;
   creep.memory.action = undefined;
   creep.memory.posRevisits = 0;
-  if (destination && "memory" in destination && destination.memory.awaitingDeliveryFrom) {
+  if (destination && "memory" in destination && "awaitingDeliveryFrom" in destination.memory) {
     destination.memory.awaitingDeliveryFrom = undefined;
   }
 
@@ -2377,7 +2384,11 @@ function handleCreep(creep: Creep) {
   // create a new plan if situation requires
   if (!destination && (!creep.memory.awaitingDeliveryFrom || atEdge(creep.pos))) {
     destination = getNewDestination(creep);
-    if (destination) setDestination(creep, destination);
+    if (destination) {
+      setDestination(creep, destination);
+    } else {
+      recycleCreep(creep);
+    }
   }
 
   if (destination) {
