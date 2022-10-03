@@ -1871,7 +1871,7 @@ function handleSpawn(spawn: StructureSpawn) {
     let body;
     let minBudget = 0;
 
-    if (totalCreepParts("spawner", CARRY) < getCreepCountByRole("harvester")) {
+    if (totalCreepParts("spawner", CARRY) < totalCreepParts("harvester", WORK) / 5) {
       roleToSpawn = "spawner";
     } else if (carriersNeeded()) {
       roleToSpawn = "carrier";
