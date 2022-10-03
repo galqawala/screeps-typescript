@@ -1775,7 +1775,12 @@ function getPosForRoad(room: Room) {
   for (const flag of flags) {
     if (isEdge(flag.pos)) continue;
     const score = getTrafficRate(flag);
-    if (bestScore < score && score > minRoadTraffic && !hasStructureAt(flag.pos, STRUCTURE_ROAD, true)) {
+    if (
+      bestScore < score &&
+      score > minRoadTraffic &&
+      flag.pos.lookFor(LOOK_STRUCTURES).length <= 0 &&
+      flag.pos.lookFor(LOOK_CONSTRUCTION_SITES).length <= 0
+    ) {
       bestScore = score;
       bestPos = flag.pos;
     }
