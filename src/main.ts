@@ -99,7 +99,7 @@ declare global {
   }
 }
 
-const minRoadTraffic = 0.01;
+const minRoadTraffic = 0.011;
 
 // Type guards
 function isOwnedStructure(structure: Structure): structure is AnyOwnedStructure {
