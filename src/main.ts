@@ -258,7 +258,7 @@ function recycleCreep(creep: Creep) {
 
   if (destination) {
     if (creep.pos.getRangeTo(destination) <= 1 && destination instanceof StructureSpawn) {
-      destination.recycleCreep(creep);
+      if (destination.recycleCreep(creep) === OK) msg(creep, "recycled!");
     } else {
       move(creep, destination);
     }
@@ -1871,7 +1871,7 @@ function handleSpawn(spawn: StructureSpawn) {
     let body;
     let minBudget = 0;
 
-    if (getCreepCountByRole("spawner") < getCreepCountByRole("harvester") / 2) {
+    if (totalCreepParts("spawner", CARRY) < getCreepCountByRole("harvester")) {
       roleToSpawn = "spawner";
     } else if (carriersNeeded()) {
       roleToSpawn = "carrier";
@@ -2168,6 +2168,13 @@ function totalCreepCapacity(role: Role | undefined) {
   return Object.values(Game.creeps).reduce(
     (aggregated, item) =>
       aggregated + (!role || item.memory.role === role ? item.store.getCapacity(RESOURCE_ENERGY) : 0),
+    0 /* initial*/
+  );
+}
+function totalCreepParts(role: Role | undefined, partType: BodyPartConstant) {
+  return Object.values(Game.creeps).reduce(
+    (aggregated, item) =>
+      aggregated + (!role || item.memory.role === role ? item.getActiveBodyparts(partType) : 0),
     0 /* initial*/
   );
 }
