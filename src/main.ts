@@ -128,9 +128,10 @@ export const loop = ErrorMapper.wrapLoop(() => {
   if (Object.keys(Memory.time).length > memLimit) purgeTimeMemory();
   if (Object.keys(Memory.flags).length > memLimit) purgeFlagsMemory();
   if (Object.keys(Game.flags).length > memLimit) purgeFlags();
-  if (!Memory.username) {
-    setUsername();
-  }
+  if (!Memory.username) setUsername();
+
+  flagTargets();
+
   for (const c in Game.creeps) {
     const role = Game.creeps[c].memory.role;
     if (role === "harvester") handleHarvester(Game.creeps[c]);
@@ -139,6 +140,7 @@ export const loop = ErrorMapper.wrapLoop(() => {
   }
   for (const s in Game.spawns) handleSpawn(Game.spawns[s]);
   for (const r in Game.rooms) handleRoom(Game.rooms[r]);
+
   if (!Memory.time) Memory.time = {};
   if (!(Game.time in Memory.time)) Memory.time[Game.time] = { totalEnergyToHaul: totalEnergyToHaul() };
 });
@@ -167,18 +169,17 @@ function handleAttacker(creep: Creep) {
       engageTarget(creep, bestTarget);
     }
   } else {
+    // no targets in current room
     const flag = Game.flags.attack;
     if (flag) {
       move(creep, flag);
-      if (creep.room === flag.room) flag.remove(); // no targets to engage in this room
-    } else {
-      const target = getInvaderCore(creep.pos);
-      if (target && "pos" in target) {
-        target.pos.createFlag("attack", COLOR_CYAN, COLOR_BROWN);
-        move(creep, target);
-      } else {
-        recycleCreep(creep); // still nothing to do
+      if (creep.room === flag.room) {
+        // we are in the flagged room and found no targets
+        flag.remove();
+        flagTargets(); // try to set a new flag
       }
+    } else {
+      recycleCreep(creep); // still nothing to do
     }
   }
 }
@@ -247,7 +248,9 @@ function recycleCreep(creep: Creep) {
   if (typeof oldDestination === "string") destination = Game.getObjectById(oldDestination);
 
   if (!destination) {
-    destination = getClosest(creep.pos, Object.values(Game.spawns));
+    const spawns = Object.values(Game.spawns);
+    destination = creep.pos.findClosestByPath(spawns); // same room
+    if (!destination) destination = spawns[Math.floor(Math.random() * spawns.length)]; // another room
     if (destination) {
       setDestination(creep, destination);
     }
@@ -903,14 +906,6 @@ function getTaskForCarrier(creep: Creep) {
   return closestTask(creep.pos, tasks);
 }
 
-function getClosest(pos: RoomPosition, options: Destination[]) {
-  if (options.length < 1) return;
-  let destination = pos.findClosestByPath(options); // same room
-  if (destination) return destination;
-  destination = options[Math.floor(Math.random() * options.length)]; // another room
-  return destination;
-}
-
 function getEnergyDestinations() {
   let targets: Structure[] = [];
 
@@ -953,7 +948,8 @@ function getEnergySourceTask(
     );
   }
 
-  const destination = getClosest(pos, sources);
+  let destination = pos.findClosestByPath(sources); // same room
+  if (!destination) destination = sources[Math.floor(Math.random() * sources.length)]; // another room
   if (!destination) return;
 
   let action: Action = "withdraw";
@@ -1247,7 +1243,8 @@ function getUpgradeTask(pos: RoomPosition, urgentOnly: boolean) {
     if (urgentOnly && room.controller.ticksToDowngrade > 2000) continue;
     targets.push(room.controller);
   }
-  const destination = getClosest(pos, targets);
+  let destination = pos.findClosestByPath(targets); // same room
+  if (!destination) destination = targets[Math.floor(Math.random() * targets.length)]; // another room
   if (destination) {
     const task: Task = { action: "upgradeController", destination };
     return task;
@@ -1300,7 +1297,8 @@ function getRepairTask(creep: Creep) {
     );
   }
 
-  const destination = getClosest(creep.pos, destinations);
+  let destination = creep.pos.findClosestByPath(destinations); // same room
+  if (!destination) destination = destinations[Math.floor(Math.random() * destinations.length)]; // another room
   if (!destination) return;
 
   return { action: "repair", destination } as Task;
@@ -1320,7 +1318,9 @@ function workerSpendEnergyTask(creep: Creep) {
   if (!task) task = getRepairTask(creep);
   // build structures
   if (!task) {
-    const destination = getClosest(creep.pos, getConstructionSites(creep));
+    const destinations = getConstructionSites(creep);
+    let destination = creep.pos.findClosestByPath(destinations); // same room
+    if (!destination) destination = destinations[Math.floor(Math.random() * destinations.length)]; // another room
     if (destination) task = { action: "build", destination };
   }
   // upgrade the room controller
@@ -1875,7 +1875,7 @@ function handleSpawn(spawn: StructureSpawn) {
     } else if (getCreepCountByRole("reserver") < getReservableControllers().length) {
       roleToSpawn = "reserver";
       minBudget = 1300;
-    } else if (getInvaderCore(spawn.pos)) {
+    } else if ("attack" in Game.flags) {
       roleToSpawn = "attacker";
     } else if (getCreepCountByRole("explorer") <= 0) {
       roleToSpawn = "explorer";
@@ -1894,12 +1894,15 @@ function handleSpawn(spawn: StructureSpawn) {
   }
 }
 
-function getInvaderCore(pos: RoomPosition) {
-  let cores: StructureInvaderCore[] = [];
-  for (const r in Game.rooms) {
-    cores = cores.concat(Game.rooms[r].find(FIND_HOSTILE_STRUCTURES).filter(isInvaderCore));
+function flagTargets() {
+  if (!("attack" in Game.flags)) {
+    let cores: StructureInvaderCore[] = [];
+    for (const r in Game.rooms) {
+      cores = cores.concat(Game.rooms[r].find(FIND_HOSTILE_STRUCTURES).filter(isInvaderCore));
+    }
+    const core = cores[Math.floor(Math.random() * cores.length)];
+    if (core) core.pos.createFlag("attack", COLOR_CYAN, COLOR_BROWN);
   }
-  return getClosest(pos, cores);
 }
 
 function workersNeeded(room: Room) {
