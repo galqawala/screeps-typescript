@@ -1022,6 +1022,7 @@ function nonWorkerTakeAction(creep: Creep, destination: Destination) {
     actionOutcome = creep.reserveController(destination);
   } else if (creep.memory.action === "recycleCreep" && destination instanceof StructureSpawn) {
     actionOutcome = destination.recycleCreep(creep);
+    if (actionOutcome === OK) msg(creep, "recycled!");
   } else if (creep.memory.action) {
     msg(creep, "can't handle action: " + creep.memory.action, true);
   } else if (destination) {
@@ -1032,40 +1033,40 @@ function nonWorkerTakeAction(creep: Creep, destination: Destination) {
 }
 
 function workerTakeAction(creep: Creep, destination: Destination) {
-  let actionOutcome;
-  if (!destination) return;
-
-  if (creep.memory.action === "repair" && destination instanceof Structure) {
-    actionOutcome = creep.repair(destination);
+  if (!destination) {
+    return;
+  } else if (creep.memory.action === "repair" && destination instanceof Structure) {
+    return creep.repair(destination);
   } else if (
     creep.memory.action === "withdraw" &&
     (destination instanceof Structure || destination instanceof Tombstone || destination instanceof Ruin)
   ) {
-    actionOutcome = withdraw(creep, destination);
+    return withdraw(creep, destination);
   } else if (
     creep.memory.action === "transfer" &&
     (destination instanceof Creep || destination instanceof Structure)
   ) {
-    actionOutcome = transfer(creep, destination);
+    return transfer(creep, destination);
   } else if (creep.memory.action === "upgradeController" && destination instanceof StructureController) {
-    actionOutcome = creep.upgradeController(destination);
+    return creep.upgradeController(destination);
   } else if (creep.memory.action === "pickup" && destination instanceof Resource) {
-    actionOutcome = pickup(creep, destination);
+    return pickup(creep, destination);
   } else if (creep.memory.action === "harvest" && destination instanceof Source) {
-    actionOutcome = creep.harvest(destination);
+    return creep.harvest(destination);
   } else if (creep.memory.action === "moveTo") {
     move(creep, destination);
   } else if (creep.memory.action === "build" && destination instanceof ConstructionSite) {
-    actionOutcome = creep.build(destination);
+    return creep.build(destination);
   } else if (creep.memory.action === "recycleCreep" && destination instanceof StructureSpawn) {
-    actionOutcome = destination.recycleCreep(creep);
+    const actionOutcome = destination.recycleCreep(creep);
+    if (actionOutcome === OK) msg(creep, "recycled!");
+    return actionOutcome;
   } else if (creep.memory.action) {
     msg(creep, "can't handle action: " + creep.memory.action, true);
   } else if (destination) {
     msg(creep, "doesn't have action for destination: " + destination.toString(), true);
   }
-
-  return actionOutcome;
+  return;
 }
 
 function move(creep: Creep, destination: Destination) {
