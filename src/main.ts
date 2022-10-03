@@ -130,7 +130,8 @@ export const loop = ErrorMapper.wrapLoop(() => {
   if (Object.keys(Game.flags).length > memLimit) purgeFlags();
   if (!Memory.username) setUsername();
 
-  flagTargets();
+  updateFlagAttack();
+  updateFlagReserve();
 
   for (const c in Game.creeps) {
     const role = Game.creeps[c].memory.role;
@@ -169,17 +170,11 @@ function handleAttacker(creep: Creep) {
       engageTarget(creep, bestTarget);
     }
   } else {
-    // no targets in current room
     const flag = Game.flags.attack;
     if (flag) {
       move(creep, flag);
-      if (creep.room === flag.room) {
-        // we are in the flagged room and found no targets
-        flag.remove();
-        flagTargets(); // try to set a new flag
-      }
     } else {
-      recycleCreep(creep); // still nothing to do
+      recycleCreep(creep);
     }
   }
 }
@@ -209,20 +204,26 @@ function setUsername() {
   }
 }
 
-function getReservableControllers() {
+function getControllersToReserve() {
   const controllers = [];
   for (const r in Game.rooms) {
-    const controller = Game.rooms[r].controller;
-    if (!controller) continue;
-    if (controller.owner) continue;
-    if (reservationOk(controller)) continue;
-    if (reservedByOthers(controller)) continue;
-    controllers.push(controller);
+    if (shouldReserveRoom(Game.rooms[r])) {
+      controllers.push(Game.rooms[r].controller);
+    }
   }
   return controllers
-    .map(value => ({ value, sort: value.reservation?.ticksToEnd || 0 }))
+    .map(value => ({ value, sort: value?.reservation?.ticksToEnd || 0 }))
     .sort((a, b) => a.sort - b.sort)
     .map(({ value }) => value);
+}
+
+function shouldReserveRoom(room: Room) {
+  const controller = room.controller;
+  if (!controller) return false;
+  if (controller.owner) return false;
+  if (reservationOk(controller)) return false;
+  if (reservedByOthers(controller)) return false;
+  return true;
 }
 
 function reservationOk(controller: StructureController) {
@@ -842,8 +843,15 @@ function getNewDestination(creep: Creep) {
   } else if (role === "spawner") {
     task = getTaskForSpawner(creep);
   } else if (role === "reserver") {
-    const destination = getReservableControllers()[0];
-    if (destination) task = { action: "reserveController", destination };
+    const destinations = getControllersToReserve();
+    if (destinations.length && destinations[0]) {
+      task = { action: "reserveController", destination: destinations[0] };
+    } else {
+      const flag = Game.flags.reserve;
+      if (flag) {
+        task = { action: "moveTo", destination: flag };
+      }
+    }
   } else if (role === "explorer") {
     const destination = getExit(creep.pos, !creep.ticksToLive || creep.ticksToLive > 150, false);
     if (destination) task = { action: "moveTo", destination };
@@ -1878,7 +1886,7 @@ function handleSpawn(spawn: StructureSpawn) {
     } else if (harvestersNeeded(spawn.pos)) {
       spawnHarvester(spawn);
       return;
-    } else if (getCreepCountByRole("reserver") < getReservableControllers().length) {
+    } else if (getCreepCountByRole("reserver") < getControllersToReserve().length) {
       roleToSpawn = "reserver";
       minBudget = 1300;
     } else if ("attack" in Game.flags) {
@@ -1900,15 +1908,34 @@ function handleSpawn(spawn: StructureSpawn) {
   }
 }
 
-function flagTargets() {
-  if (!("attack" in Game.flags)) {
-    let cores: StructureInvaderCore[] = [];
-    for (const r in Game.rooms) {
-      cores = cores.concat(Game.rooms[r].find(FIND_HOSTILE_STRUCTURES).filter(isInvaderCore));
+function updateFlagAttack() {
+  const flagAttack = Game.flags.attack;
+  if (flagAttack) {
+    if (flagAttack.room && flagAttack.room.find(FIND_HOSTILE_STRUCTURES).filter(isInvaderCore).length < 1) {
+      flagAttack.remove();
+    } else {
+      return; // current flag is still valid
     }
-    const core = cores[Math.floor(Math.random() * cores.length)];
-    if (core) core.pos.createFlag("attack", COLOR_CYAN, COLOR_BROWN);
   }
+  let cores: StructureInvaderCore[] = [];
+  for (const r in Game.rooms) {
+    cores = cores.concat(Game.rooms[r].find(FIND_HOSTILE_STRUCTURES).filter(isInvaderCore));
+  }
+  const core = cores[Math.floor(Math.random() * cores.length)];
+  if (core) core.pos.createFlag("attack", COLOR_CYAN, COLOR_BROWN);
+}
+
+function updateFlagReserve() {
+  const flagReserve = Game.flags.reserve;
+  if (flagReserve) {
+    if (flagReserve.room && !shouldReserveRoom(flagReserve.room)) {
+      flagReserve.remove();
+    } else {
+      return; // current flag is still valid
+    }
+  }
+  const targets = getControllersToReserve();
+  if (targets.length && targets[0]) targets[0].pos.createFlag("reserve", COLOR_ORANGE, COLOR_WHITE);
 }
 
 function workersNeeded(room: Room) {
