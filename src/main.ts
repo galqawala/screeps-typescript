@@ -2221,12 +2221,14 @@ function construct(room: Room, structureType: BuildableStructureConstant) {
   if (needStructure(room, structureType)) {
     const pos = getPosForConstruction(room, structureType);
     if (!pos) return;
-    pos.lookFor(LOOK_STRUCTURES).forEach(structure => {
-      if (structure instanceof StructureExtension) {
-        msg(structure, "Destroying to make space for: " + structureType);
-        structure.destroy();
-      }
-    });
+    if (structureType !== STRUCTURE_ROAD) {
+      pos.lookFor(LOOK_STRUCTURES).forEach(existingStructure => {
+        if (existingStructure instanceof StructureExtension) {
+          msg(existingStructure, "Destroying to make space for: " + structureType, true);
+          existingStructure.destroy();
+        }
+      });
+    }
     const outcome = pos.createConstructionSite(structureType);
     msg(
       room,
