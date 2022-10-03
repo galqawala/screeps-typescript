@@ -2409,7 +2409,7 @@ function handleCreep(creep: Creep) {
     destination = getNewDestination(creep);
     if (destination) {
       setDestination(creep, destination);
-    } else if (creep.memory.role !== "carrier") {
+    } else if (creep.memory.role !== "carrier" && !creep.memory.awaitingDeliveryFrom) {
       recycleCreep(creep);
     }
   }
