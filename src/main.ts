@@ -1674,29 +1674,6 @@ function hasStructureInRange(
   return false;
 }
 
-function hasStructureAt(
-  pos: RoomPosition,
-  structureType: StructureConstant | undefined,
-  includeConstructionSites: boolean
-) {
-  if (
-    pos
-      .lookFor(LOOK_STRUCTURES)
-      .filter(structure => !structureType || structure.structureType === structureType).length > 0
-  )
-    return true;
-
-  if (
-    includeConstructionSites &&
-    pos
-      .lookFor(LOOK_CONSTRUCTION_SITES)
-      .filter(structure => !structureType || structure.structureType === structureType).length > 0
-  )
-    return true;
-
-  return false;
-}
-
 function getPosForContainer(room: Room) {
   const harvestSpots = room.memory.harvestSpots;
 
@@ -1891,6 +1868,7 @@ function handleSpawn(spawn: StructureSpawn) {
       minBudget = 1300;
     } else if ("attack" in Game.flags) {
       roleToSpawn = "attacker";
+      minBudget = 260;
     } else if (getCreepCountByRole("explorer") <= 0) {
       roleToSpawn = "explorer";
       body = [MOVE];
