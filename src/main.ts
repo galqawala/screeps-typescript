@@ -134,10 +134,13 @@ export const loop = ErrorMapper.wrapLoop(() => {
   updateFlagReserve();
 
   for (const c in Game.creeps) {
+    const cpuBefore = Game.cpu.getUsed();
     const role = Game.creeps[c].memory.role;
     if (role === "harvester") handleHarvester(Game.creeps[c]);
     else if (role === "attacker") handleAttacker(Game.creeps[c]);
     else handleCreep(Game.creeps[c]);
+    const cpuUsed = Game.cpu.getUsed() - cpuBefore;
+    if (cpuUsed > 2) msg(Game.creeps[c], cpuUsed.toString() + " CPU used");
   }
   for (const s in Game.spawns) handleSpawn(Game.spawns[s]);
   for (const r in Game.rooms) handleRoom(Game.rooms[r]);
