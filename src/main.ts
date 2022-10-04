@@ -1321,11 +1321,10 @@ function getRepairTask(creep: Creep) {
   return { action: "repair", destination } as Task;
 }
 
-function taskMoveRandomly(roomName: string) {
+function getRandomPos(roomName: string) {
   const x = Math.floor(Math.random() * 10);
   const y = Math.floor(Math.random() * 10);
-  const task: Task = { action: "moveTo", destination: new RoomPosition(x, y, roomName) };
-  return task;
+  return new RoomPosition(x, y, roomName);
 }
 
 function workerSpendEnergyTask(creep: Creep) {
@@ -2428,7 +2427,10 @@ function handleBlockedDestination(creep: Creep, destination: Destination) {
 }
 
 function getTaskForWorker(creep: Creep) {
-  if (creep.memory.awaitingDeliveryFrom && atEdge(creep.pos)) return taskMoveRandomly(creep.pos.roomName);
+  if (creep.memory.awaitingDeliveryFrom && atEdge(creep.pos)) {
+    move(creep, getRandomPos(creep.pos.roomName)); // move once towards a random position
+    return; // just wait for the delivery
+  }
 
   if (isFull(creep)) {
     // spend energy without moving
