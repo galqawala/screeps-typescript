@@ -1926,7 +1926,7 @@ function workersNeeded(room: Room) {
     if (
       Game.rooms[i]
         .find(FIND_MY_STRUCTURES)
-        .filter(structure => structure.structureType === STRUCTURE_STORAGE && getEnergy(structure) < 5000)
+        .filter(structure => structure.structureType === STRUCTURE_STORAGE && getEnergy(structure) < 10000)
         .length >= 1
     )
       return false;
@@ -1966,7 +1966,7 @@ function harvestersNeeded(pos: RoomPosition) {
     if (
       Game.rooms[i]
         .find(FIND_MY_STRUCTURES)
-        .filter(structure => structure.structureType === STRUCTURE_STORAGE && getEnergy(structure) < 10000)
+        .filter(structure => structure.structureType === STRUCTURE_STORAGE && getEnergy(structure) < 20000)
         .length >= 1
     )
       return true;
