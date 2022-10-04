@@ -1,4 +1,3 @@
-// ToDo: build containers on harvest spots that don't have a link
 // ToDo: keep/maintain traffic stats for half the positions and change every 10000 ticks
 
 // When compiling TS to JS and bundling with rollup, the line numbers and file names in error messages change
@@ -1677,25 +1676,6 @@ function hasStructureInRange(
   return false;
 }
 
-function getPosForContainer(room: Room) {
-  const harvestSpots = room.memory.harvestSpots;
-
-  if (!harvestSpots) return;
-
-  const spots = harvestSpots
-    .map(value => ({ value, sort: Math.random() }))
-    .sort((a, b) => a.sort - b.sort)
-    .map(({ value }) => value);
-
-  for (const spot of spots) {
-    const pos = new RoomPosition(spot.x, spot.y, spot.roomName);
-    if (pos.lookFor(LOOK_STRUCTURES).length) continue;
-    if (pos.lookFor(LOOK_CONSTRUCTION_SITES).length) continue;
-    return pos;
-  }
-  return;
-}
-
 function adjustConstructionSiteScoreForLink(score: number, pos: RoomPosition) {
   // distance to exit decreases the score
   const penalty = pos.findClosestByPath(FIND_EXIT);
@@ -1726,7 +1706,6 @@ function getPosForConstruction(room: Room, structureType: StructureConstant) {
     if (linkPos) return linkPos;
   }
   if (structureType === STRUCTURE_STORAGE) return getPosForStorage(room);
-  if (structureType === STRUCTURE_CONTAINER) return getPosForContainer(room);
   if (structureType === STRUCTURE_ROAD) return getPosForRoad(room);
 
   let bestScore = Number.NEGATIVE_INFINITY;
@@ -2103,11 +2082,8 @@ function initialCreepMemory(role: Role, sourceId: undefined | Id<Source>, pos: R
 
 function constructContainerIfNeeded(harvestPos: RoomPosition) {
   if (
-    harvestPos.lookFor(LOOK_STRUCTURES).filter(structure => structure.structureType !== STRUCTURE_ROAD)
-      .length <= 0 &&
-    harvestPos
-      .lookFor(LOOK_CONSTRUCTION_SITES)
-      .filter(structure => structure.structureType !== STRUCTURE_ROAD).length <= 0 &&
+    harvestPos.lookFor(LOOK_STRUCTURES).filter(s => s.structureType !== STRUCTURE_ROAD).length <= 0 &&
+    harvestPos.lookFor(LOOK_CONSTRUCTION_SITES).length <= 0 &&
     !hasStructureInRange(harvestPos, STRUCTURE_LINK, 1, true)
   ) {
     harvestPos.createConstructionSite(STRUCTURE_CONTAINER);
@@ -2270,7 +2246,7 @@ function construct(room: Room, structureType: BuildableStructureConstant) {
         .findInRange(FIND_STRUCTURES, 1)
         .filter(target => target.structureType === STRUCTURE_CONTAINER)
         .forEach(structure => {
-          msg(structure, "Destroying around new " + structureType);
+          msg(structure, "This container is being replaced by a link");
           structure.destroy();
         });
     }
