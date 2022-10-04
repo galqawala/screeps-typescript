@@ -287,7 +287,8 @@ function handleHarvester(creep: Creep) {
     move(creep, flag);
   }
   if (!isEmpty(creep)) {
-    repair(creep);
+    const target = creep.pos.findClosestByPath(creep.pos.findInRange(FIND_STRUCTURES, 3).filter(needsRepair));
+    if (target) creep.repair(target);
     // build
     const site = creep.pos.findClosestByPath(creep.pos.findInRange(FIND_MY_CONSTRUCTION_SITES, 3));
     if (site) creep.build(site);
@@ -307,23 +308,6 @@ function handleHarvester(creep: Creep) {
   }
   // done
   return true;
-}
-
-function repair(creep: Creep) {
-  // repair my structures
-  const myTarget = creep.pos.findClosestByPath(
-    creep.pos
-      .findInRange(FIND_MY_STRUCTURES, 3)
-      .filter(myStructure => myStructure.my !== false && myStructure.hits < myStructure.hitsMax)
-  );
-  if (myTarget) creep.repair(myTarget);
-  // repair unowned structures
-  const target = creep.pos.findClosestByPath(
-    creep.pos
-      .findInRange(FIND_STRUCTURES, 3)
-      .filter(structure => !isOwnedStructure(structure) && structure.hits < structure.hitsMax)
-  );
-  if (target) creep.repair(target);
 }
 
 function unloadCreep(creep: Creep) {
@@ -697,7 +681,7 @@ function getTargetStructure(myUnit: StructureTower | Creep) {
     .filter(
       target =>
         target.hitsMax > 0 &&
-        ((!isEnemy(target) && canRepair(myUnit) && target.hits < target.hitsMax / 2) ||
+        ((!isEnemy(target) && canRepair(myUnit) && needsRepair(target) && target.hits < target.hitsMax / 2) ||
           (isEnemy(target) && canAttack(myUnit)))
     );
   for (const targetStructure of structures) {
@@ -1220,22 +1204,9 @@ function isDownstreamLink(link: Structure) {
 }
 
 function getRepairTaskInRange(pos: RoomPosition) {
-  const destination = pos.findClosestByPath(
-    pos
-      .findInRange(FIND_MY_STRUCTURES, 3)
-      .filter(target => target.my !== false && target.hits < target.hitsMax)
-  );
+  const destination = pos.findClosestByPath(pos.findInRange(FIND_STRUCTURES, 3).filter(needsRepair));
   if (destination) {
     const task: Task = { action: "repair", destination };
-    if (task) return task;
-  }
-  const unowned = pos.findClosestByPath(
-    pos
-      .findInRange(FIND_STRUCTURES, 3)
-      .filter(target => !isOwnedStructure(target) && target.hits < target.hitsMax)
-  );
-  if (unowned) {
-    const task: Task = { action: "repair", destination: unowned };
     if (task) return task;
   }
   return;
