@@ -264,7 +264,7 @@ function recycleCreep(creep: Creep) {
 
   if (!destination) {
     const spawns = Object.values(Game.spawns);
-    destination = creep.pos.findClosestByPath(spawns); // same room
+    destination = creep.pos.findClosestByRange(spawns); // same room
     if (!destination) destination = spawns[Math.floor(Math.random() * spawns.length)]; // another room
     if (destination) {
       setDestination(creep, destination);
@@ -292,17 +292,7 @@ function handleHarvester(creep: Creep) {
     const flag = Game.flags[creep.name];
     move(creep, flag);
   }
-  if (!isEmpty(creep)) {
-    const target = creep.pos.findClosestByPath(creep.pos.findInRange(FIND_STRUCTURES, 3).filter(needsRepair));
-    if (target) creep.repair(target);
-    // build
-    const site = creep.pos.findClosestByPath(creep.pos.findInRange(FIND_MY_CONSTRUCTION_SITES, 3));
-    if (site) creep.build(site);
-    // upgrade controller
-    if (creep.room.controller) creep.upgradeController(creep.room.controller);
-    // transfer
-    if (isFull(creep)) unloadCreep(creep);
-  }
+  if (!isEmpty(creep)) harvesterSpendEnergy(creep);
   // harvest
   const sourceId = creep.memory.sourceId;
   if (sourceId) {
@@ -316,9 +306,21 @@ function handleHarvester(creep: Creep) {
   return true;
 }
 
+function harvesterSpendEnergy(creep: Creep) {
+  const target = creep.pos.findClosestByRange(creep.pos.findInRange(FIND_STRUCTURES, 3).filter(needsRepair));
+  if (target) creep.repair(target);
+  // build
+  const site = creep.pos.findClosestByRange(creep.pos.findInRange(FIND_MY_CONSTRUCTION_SITES, 3));
+  if (site) creep.build(site);
+  // upgrade controller
+  if (creep.room.controller) creep.upgradeController(creep.room.controller);
+  // transfer
+  if (isFull(creep)) unloadCreep(creep);
+}
+
 function unloadCreep(creep: Creep) {
   const pos = creep.pos;
-  const destination = pos.findClosestByPath(
+  const destination = pos.findClosestByRange(
     // link
     pos.findInRange(FIND_MY_STRUCTURES, 1).filter(target => !isFull(target) && isLink(target))
   );
@@ -326,7 +328,7 @@ function unloadCreep(creep: Creep) {
     creep.transfer(destination, RESOURCE_ENERGY);
     return;
   }
-  const targetCreep = pos.findClosestByPath(
+  const targetCreep = pos.findClosestByRange(
     // carrier
     pos.findInRange(FIND_CREEPS, 1).filter(wantsEnergy)
   );
@@ -334,7 +336,7 @@ function unloadCreep(creep: Creep) {
     creep.transfer(targetCreep, RESOURCE_ENERGY);
     return;
   }
-  const myStructure = pos.findClosestByPath(
+  const myStructure = pos.findClosestByRange(
     // my structure
     pos.findInRange(FIND_MY_STRUCTURES, 1).filter(target => !isFull(target) && target.my !== false)
   );
@@ -342,7 +344,7 @@ function unloadCreep(creep: Creep) {
     creep.transfer(myStructure, RESOURCE_ENERGY);
     return;
   }
-  const structure = pos.findClosestByPath(
+  const structure = pos.findClosestByRange(
     // unowned structure
     pos.findInRange(FIND_STRUCTURES, 1).filter(target => !isFull(target) && !isOwnedStructure(target))
   );
@@ -801,6 +803,8 @@ function atEdge(pos: RoomPosition) {
 }
 
 function memorizeCreepState(creep: Creep) {
+  const cpuBefore = Game.cpu.getUsed();
+
   if ((creep.memory.x || -1) !== creep.pos.x || (creep.memory.y || -1) !== creep.pos.y) {
     creep.memory.x = creep.pos.x;
     creep.memory.y = creep.pos.y;
@@ -810,6 +814,9 @@ function memorizeCreepState(creep: Creep) {
   creep.memory.empty = isEmpty(creep);
   creep.memory.full = isFull(creep);
   updateConstructionSiteScoreForCreep(creep);
+
+  const cpuUsed = Game.cpu.getUsed() - cpuBefore;
+  if (cpuUsed > 2) msg(creep, cpuUsed.toString() + " CPU used on memorizeCreepState()");
 }
 
 function posEquals(a: RoomPosition, b: RoomPosition) {
@@ -831,6 +838,7 @@ function setDestination(creep: Creep, destination: Destination) {
 
 function getNewDestination(creep: Creep) {
   if (creep.spawning) return;
+  const cpuBefore = Game.cpu.getUsed();
   const role = creep.memory.role;
   let task: Task | undefined;
 
@@ -854,6 +862,8 @@ function getNewDestination(creep: Creep) {
     const destination = getExit(creep.pos, !creep.ticksToLive || creep.ticksToLive > 150, false);
     if (destination) task = { action: "moveTo", destination };
   }
+  const cpuUsed = Game.cpu.getUsed() - cpuBefore;
+  if (cpuUsed > 2) msg(creep, cpuUsed.toString() + " CPU used on getNewDestination()");
 
   if (task) {
     creep.memory.action = task.action;
@@ -864,6 +874,7 @@ function getNewDestination(creep: Creep) {
 }
 
 function getTaskForSpawner(creep: Creep) {
+  const cpuBefore = Game.cpu.getUsed();
   let tasks: Task[] = [];
   if (!isFull(creep)) {
     const task = getEnergySourceTask(minTransferAmount(creep), creep.pos, true, true, false);
@@ -876,7 +887,10 @@ function getTaskForSpawner(creep: Creep) {
       })
     );
   }
-  return closestTask(creep.pos, tasks);
+  const finalTask = closestTask(creep.pos, tasks);
+  const cpuUsed = Game.cpu.getUsed() - cpuBefore;
+  if (cpuUsed > 2) msg(creep, cpuUsed.toString() + " CPU used on getTaskForSpawner()");
+  return finalTask;
 }
 
 function closestTask(pos: RoomPosition, tasks: Task[]) {
@@ -897,6 +911,7 @@ function closestTask(pos: RoomPosition, tasks: Task[]) {
 }
 
 function getTaskForCarrier(creep: Creep) {
+  const cpuBefore = Game.cpu.getUsed();
   let tasks: Task[] = [];
   if (!isFull(creep)) {
     const task = getEnergySourceTask(minTransferAmount(creep), creep.pos, false, false, false);
@@ -909,7 +924,10 @@ function getTaskForCarrier(creep: Creep) {
       })
     );
   }
-  return closestTask(creep.pos, tasks);
+  const finalTask = closestTask(creep.pos, tasks);
+  const cpuUsed = Game.cpu.getUsed() - cpuBefore;
+  if (cpuUsed > 2) msg(creep, cpuUsed.toString() + " CPU used on getTaskForCarrier()");
+  return finalTask;
 }
 
 function getEnergyDestinations() {
@@ -946,6 +964,7 @@ function getEnergySourceTask(
   allowAnyLink = true,
   allowSource = true
 ) {
+  const cpuBefore = Game.cpu.getUsed();
   let sources: Destination[] = [];
 
   for (const i in Game.rooms) {
@@ -954,8 +973,12 @@ function getEnergySourceTask(
     );
   }
 
-  let destination = pos.findClosestByPath(sources); // same room
+  let destination = pos.findClosestByRange(sources); // same room
   if (!destination) destination = sources[Math.floor(Math.random() * sources.length)]; // another room
+
+  const cpuUsed = Game.cpu.getUsed() - cpuBefore;
+  if (cpuUsed > 1.5) msg("getEnergySourceTask()", cpuUsed.toString() + " CPU used");
+
   if (!destination) return;
 
   let action: Action = "withdraw";
@@ -1210,7 +1233,7 @@ function isDownstreamLink(link: Structure) {
 }
 
 function getRepairTaskInRange(pos: RoomPosition) {
-  const destination = pos.findClosestByPath(pos.findInRange(FIND_STRUCTURES, 3).filter(needsRepair));
+  const destination = pos.findClosestByRange(pos.findInRange(FIND_STRUCTURES, 3).filter(needsRepair));
   if (destination) {
     const task: Task = { action: "repair", destination };
     if (task) return task;
@@ -1219,7 +1242,7 @@ function getRepairTaskInRange(pos: RoomPosition) {
 }
 
 function getBuildTaskInRange(pos: RoomPosition) {
-  const destination = pos.findClosestByPath(pos.findInRange(FIND_MY_CONSTRUCTION_SITES, 3));
+  const destination = pos.findClosestByRange(pos.findInRange(FIND_MY_CONSTRUCTION_SITES, 3));
   if (destination) {
     const action: Action = "build";
     const task: Task = { action, destination };
@@ -1229,6 +1252,8 @@ function getBuildTaskInRange(pos: RoomPosition) {
 }
 
 function getUpgradeTask(pos: RoomPosition, urgentOnly: boolean) {
+  const cpuBefore = Game.cpu.getUsed();
+
   const targets = [];
   for (const i in Game.rooms) {
     const room = Game.rooms[i];
@@ -1237,8 +1262,12 @@ function getUpgradeTask(pos: RoomPosition, urgentOnly: boolean) {
     if (urgentOnly && room.controller.ticksToDowngrade > 2000) continue;
     targets.push(room.controller);
   }
-  let destination = pos.findClosestByPath(targets); // same room
+  let destination = pos.findClosestByRange(targets); // same room
   if (!destination) destination = targets[Math.floor(Math.random() * targets.length)]; // another room
+
+  const cpuUsed = Game.cpu.getUsed() - cpuBefore;
+  if (cpuUsed > 1.5) msg("getUpgradeTask()", cpuUsed.toString() + " CPU used");
+
   if (destination) {
     const task: Task = { action: "upgradeController", destination };
     return task;
@@ -1278,21 +1307,18 @@ function creepsOnWayToPos(pos: RoomPosition) {
 }
 
 function getRepairTask(creep: Creep) {
-  let destinations: Destination[] = [];
+  const cpuBefore = Game.cpu.getUsed();
 
-  for (const i in Game.rooms) {
-    const room = Game.rooms[i];
-    destinations = destinations.concat(
-      room
-        .find(FIND_STRUCTURES)
-        .filter(
-          target => worthRepair(creep.pos, target) && !isUnderRepair(target) && !isBlocked(creep, target)
-        )
-    );
-  }
+  const destinations: Destination[] = creep.pos
+    .findInRange(FIND_STRUCTURES, 20) /* limited range to improve performance */
+    .filter(target => worthRepair(creep.pos, target) && !isUnderRepair(target) && !isBlocked(creep, target));
 
-  let destination = creep.pos.findClosestByPath(destinations); // same room
+  let destination = creep.pos.findClosestByRange(destinations); // same room
   if (!destination) destination = destinations[Math.floor(Math.random() * destinations.length)]; // another room
+
+  const cpuUsed = Game.cpu.getUsed() - cpuBefore;
+  if (cpuUsed > 1.5) msg(creep, cpuUsed.toString() + " CPU used on getRepairTask()");
+
   if (!destination) return;
 
   return { action: "repair", destination } as Task;
@@ -1305,6 +1331,7 @@ function getRandomPos(roomName: string) {
 }
 
 function workerSpendEnergyTask(creep: Creep) {
+  const cpuBefore = Game.cpu.getUsed();
   // upgrade the room controller if it's about to downgrade
   let task: Task | undefined = getUpgradeTask(creep.pos, true);
   // repair structures
@@ -1312,7 +1339,7 @@ function workerSpendEnergyTask(creep: Creep) {
   // build structures
   if (!task) {
     const destinations = getConstructionSites(creep);
-    let destination = creep.pos.findClosestByPath(destinations); // same room
+    let destination = creep.pos.findClosestByRange(destinations); // same room
     if (!destination) destination = destinations[Math.floor(Math.random() * destinations.length)]; // another room
     if (destination) task = { action: "build", destination };
   }
@@ -1324,20 +1351,28 @@ function workerSpendEnergyTask(creep: Creep) {
     if (task.destination instanceof RoomPosition) pos = task.destination;
     else if (task.destination.pos instanceof RoomPosition) pos = task.destination.pos;
 
-    if (pos) {
-      const flagName = pos.roomName + "_EnergyConsumer";
-      const color1 = COLOR_BLUE;
-      const color2 = COLOR_PURPLE;
-      if (flagName in Game.flags) {
-        const flag = Game.flags[flagName];
-        flag.setPosition(pos); /* handles the first setColor or setPosition per tick! */
-      } else {
-        pos.createFlag(flagName, color1, color2);
-      }
-    }
+    if (pos) flagEnergyConsumer(pos);
+    const cpuUsedFlag = Game.cpu.getUsed() - cpuBefore;
+    if (cpuUsedFlag > 1.5)
+      msg(creep, cpuUsedFlag.toString() + " CPU used on workerSpendEnergyTask() including flag");
     return task;
   }
+  const cpuUsed = Game.cpu.getUsed() - cpuBefore;
+  if (cpuUsed > 1.5) msg(creep, cpuUsed.toString() + " CPU used on workerSpendEnergyTask() excluding flag");
   return;
+}
+
+function flagEnergyConsumer(pos: RoomPosition) {
+  const cpuBefore = Game.cpu.getUsed();
+  const flagName = pos.roomName + "_EnergyConsumer";
+  if (flagName in Game.flags) {
+    const flag = Game.flags[flagName];
+    flag.setPosition(pos); /* handles the first setColor or setPosition per tick! */
+  } else {
+    pos.createFlag(flagName, COLOR_BLUE, COLOR_PURPLE);
+  }
+  const cpuUsedFlag = Game.cpu.getUsed() - cpuBefore;
+  if (cpuUsedFlag > 1.5) msg("flagEnergyConsumer()", cpuUsedFlag.toString() + " CPU used");
 }
 
 function getConstructionSites(creep: Creep) {
@@ -1400,6 +1435,7 @@ function isLinkNear(pos: RoomPosition) {
 
 function orderEnergy(creep: Creep) {
   // order energy from closest available carrier
+  const cpuBefore = Game.cpu.getUsed();
   if (
     creep.memory.role === "worker" &&
     !creep.memory.awaitingDeliveryFrom &&
@@ -1411,7 +1447,7 @@ function orderEnergy(creep: Creep) {
         carrierCreep.memory.role === "carrier" && !isEmpty(carrierCreep) && !hasImportantTask(carrierCreep)
       );
     });
-    const carrier = creep.pos.findClosestByPath(carriers);
+    const carrier = creep.pos.findClosestByRange(carriers);
     if (carrier) {
       carrier.memory.action = "transfer";
       carrier.memory.destination = creep.id; // deliver to me
@@ -1420,6 +1456,8 @@ function orderEnergy(creep: Creep) {
       creep.say(carrier.name);
     }
   }
+  const cpuUsed = Game.cpu.getUsed() - cpuBefore;
+  if (cpuUsed > 1.5) msg(creep, cpuUsed.toString() + " CPU used on orderEnergy()");
 }
 
 function minTransferAmount(creep: Creep) {
@@ -1507,7 +1545,7 @@ function getExit(pos: RoomPosition, safeOnly = true, harvestableOnly = true) {
   } else if (findExit === ERR_INVALID_ARGS) {
     msg(pos, "getExit() passed invalid arguments to Game.map.findExit()");
   } else {
-    const exit = pos.findClosestByPath(findExit);
+    const exit = pos.findClosestByRange(findExit);
     if (exit && isRoomPosition(exit)) return exit;
   }
   return;
@@ -1660,7 +1698,7 @@ function hasStructureInRange(
 
 function adjustConstructionSiteScoreForLink(score: number, pos: RoomPosition) {
   // distance to exit decreases the score
-  const penalty = pos.findClosestByPath(FIND_EXIT);
+  const penalty = pos.findClosestByRange(FIND_EXIT);
   if (penalty) {
     score /= pos.getRangeTo(penalty);
     score /= pos.getRangeTo(penalty);
@@ -1944,7 +1982,7 @@ function getSourceToHarvest(pos: RoomPosition) {
     );
   }
   if (sources.length < 1) return;
-  let source = pos.findClosestByPath(sources); // same room
+  let source = pos.findClosestByRange(sources); // same room
   if (source) return source;
   source = sources[Math.floor(Math.random() * sources.length)]; // another room
   return source;
@@ -2361,29 +2399,29 @@ function hexToHSL(hex: string) {
 function handleCreep(creep: Creep) {
   if (creep.spawning) return;
 
-  if (creep.memory.awaitingDeliveryFrom && !Game.creeps[creep.memory.awaitingDeliveryFrom]) {
+  if (creep.memory.awaitingDeliveryFrom && !Game.creeps[creep.memory.awaitingDeliveryFrom])
     creep.memory.awaitingDeliveryFrom = undefined; // no longer await delivery from a dead creep
-  }
 
   let destination = getDestinationFromMemory(creep);
 
   // create a new plan if situation requires
   if (!destination && (!creep.memory.awaitingDeliveryFrom || atEdge(creep.pos))) {
+    const cpuBefore = Game.cpu.getUsed();
     destination = getNewDestination(creep);
     if (destination) {
       setDestination(creep, destination);
     } else if (creep.memory.role !== "carrier" && !creep.memory.awaitingDeliveryFrom) {
       recycleCreep(creep);
     }
+    const cpuUsed = Game.cpu.getUsed() - cpuBefore;
+    if (cpuUsed > 2) msg(creep, cpuUsed.toString() + " CPU used to plan a new destination");
   }
 
   if (destination) {
     let actionOutcome;
-    if (creep.memory.role === "worker") {
-      actionOutcome = workerTakeAction(creep, destination);
-    } else {
-      actionOutcome = nonWorkerTakeAction(creep, destination);
-    }
+    if (creep.memory.role === "worker") actionOutcome = workerTakeAction(creep, destination);
+    else actionOutcome = nonWorkerTakeAction(creep, destination);
+
     if (actionOutcome !== undefined) {
       creep.memory.lastActionOutcome = actionOutcome;
       if (actionOutcome === OK) creep.memory.lastOkActionTime = Game.time;
@@ -2420,13 +2458,12 @@ function getTaskForWorker(creep: Creep) {
 
   if (isEmpty(creep) && !creep.memory.awaitingDeliveryFrom) {
     // fetch nearby energy
-    const allowSource = getCreepCountByRole("harvester") < 1;
     const task: Task | undefined = getEnergySourceTask(
       minTransferAmount(creep),
       creep.pos,
       true,
       true,
-      allowSource
+      getCreepCountByRole("harvester") < 1
     );
     if (task) {
       return task;
