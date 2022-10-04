@@ -1,3 +1,6 @@
+// ToDo: build containers on harvest spots that don't have a link
+// ToDo: keep/maintain traffic stats for half the positions and change every 10000 ticks
+
 // When compiling TS to JS and bundling with rollup, the line numbers and file names in error messages change
 // This utility uses source maps to get the line numbers and file names of the original, TS source code
 import { ErrorMapper } from "utils/ErrorMapper";
@@ -2100,7 +2103,11 @@ function initialCreepMemory(role: Role, sourceId: undefined | Id<Source>, pos: R
 
 function constructContainerIfNeeded(harvestPos: RoomPosition) {
   if (
-    harvestPos.lookFor(LOOK_STRUCTURES).length + harvestPos.lookFor(LOOK_CONSTRUCTION_SITES).length <= 0 &&
+    harvestPos.lookFor(LOOK_STRUCTURES).filter(structure => structure.structureType !== STRUCTURE_ROAD)
+      .length <= 0 &&
+    harvestPos
+      .lookFor(LOOK_CONSTRUCTION_SITES)
+      .filter(structure => structure.structureType !== STRUCTURE_ROAD).length <= 0 &&
     !hasStructureInRange(harvestPos, STRUCTURE_LINK, 1, true)
   ) {
     harvestPos.createConstructionSite(STRUCTURE_CONTAINER);
