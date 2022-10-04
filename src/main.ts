@@ -1,5 +1,3 @@
-// ToDo: keep/maintain traffic stats for half the positions and change every 10000 ticks
-
 // When compiling TS to JS and bundling with rollup, the line numbers and file names in error messages change
 // This utility uses source maps to get the line numbers and file names of the original, TS source code
 import { ErrorMapper } from "utils/ErrorMapper";
@@ -156,8 +154,16 @@ function purgeFlagsMemory() {
 
 function purgeFlags() {
   for (const flag of Object.values(Game.flags)) {
-    if (flag.name.startsWith("traffic_") && Math.random() < 0.5) flag.remove();
+    const name = flag.name;
+    if (name.startsWith("traffic_") && !shouldMaintainStatsFor(flag.pos)) flag.remove();
   }
+}
+
+function shouldMaintainStatsFor(pos: RoomPosition) {
+  // to save CPU, gather stats for only part of the rooms and switch focus after certain interval
+  const sections = 2;
+  const interval = 10000;
+  return pos.x % sections === Math.floor(Game.time / interval) % sections;
 }
 
 function trafficFlagName(pos: RoomPosition) {
@@ -1089,7 +1095,7 @@ function move(creep: Creep, destination: Destination) {
       flag.memory.steps = 0;
       flag.memory.initTime = Game.time;
     }
-  } else {
+  } else if (shouldMaintainStatsFor(creep.pos)) {
     creep.pos.createFlag(flagName, COLOR_GREEN, COLOR_GREY);
   }
   return creep.moveTo(destination, {
@@ -2239,8 +2245,6 @@ function construct(room: Room, structureType: BuildableStructureConstant) {
         " outcome: " +
         outcome.toString()
     );
-    const roadFlags = pos.lookFor(LOOK_FLAGS).filter(flag => flag.name.endsWith("_RoadNeeded"));
-    for (const flag of roadFlags) flag.remove();
     if (structureType === STRUCTURE_LINK) {
       pos
         .findInRange(FIND_STRUCTURES, 1)
