@@ -99,7 +99,7 @@ declare global {
   }
 }
 
-const minRoadTraffic = 0.011;
+const minRoadTraffic = 0.012;
 
 // Type guards
 function isOwnedStructure(structure: Structure): structure is AnyOwnedStructure {
@@ -2276,7 +2276,7 @@ function needStructure(room: Room, structureType: BuildableStructureConstant) {
   const targetCount = CONTROLLER_STRUCTURES[structureType][room.controller.level];
   if (targetCount > countStructures(room, structureType, true)) {
     if (structureType === STRUCTURE_ROAD) {
-      return room.find(FIND_CONSTRUCTION_SITES).length < 1;
+      return room.find(FIND_CONSTRUCTION_SITES).length < 2;
     } else {
       return true;
     }
