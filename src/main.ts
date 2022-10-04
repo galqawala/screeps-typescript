@@ -931,6 +931,7 @@ function getTaskForCarrier(creep: Creep) {
 }
 
 function getEnergyDestinations() {
+  const cpuBefore = Game.cpu.getUsed();
   let targets: Structure[] = [];
 
   for (const i in Game.rooms) {
@@ -953,6 +954,8 @@ function getEnergyDestinations() {
     }
     targets = targets.concat(roomTargets);
   }
+  const cpuUsed = Game.cpu.getUsed() - cpuBefore;
+  if (cpuUsed > 2) msg("getEnergyDestinations()", cpuUsed.toString() + " CPU used");
 
   return targets;
 }
@@ -1310,7 +1313,7 @@ function getRepairTask(creep: Creep) {
   const cpuBefore = Game.cpu.getUsed();
 
   const destinations: Destination[] = creep.pos
-    .findInRange(FIND_STRUCTURES, 20) /* limited range to improve performance */
+    .findInRange(FIND_STRUCTURES, 10) /* limited range to improve performance */
     .filter(target => worthRepair(creep.pos, target) && !isUnderRepair(target) && !isBlocked(creep, target));
 
   let destination = creep.pos.findClosestByRange(destinations); // same room
