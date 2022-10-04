@@ -144,6 +144,9 @@ export const loop = ErrorMapper.wrapLoop(() => {
 
   if (!Memory.time) Memory.time = {};
   if (!(Game.time in Memory.time)) Memory.time[Game.time] = { totalEnergyToHaul: totalEnergyToHaul() };
+
+  if (Game.cpu.getUsed() > Game.cpu.limit)
+    msg("loop", Game.cpu.getUsed().toString() + "/" + Game.cpu.limit.toString() + " CPU used");
 });
 
 function purgeFlagsMemory() {
