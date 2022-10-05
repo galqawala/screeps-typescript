@@ -233,6 +233,7 @@ function getControllersToReserve() {
 
 function shouldReserveRoom(room: Room) {
   const controller = room.controller;
+  if (room.memory.hostilesPresent) return false;
   if (!controller) return false;
   if (controller.owner) return false;
   if (reservationOk(controller)) return false;
@@ -373,7 +374,8 @@ function bodyByRatio(ratios: Partial<Record<BodyPartConstant, number>>, maxCost:
 
   for (;;) {
     // until break
-    const nextPart = bodyPartToAddByRatio(ratios, partAmounts);
+    const nextPart =
+      getBodyMoveRatioFromAmounts(partAmounts) <= 0.25 ? MOVE : bodyPartToAddByRatio(ratios, partAmounts);
 
     if (cost + BODYPART_COST[nextPart] > maxCost) break;
     partAmounts[nextPart] = (partAmounts[nextPart] || 0) + 1;
@@ -383,7 +385,6 @@ function bodyByRatio(ratios: Partial<Record<BodyPartConstant, number>>, maxCost:
   }
 
   const body: BodyPartConstant[] = [];
-  //  for (const part in partAmounts) {
   Object.entries(partAmounts).forEach(([part, amount]) => {
     for (let x = 1; x <= (amount || 0); x++) {
       body.push(part as BodyPartConstant);
@@ -391,6 +392,22 @@ function bodyByRatio(ratios: Partial<Record<BodyPartConstant, number>>, maxCost:
   });
 
   return body;
+}
+
+function getBodyMoveRatioFromAmounts(partAmounts: Partial<Record<BodyPartConstant, number>>) {
+  let moveParts = 0;
+  let totalParts = 0;
+
+  Object.entries(partAmounts).forEach(([part, amount]) => {
+    if (part === MOVE) {
+      moveParts += amount;
+    } else {
+      totalParts += amount;
+    }
+  });
+
+  if (totalParts < 1) return 0;
+  return moveParts / totalParts;
 }
 
 function bodyPartToAddByRatio(
@@ -936,6 +953,7 @@ function getEnergyDestinations() {
 
   for (const i in Game.rooms) {
     const room = Game.rooms[i];
+    if (room.memory.hostilesPresent) continue;
     let roomTargets = room
       .find(FIND_MY_STRUCTURES)
       .filter(structure => structure.structureType === STRUCTURE_TOWER && !isFull(structure));
@@ -971,6 +989,7 @@ function getEnergySourceTask(
   let sources: Destination[] = [];
 
   for (const i in Game.rooms) {
+    if (Game.rooms[i].memory.hostilesPresent) continue;
     sources = sources.concat(
       getEnergyInRoom(Game.rooms[i], myMinTransfer, pos, allowStorage, allowAnyLink, allowSource)
     );
@@ -1260,6 +1279,7 @@ function getUpgradeTask(pos: RoomPosition, urgentOnly: boolean) {
   const targets = [];
   for (const i in Game.rooms) {
     const room = Game.rooms[i];
+    if (room.memory.hostilesPresent) continue;
     if (!room.controller) continue;
     if (!room.controller.my) continue;
     if (urgentOnly && room.controller.ticksToDowngrade > 2000) continue;
@@ -1382,6 +1402,7 @@ function getConstructionSites(creep: Creep) {
   let sites: ConstructionSite[] = [];
   for (const i in Game.rooms) {
     const room = Game.rooms[i];
+    if (room.memory.hostilesPresent) continue;
     sites = sites.concat(room.find(FIND_MY_CONSTRUCTION_SITES).filter(target => !isBlocked(creep, target)));
   }
   return sites;
@@ -1497,6 +1518,7 @@ function getGlobalEnergyStructures(creep: Creep) {
   let structures: AnyOwnedStructure[] = [];
   for (const i in Game.rooms) {
     const room = Game.rooms[i];
+    if (room.memory.hostilesPresent) continue;
     structures = structures.concat(
       room
         .find(FIND_MY_STRUCTURES)
@@ -1900,11 +1922,17 @@ function updateFlagAttack() {
       return; // current flag is still valid
     }
   }
-  let cores: StructureInvaderCore[] = [];
+  let targets: (StructureInvaderCore | Creep | PowerCreep)[] = [];
   for (const r in Game.rooms) {
-    cores = cores.concat(Game.rooms[r].find(FIND_HOSTILE_STRUCTURES).filter(isInvaderCore));
+    targets = targets.concat(Game.rooms[r].find(FIND_HOSTILE_STRUCTURES).filter(isInvaderCore));
+    targets = targets.concat(
+      Game.rooms[r].find(FIND_HOSTILE_CREEPS).filter(target => target.owner.username === "Invader")
+    );
+    targets = targets.concat(
+      Game.rooms[r].find(FIND_HOSTILE_POWER_CREEPS).filter(target => target.owner.username === "Invader")
+    );
   }
-  const core = cores[Math.floor(Math.random() * cores.length)];
+  const core = targets[Math.floor(Math.random() * targets.length)];
   if (core) core.pos.createFlag("attack", COLOR_CYAN, COLOR_BROWN);
 }
 
@@ -1979,6 +2007,7 @@ function getSourceToHarvest(pos: RoomPosition) {
   let sources: Source[] = [];
   for (const r in Game.rooms) {
     const room = Game.rooms[r];
+    if (room.memory.hostilesPresent) continue;
     if (!canOperateInRoom(room)) continue;
     sources = sources.concat(
       room.find(FIND_SOURCES).filter(harvestSource => !sourceHasHarvester(harvestSource))
@@ -1997,9 +2026,10 @@ function spawnHarvester(spawn: StructureSpawn) {
   if (!source || !(source instanceof Source)) return;
   const workParts = source.energyCapacity / ENERGY_REGEN_TIME / HARVEST_POWER;
   let body: BodyPartConstant[] = [CARRY, MOVE];
-  const partsToAdd: BodyPartConstant[] = [WORK, MOVE];
   for (let x = 1; x <= workParts; x++) {
-    const newBody: BodyPartConstant[] = body.concat(partsToAdd);
+    const newBody: BodyPartConstant[] = body;
+    newBody.push(WORK);
+    while (getBodyMoveRatio(newBody) < 0.25) newBody.push(MOVE);
     if (bodyCost(newBody) > spawn.room.energyCapacityAvailable) break;
     body = newBody;
   }
@@ -2020,6 +2050,10 @@ function spawnHarvester(spawn: StructureSpawn) {
     spawnMsg(spawn, roleToSpawn, name, body, harvestPos);
   }
   return true;
+}
+
+function getBodyMoveRatio(body: BodyPartConstant[]) {
+  return body.filter(part => part === MOVE).length / body.length;
 }
 
 function spawnMsg(
@@ -2163,6 +2197,7 @@ function carriersNeeded() {
 function totalEnergyToHaul() {
   let energy = 0;
   for (const i in Game.rooms) {
+    if (Game.rooms[i].memory.hostilesPresent) continue;
     energy += Game.rooms[i]
       .find(FIND_STRUCTURES)
       .filter(structure => structure.structureType === STRUCTURE_CONTAINER)
@@ -2197,11 +2232,11 @@ function spawnCreep(
   body: undefined | BodyPartConstant[]
 ) {
   if (!body) {
-    if (roleToSpawn === "worker") body = bodyByRatio({ move: 3, work: 4, carry: 1 }, energyAvailable);
+    if (roleToSpawn === "worker") body = bodyByRatio({ work: 5, carry: 1 }, energyAvailable);
     else if (roleToSpawn === "carrier" || roleToSpawn === "spawner")
-      body = bodyByRatio({ move: 1, carry: 1 }, energyAvailable);
-    else if (roleToSpawn === "reserver") body = bodyByRatio({ move: 1, claim: 1 }, energyAvailable);
-    else if (roleToSpawn === "attacker") body = bodyByRatio({ move: 1, attack: 2 }, energyAvailable);
+      body = bodyByRatio({ carry: 1 }, energyAvailable);
+    else if (roleToSpawn === "reserver") body = bodyByRatio({ claim: 1 }, energyAvailable);
+    else if (roleToSpawn === "attacker") body = bodyByRatio({ attack: 1 }, energyAvailable);
   }
   const energyStructures = getSpawnsAndExtensionsSorted(spawn.room);
   const name = nameForCreep(roleToSpawn);
