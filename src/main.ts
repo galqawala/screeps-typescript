@@ -1,3 +1,5 @@
+// ToDo: remove handleCreep() from postAction() -> refactor to do withdraw, move, deposit during the same tick
+
 // When compiling TS to JS and bundling with rollup, the line numbers and file names in error messages change
 // This utility uses source maps to get the line numbers and file names of the original, TS source code
 import { ErrorMapper } from "utils/ErrorMapper";
@@ -985,6 +987,7 @@ function getEnergyInRoom(
 }
 
 function nonWorkerTakeAction(creep: Creep, destination: Destination) {
+  const cpuBefore = Game.cpu.getUsed();
   let actionOutcome;
   if (!destination) return;
 
@@ -1012,6 +1015,8 @@ function nonWorkerTakeAction(creep: Creep, destination: Destination) {
   } else if (destination) {
     msg(creep, "doesn't have action for destination: " + destination.toString(), true);
   }
+  const cpuUsedAction = Game.cpu.getUsed() - cpuBefore;
+  if (cpuUsedAction > 2) msg(creep, cpuUsedAction.toString() + " CPU used on nonWorkerTakeAction()");
 
   return actionOutcome;
 }
@@ -2413,6 +2418,7 @@ function hexToHSL(hex: string) {
 
 function handleCreep(creep: Creep) {
   const cpuBefore = Game.cpu.getUsed();
+  let cpuDebug = "";
   if (creep.spawning) return;
   if (creep.getActiveBodyparts(MOVE) < 1) recycleCreep(creep);
   if (creep.memory.awaitingDeliveryFrom && !Game.creeps[creep.memory.awaitingDeliveryFrom])
@@ -2421,31 +2427,39 @@ function handleCreep(creep: Creep) {
   const destination = getDestination(creep);
 
   const cpuBeforeAction = Game.cpu.getUsed();
+  cpuDebug += "\nbefore if (destination): " + (Game.cpu.getUsed() - cpuBefore).toString();
   if (destination) {
     let actionOutcome;
     if (creep.memory.role === "worker") actionOutcome = workerTakeAction(creep, destination);
     else actionOutcome = nonWorkerTakeAction(creep, destination);
+    cpuDebug += "\nafter *TakeAction: " + (Game.cpu.getUsed() - cpuBefore).toString();
 
     if (actionOutcome !== undefined) {
       creep.memory.lastActionOutcome = actionOutcome;
       if (actionOutcome === OK) creep.memory.lastOkActionTime = Game.time;
       postAction(creep, destination, actionOutcome);
+      cpuDebug += "\nafter postAction(): " + (Game.cpu.getUsed() - cpuBefore).toString();
     }
 
+    cpuDebug += "\nbefore handleBlockedDestination(): " + (Game.cpu.getUsed() - cpuBefore).toString();
     handleBlockedDestination(creep, destination);
   }
   const cpuUsedAction = Game.cpu.getUsed() - cpuBeforeAction;
   if (cpuUsedAction > 2) msg(creep, cpuUsedAction.toString() + " CPU used on handleCreep() actions");
 
+  cpuDebug += "\nbefore memorizeCreepState(): " + (Game.cpu.getUsed() - cpuBefore).toString();
   memorizeCreepState(creep);
   const cpuUsed = Game.cpu.getUsed() - cpuBefore;
-  if (cpuUsed > 2) msg(creep, cpuUsed.toString() + " CPU used on handleCreep()");
+  if (cpuUsed > 2) msg(creep, cpuUsed.toString() + " CPU used on handleCreep()" + cpuDebug);
 }
 
 function getDestination(creep: Creep) {
   const cpuBefore = Game.cpu.getUsed();
 
   let destination = getDestinationFromMemory(creep);
+  let cpuUsed = Game.cpu.getUsed() - cpuBefore;
+  if (cpuUsed > 1.5)
+    msg(creep, cpuUsed.toString() + " CPU used on getDestination() / getDestinationFromMemory()");
 
   // create a new plan if situation requires
   if (!destination && (!creep.memory.awaitingDeliveryFrom || atEdge(creep.pos))) {
@@ -2461,7 +2475,7 @@ function getDestination(creep: Creep) {
     }
   }
 
-  const cpuUsed = Game.cpu.getUsed() - cpuBefore;
+  cpuUsed = Game.cpu.getUsed() - cpuBefore;
   if (cpuUsed > 1.5) msg(creep, cpuUsed.toString() + " CPU used on getDestination()");
 
   return destination;
