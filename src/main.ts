@@ -1297,10 +1297,14 @@ function workerSpendEnergyTask(creep: Creep) {
   if (!task) task = getRepairTask(creep);
   // build structures
   if (!task) {
+    const cpuBeforeBuild = Game.cpu.getUsed();
     const destinations = getConstructionSites(creep);
     let destination = creep.pos.findClosestByRange(destinations); // same room
     if (!destination) destination = destinations[Math.floor(Math.random() * destinations.length)]; // another room
     if (destination) task = { action: "build", destination };
+    const cpuUsedBuild = Game.cpu.getUsed() - cpuBeforeBuild;
+    if (cpuUsedBuild > 1.5)
+      msg(creep, cpuUsedBuild.toString() + " CPU used on workerSpendEnergyTask() to build");
   }
   // upgrade the room controller
   if (!task) task = getUpgradeTask(creep.pos, false);
@@ -2413,6 +2417,7 @@ function handleCreep(creep: Creep) {
 
   const destination = getDestination(creep);
 
+  const cpuBeforeAction = Game.cpu.getUsed();
   if (destination) {
     let actionOutcome;
     if (creep.memory.role === "worker") actionOutcome = workerTakeAction(creep, destination);
@@ -2426,6 +2431,9 @@ function handleCreep(creep: Creep) {
 
     handleBlockedDestination(creep, destination);
   }
+  const cpuUsedAction = Game.cpu.getUsed() - cpuBeforeAction;
+  if (cpuUsedAction > 2) msg(creep, cpuUsedAction.toString() + " CPU used on handleCreep() actions");
+
   memorizeCreepState(creep);
   const cpuUsed = Game.cpu.getUsed() - cpuBefore;
   if (cpuUsed > 2) msg(creep, cpuUsed.toString() + " CPU used on handleCreep()");
