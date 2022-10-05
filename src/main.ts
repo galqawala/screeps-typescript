@@ -361,76 +361,6 @@ function wantsEnergy(target: Creep) {
   );
 }
 
-function bodyByRatio(ratios: Partial<Record<BodyPartConstant, number>>, maxCost: number) {
-  const partAmounts: Partial<Record<BodyPartConstant, number>> = {};
-  let cost = 0;
-  let partCount = 0;
-
-  Object.keys(ratios).forEach(part => {
-    partAmounts[part as BodyPartConstant] = 1;
-    cost += BODYPART_COST[part as BodyPartConstant];
-    partCount++;
-  });
-
-  for (;;) {
-    // until break
-    const nextPart =
-      getBodyMoveRatioFromAmounts(partAmounts) <= 0.25 ? MOVE : bodyPartToAddByRatio(ratios, partAmounts);
-
-    if (cost + BODYPART_COST[nextPart] > maxCost) break;
-    partAmounts[nextPart] = (partAmounts[nextPart] || 0) + 1;
-    cost += BODYPART_COST[nextPart];
-    partCount++;
-    if (partCount >= 50) break;
-  }
-
-  const body: BodyPartConstant[] = [];
-  Object.entries(partAmounts).forEach(([part, amount]) => {
-    for (let x = 1; x <= (amount || 0); x++) {
-      body.push(part as BodyPartConstant);
-    }
-  });
-
-  return body;
-}
-
-function getBodyMoveRatioFromAmounts(partAmounts: Partial<Record<BodyPartConstant, number>>) {
-  let moveParts = 0;
-  let totalParts = 0;
-
-  Object.entries(partAmounts).forEach(([part, amount]) => {
-    if (part === MOVE) {
-      moveParts += amount;
-    } else {
-      totalParts += amount;
-    }
-  });
-
-  if (totalParts < 1) return 0;
-  return moveParts / totalParts;
-}
-
-function bodyPartToAddByRatio(
-  ratios: Partial<Record<BodyPartConstant, number>>,
-  partAmounts: Partial<Record<BodyPartConstant, number>>
-) {
-  let nextPart: BodyPartConstant = MOVE;
-  let minRatio = Number.POSITIVE_INFINITY;
-
-  Object.entries(ratios).forEach(([part, partRatio]) => {
-    const amount = partAmounts[part as BodyPartConstant];
-    if (amount && partRatio) {
-      const ratio = amount / partRatio;
-      if (minRatio > ratio) {
-        minRatio = ratio;
-        nextPart = part as BodyPartConstant;
-      }
-    }
-  });
-
-  return nextPart;
-}
-
 function handleRoom(room: Room) {
   // control the towers
   const towers = room
@@ -2024,18 +1954,7 @@ function spawnHarvester(spawn: StructureSpawn) {
   const roleToSpawn: Role = "harvester"; // no energy for workers
   const source = getSourceToHarvest(spawn.pos);
   if (!source || !(source instanceof Source)) return;
-  const workParts = source.energyCapacity / ENERGY_REGEN_TIME / HARVEST_POWER;
-  let body: BodyPartConstant[] = [CARRY, MOVE];
-  for (let x = 1; x <= workParts; x++) {
-    const newBody: BodyPartConstant[] = body;
-    newBody.push(WORK);
-    while (getBodyMoveRatio(newBody) < 0.25) newBody.push(MOVE);
-    if (bodyCost(newBody) > spawn.room.energyCapacityAvailable) break;
-    body = newBody;
-  }
-  if (bodyCost(body) > spawn.room.energyAvailable && getCreepCountByRole(roleToSpawn) < 1) {
-    body = body.filter((value, index, self) => self.indexOf(value) === index); // unique
-  }
+  const body: BodyPartConstant[] = bodyForHarvester(source);
   const cost = bodyCost(body);
   if (cost > spawn.room.energyAvailable) return false;
   const energyStructures: (StructureSpawn | StructureExtension)[] = getSpawnsAndExtensionsSorted(spawn.room);
@@ -2050,6 +1969,15 @@ function spawnHarvester(spawn: StructureSpawn) {
     spawnMsg(spawn, roleToSpawn, name, body, harvestPos);
   }
   return true;
+}
+
+function bodyForHarvester(source: Source) {
+  const workParts = source.energyCapacity / ENERGY_REGEN_TIME / HARVEST_POWER;
+  const body: BodyPartConstant[] = [CARRY];
+  for (let x = 1; x <= workParts; x++) body.push(WORK);
+  const moveParts = Math.ceil(body.length / 3); // 1:3 = 1/4 MOVE
+  for (let x = 1; x <= moveParts; x++) body.push(MOVE);
+  return body;
 }
 
 function getBodyMoveRatio(body: BodyPartConstant[]) {
@@ -2232,11 +2160,10 @@ function spawnCreep(
   body: undefined | BodyPartConstant[]
 ) {
   if (!body) {
-    if (roleToSpawn === "worker") body = bodyByRatio({ work: 5, carry: 1 }, energyAvailable);
-    else if (roleToSpawn === "carrier" || roleToSpawn === "spawner")
-      body = bodyByRatio({ carry: 1 }, energyAvailable);
-    else if (roleToSpawn === "reserver") body = bodyByRatio({ claim: 1 }, energyAvailable);
-    else if (roleToSpawn === "attacker") body = bodyByRatio({ attack: 1 }, energyAvailable);
+    if (roleToSpawn === "worker") body = bodyForWorker(energyAvailable);
+    else if (roleToSpawn === "carrier" || roleToSpawn === "spawner") body = bodyForCarrier(energyAvailable);
+    else if (roleToSpawn === "reserver") body = bodyForReserver(energyAvailable);
+    else if (roleToSpawn === "attacker") body = bodyForAttacker(energyAvailable);
   }
   const energyStructures = getSpawnsAndExtensionsSorted(spawn.room);
   const name = nameForCreep(roleToSpawn);
@@ -2252,6 +2179,43 @@ function spawnCreep(
     spawnMsg(spawn, roleToSpawn, name, body, undefined);
   } else {
     msg(spawn, "Failed to spawn creep: " + outcome.toString());
+  }
+}
+
+function bodyForWorker(energyAvailable: number) {
+  const body: BodyPartConstant[] = [WORK, CARRY, MOVE];
+  for (;;) {
+    const nextPart = getBodyMoveRatio(body) <= 0.25 ? MOVE : WORK;
+    if (bodyCost(body) + BODYPART_COST[nextPart] > energyAvailable) return body;
+    body.push(nextPart);
+    if (body.length >= 50) return body;
+  }
+}
+function bodyForCarrier(energyAvailable: number) {
+  const body: BodyPartConstant[] = [CARRY, MOVE];
+  for (;;) {
+    const nextPart = getBodyMoveRatio(body) <= 0.25 ? MOVE : CARRY;
+    if (bodyCost(body) + BODYPART_COST[nextPart] > energyAvailable) return body;
+    body.push(nextPart);
+    if (body.length >= 50) return body;
+  }
+}
+function bodyForReserver(energyAvailable: number) {
+  const body: BodyPartConstant[] = [CLAIM, MOVE];
+  for (;;) {
+    const nextPart = getBodyMoveRatio(body) <= 0.25 ? MOVE : CLAIM;
+    if (bodyCost(body) + BODYPART_COST[nextPart] > energyAvailable) return body;
+    body.push(nextPart);
+    if (body.length >= 50) return body;
+  }
+}
+function bodyForAttacker(energyAvailable: number) {
+  const body: BodyPartConstant[] = [ATTACK, MOVE];
+  for (;;) {
+    const nextPart = getBodyMoveRatio(body) <= 0.25 ? MOVE : ATTACK;
+    if (bodyCost(body) + BODYPART_COST[nextPart] > energyAvailable) return body;
+    body.push(nextPart);
+    if (body.length >= 50) return body;
   }
 }
 
@@ -2436,24 +2400,12 @@ function hexToHSL(hex: string) {
 
 function handleCreep(creep: Creep) {
   if (creep.spawning) return;
+  if (creep.getActiveBodyparts(MOVE) < 1) recycleCreep(creep);
 
   if (creep.memory.awaitingDeliveryFrom && !Game.creeps[creep.memory.awaitingDeliveryFrom])
     creep.memory.awaitingDeliveryFrom = undefined; // no longer await delivery from a dead creep
 
-  let destination = getDestinationFromMemory(creep);
-
-  // create a new plan if situation requires
-  if (!destination && (!creep.memory.awaitingDeliveryFrom || atEdge(creep.pos))) {
-    const cpuBefore = Game.cpu.getUsed();
-    destination = getNewDestination(creep);
-    if (destination) {
-      setDestination(creep, destination);
-    } else if (creep.memory.role !== "carrier" && !creep.memory.awaitingDeliveryFrom) {
-      recycleCreep(creep);
-    }
-    const cpuUsed = Game.cpu.getUsed() - cpuBefore;
-    if (cpuUsed > 2) msg(creep, cpuUsed.toString() + " CPU used to plan a new destination");
-  }
+  const destination = getDestination(creep);
 
   if (destination) {
     let actionOutcome;
@@ -2469,6 +2421,31 @@ function handleCreep(creep: Creep) {
     handleBlockedDestination(creep, destination);
   }
   memorizeCreepState(creep);
+}
+
+function getDestination(creep: Creep) {
+  const cpuBefore = Game.cpu.getUsed();
+
+  let destination = getDestinationFromMemory(creep);
+
+  // create a new plan if situation requires
+  if (!destination && (!creep.memory.awaitingDeliveryFrom || atEdge(creep.pos))) {
+    destination = getNewDestination(creep);
+    if (destination) {
+      setDestination(creep, destination);
+    } else if (
+      creep.memory.role !== "carrier" &&
+      creep.memory.role !== "spawner" &&
+      !creep.memory.awaitingDeliveryFrom
+    ) {
+      recycleCreep(creep);
+    }
+  }
+
+  const cpuUsed = Game.cpu.getUsed() - cpuBefore;
+  if (cpuUsed > 2) msg(creep, cpuUsed.toString() + " CPU used on getDestination()");
+
+  return destination;
 }
 
 function handleBlockedDestination(creep: Creep, destination: Destination) {
