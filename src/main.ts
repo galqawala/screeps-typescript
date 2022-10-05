@@ -1990,8 +1990,8 @@ function bodyForHarvester(source: Source) {
   return body;
 }
 
-function getBodyMoveRatio(body: BodyPartConstant[]) {
-  return body.filter(part => part === MOVE).length / body.length;
+function getBodyPartRatio(body: BodyPartConstant[], type: BodyPartConstant = MOVE) {
+  return body.filter(part => part === type).length / body.length;
 }
 
 function spawnMsg(
@@ -2195,7 +2195,10 @@ function spawnCreep(
 function bodyForWorker(energyAvailable: number) {
   const body: BodyPartConstant[] = [WORK, CARRY, MOVE];
   for (;;) {
-    const nextPart = getBodyMoveRatio(body) <= 0.34 ? MOVE : WORK;
+    let nextPart: BodyPartConstant = WORK;
+    if (getBodyPartRatio(body, MOVE) <= 0.34) nextPart = WORK;
+    else if (getBodyPartRatio(body, CARRY) <= 0.1) nextPart = CARRY;
+
     if (bodyCost(body) + BODYPART_COST[nextPart] > energyAvailable) return body;
     body.push(nextPart);
     if (body.length >= 50) return body;
@@ -2204,7 +2207,7 @@ function bodyForWorker(energyAvailable: number) {
 function bodyForCarrier(energyAvailable: number) {
   const body: BodyPartConstant[] = [CARRY, MOVE];
   for (;;) {
-    const nextPart = getBodyMoveRatio(body) <= 0.34 ? MOVE : CARRY;
+    const nextPart = getBodyPartRatio(body) <= 0.34 ? MOVE : CARRY;
     if (bodyCost(body) + BODYPART_COST[nextPart] > energyAvailable) return body;
     body.push(nextPart);
     if (body.length >= 50) return body;
@@ -2213,7 +2216,7 @@ function bodyForCarrier(energyAvailable: number) {
 function bodyForReserver(energyAvailable: number) {
   const body: BodyPartConstant[] = [CLAIM, MOVE];
   for (;;) {
-    const nextPart = getBodyMoveRatio(body) <= 0.34 ? MOVE : CLAIM;
+    const nextPart = getBodyPartRatio(body) <= 0.34 ? MOVE : CLAIM;
     if (bodyCost(body) + BODYPART_COST[nextPart] > energyAvailable) return body;
     body.push(nextPart);
     if (body.length >= 50) return body;
@@ -2222,7 +2225,7 @@ function bodyForReserver(energyAvailable: number) {
 function bodyForAttacker(energyAvailable: number) {
   const body: BodyPartConstant[] = [ATTACK, MOVE];
   for (;;) {
-    const nextPart = getBodyMoveRatio(body) <= 0.34 ? MOVE : ATTACK;
+    const nextPart = getBodyPartRatio(body) <= 0.34 ? MOVE : ATTACK;
     if (bodyCost(body) + BODYPART_COST[nextPart] > energyAvailable) return body;
     body.push(nextPart);
     if (body.length >= 50) return body;
