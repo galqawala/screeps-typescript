@@ -282,6 +282,7 @@ function recycleCreep(creep: Creep) {
 }
 
 function handleHarvester(creep: Creep) {
+  const cpuBefore = Game.cpu.getUsed();
   if (creep.memory.role !== "harvester") return false;
   if (creep.spawning) return true;
   if (creep.memory.action === "recycleCreep") {
@@ -304,6 +305,8 @@ function handleHarvester(creep: Creep) {
     }
   }
   // done
+  const cpuUsed = Game.cpu.getUsed() - cpuBefore;
+  if (cpuUsed > 2) msg(creep, cpuUsed.toString() + " CPU used on handleHarvester()");
   return true;
 }
 
@@ -1260,17 +1263,20 @@ function creepsOnWayToPos(pos: RoomPosition) {
 }
 
 function getRepairTask(creep: Creep) {
-  const cpuBefore = Game.cpu.getUsed();
-
+  const cpuBeforeFind = Game.cpu.getUsed();
   const destinations: Destination[] = creep.pos
     .findInRange(FIND_STRUCTURES, 10) /* limited range to improve performance */
     .filter(target => worthRepair(creep.pos, target) && !isUnderRepair(target) && !isBlocked(creep, target));
+  const cpuUsedFind = Game.cpu.getUsed() - cpuBeforeFind;
+  if (cpuUsedFind > 1.5)
+    msg(creep, cpuUsedFind.toString() + " CPU used on getRepairTask() to find repair targets");
 
+  const cpuBeforeChoose = Game.cpu.getUsed();
   let destination = creep.pos.findClosestByRange(destinations); // same room
   if (!destination) destination = destinations[Math.floor(Math.random() * destinations.length)]; // another room
-
-  const cpuUsed = Game.cpu.getUsed() - cpuBefore;
-  if (cpuUsed > 1.5) msg(creep, cpuUsed.toString() + " CPU used on getRepairTask()");
+  const cpuUsedChoose = Game.cpu.getUsed() - cpuBeforeChoose;
+  if (cpuUsedChoose > 1.5)
+    msg(creep, cpuUsedChoose.toString() + " CPU used on getRepairTask() to choose a repair target");
 
   if (!destination) return;
 
@@ -2399,9 +2405,9 @@ function hexToHSL(hex: string) {
 }
 
 function handleCreep(creep: Creep) {
+  const cpuBefore = Game.cpu.getUsed();
   if (creep.spawning) return;
   if (creep.getActiveBodyparts(MOVE) < 1) recycleCreep(creep);
-
   if (creep.memory.awaitingDeliveryFrom && !Game.creeps[creep.memory.awaitingDeliveryFrom])
     creep.memory.awaitingDeliveryFrom = undefined; // no longer await delivery from a dead creep
 
@@ -2421,6 +2427,8 @@ function handleCreep(creep: Creep) {
     handleBlockedDestination(creep, destination);
   }
   memorizeCreepState(creep);
+  const cpuUsed = Game.cpu.getUsed() - cpuBefore;
+  if (cpuUsed > 2) msg(creep, cpuUsed.toString() + " CPU used on handleCreep()");
 }
 
 function getDestination(creep: Creep) {
@@ -2443,7 +2451,7 @@ function getDestination(creep: Creep) {
   }
 
   const cpuUsed = Game.cpu.getUsed() - cpuBefore;
-  if (cpuUsed > 2) msg(creep, cpuUsed.toString() + " CPU used on getDestination()");
+  if (cpuUsed > 1.5) msg(creep, cpuUsed.toString() + " CPU used on getDestination()");
 
   return destination;
 }
