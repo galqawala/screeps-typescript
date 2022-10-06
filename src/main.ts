@@ -1843,6 +1843,7 @@ function handleSpawn(spawn: StructureSpawn) {
     let roleToSpawn: Role;
     let body;
     let minBudget = 0;
+    const controllersToReserve = getControllersToReserve();
 
     if (getTotalCreepParts("spawner", CARRY) < getTotalCreepParts("harvester", WORK) / 3) {
       roleToSpawn = "spawner";
@@ -1851,9 +1852,9 @@ function handleSpawn(spawn: StructureSpawn) {
     } else if (needHarvesters(spawn.pos)) {
       spawnHarvester(spawn);
       return;
-    } else if (getControllersToReserve().length > 0) {
-      roleToSpawn = "reserver";
-      minBudget = 1300;
+    } else if (controllersToReserve.length > 0) {
+      spawnReserver(spawn, controllersToReserve[0]);
+      return;
     } else if ("attack" in Game.flags) {
       roleToSpawn = "attacker";
       minBudget = 260;
@@ -1869,8 +1870,17 @@ function handleSpawn(spawn: StructureSpawn) {
 
     const budget = getSpawnBudget(roleToSpawn, minBudget, spawn.room.energyCapacityAvailable);
     if (spawn.room.energyAvailable >= budget) {
-      spawnCreep(spawn, roleToSpawn, budget, body);
+      spawnCreep(spawn, roleToSpawn, budget, body, undefined);
     }
+  }
+}
+
+function spawnReserver(spawn: StructureSpawn, controllerToReserve: StructureController) {
+  const minBudget = Math.max(1300, spawn.room.energyCapacityAvailable);
+  msg(spawn, "spawning a reserver for " + minBudget.toString());
+  if (spawn.room.energyAvailable >= minBudget) {
+    const task: Task = { destination: controllerToReserve, action: "reserveController" };
+    spawnCreep(spawn, "reserver", minBudget, undefined, task);
   }
 }
 
@@ -1993,7 +2003,7 @@ function spawnHarvester(spawn: StructureSpawn) {
   const harvestPos = getHarvestSpotForSource(source);
   if (!harvestPos) return;
   constructContainerIfNeed(harvestPos);
-  const memory = getInitialCreepMemory(roleToSpawn, source.id, spawn.pos);
+  const memory = getInitialCreepMemory(roleToSpawn, source.id, spawn.pos, undefined);
   if (spawn.spawnCreep(body, name, { memory, energyStructures }) === OK) {
     Memory.needHarvesters = false;
     setDestinationFlag(name, harvestPos);
@@ -2071,7 +2081,14 @@ function getSpawnsAndExtensionsSorted(room: Room) {
     .filter(isSpawnOrExtension);
 }
 
-function getInitialCreepMemory(role: Role, sourceId: undefined | Id<Source>, pos: RoomPosition) {
+function getInitialCreepMemory(
+  role: Role,
+  sourceId: undefined | Id<Source>,
+  pos: RoomPosition,
+  task: Task | undefined
+) {
+  let destination;
+  if (task?.destination && "id" in task?.destination) destination = task?.destination?.id;
   return {
     role,
     sourceId,
@@ -2085,9 +2102,9 @@ function getInitialCreepMemory(role: Role, sourceId: undefined | Id<Source>, pos
     roomName: pos.roomName,
     lastMoveTime: Game.time,
     destinationSetTime: Game.time,
-    destination: undefined,
+    destination,
     lastDestination: undefined,
-    action: undefined,
+    action: task?.action,
     lastAction: undefined,
     lastActionOutcome: OK,
     lastBlockedIds: [],
@@ -2188,7 +2205,8 @@ function spawnCreep(
   spawn: StructureSpawn,
   roleToSpawn: Role,
   energyAvailable: number,
-  body: undefined | BodyPartConstant[]
+  body: undefined | BodyPartConstant[],
+  task: Task | undefined
 ) {
   if (!body) {
     if (roleToSpawn === "worker") body = getBodyForWorker(energyAvailable);
@@ -2203,7 +2221,7 @@ function spawnCreep(
   if (!body || getBodyCost(body) > spawn.room.energyAvailable) return;
 
   const outcome = spawn.spawnCreep(body, name, {
-    memory: getInitialCreepMemory(roleToSpawn, undefined, spawn.pos),
+    memory: getInitialCreepMemory(roleToSpawn, undefined, spawn.pos, task),
     energyStructures
   });
 
