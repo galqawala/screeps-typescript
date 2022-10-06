@@ -1727,7 +1727,13 @@ function getPosForConstruction(room: Room, structureType: StructureConstant) {
 function getPosForRoad(room: Room) {
   const flags = room
     .find(FIND_FLAGS)
-    .filter(flag => flag.name.startsWith("traffic_") && flag.memory && flag.memory.steps > 0);
+    .filter(
+      flag =>
+        flag.name.startsWith("traffic_") &&
+        flag.memory &&
+        flag.memory.steps > 0 &&
+        flag.memory.initTime < Game.time - 1000
+    );
   let bestScore = Number.NEGATIVE_INFINITY;
   let bestPos;
   for (const flag of flags) {
@@ -2298,7 +2304,7 @@ function needStructure(room: Room, structureType: BuildableStructureConstant) {
   const targetCount = CONTROLLER_STRUCTURES[structureType][room.controller.level];
   if (targetCount > countStructures(room, structureType, true)) {
     if (structureType === STRUCTURE_ROAD) {
-      return room.find(FIND_CONSTRUCTION_SITES).length < 2;
+      return room.find(FIND_CONSTRUCTION_SITES).length < 3;
     } else {
       return true;
     }
