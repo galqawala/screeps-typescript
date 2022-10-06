@@ -264,8 +264,9 @@ function recycleCreep(creep: Creep) {
   let destination;
   const oldDestination = creep.memory.destination;
   if (typeof oldDestination === "string") destination = Game.getObjectById(oldDestination);
+  if (!(destination instanceof StructureSpawn)) destination = resetDestination(creep);
 
-  if (!destination) {
+  if (!destination || !(destination instanceof StructureSpawn)) {
     const spawns = Object.values(Game.spawns);
     destination = creep.pos.findClosestByRange(spawns); // same room
     if (!destination) destination = spawns[Math.floor(Math.random() * spawns.length)]; // another room
@@ -2201,7 +2202,7 @@ function bodyForWorker(energyAvailable: number) {
   const body: BodyPartConstant[] = [WORK, CARRY, MOVE];
   for (;;) {
     let nextPart: BodyPartConstant = WORK;
-    if (getBodyPartRatio(body, MOVE) <= 0.34) nextPart = WORK;
+    if (getBodyPartRatio(body, MOVE) <= 0.34) nextPart = MOVE;
     else if (getBodyPartRatio(body, CARRY) <= 0.1) nextPart = CARRY;
 
     if (bodyCost(body) + BODYPART_COST[nextPart] > energyAvailable) return body;
@@ -2416,11 +2417,22 @@ function hexToHSL(hex: string) {
   return { h, s, l };
 }
 
+function recycleIfUseless(creep: Creep) {
+  if (creep.getActiveBodyparts(MOVE) < 1) recycleCreep(creep);
+  if (
+    getBodyPartRatio(
+      creep.body.map(part => part.type),
+      MOVE
+    ) <= 0.02
+  )
+    recycleCreep(creep);
+}
+
 function handleCreep(creep: Creep) {
   const cpuBefore = Game.cpu.getUsed();
   let cpuDebug = "";
   if (creep.spawning) return;
-  if (creep.getActiveBodyparts(MOVE) < 1) recycleCreep(creep);
+  recycleIfUseless(creep);
   if (creep.memory.awaitingDeliveryFrom && !Game.creeps[creep.memory.awaitingDeliveryFrom])
     creep.memory.awaitingDeliveryFrom = undefined; // no longer await delivery from a dead creep
 
