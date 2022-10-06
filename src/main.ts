@@ -223,14 +223,27 @@ function setUsername() {
 function getControllersToReserve() {
   const controllers = [];
   for (const r in Game.rooms) {
-    if (shouldReserveRoom(Game.rooms[r])) {
-      controllers.push(Game.rooms[r].controller);
+    const controller = Game.rooms[r].controller;
+    if (controller && shouldReserveRoom(Game.rooms[r]) && !creepsHaveDestination(controller)) {
+      controllers.push(controller);
     }
   }
   return controllers
     .map(value => ({ value, sort: value?.reservation?.ticksToEnd || 0 }))
     .sort((a, b) => a.sort - b.sort)
     .map(({ value }) => value);
+}
+
+function creepsHaveDestination(structure: Structure) {
+  if (!structure) return false;
+  if (!structure.id) return false;
+  if (
+    Object.values(Game.creeps).filter(function (creep) {
+      return creep.memory.destination === structure.id;
+    }).length
+  )
+    return true;
+  return false;
 }
 
 function shouldReserveRoom(room: Room) {
@@ -1842,7 +1855,7 @@ function handleSpawn(spawn: StructureSpawn) {
     } else if (harvestersNeeded(spawn.pos)) {
       spawnHarvester(spawn);
       return;
-    } else if (getCreepCountByRole("reserver") < getControllersToReserve().length) {
+    } else if (getControllersToReserve().length > 0) {
       roleToSpawn = "reserver";
       minBudget = 1300;
     } else if ("attack" in Game.flags) {
