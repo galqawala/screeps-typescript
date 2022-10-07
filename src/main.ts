@@ -2238,7 +2238,7 @@ function getBodyForWorker(energyAvailable: number) {
   for (;;) {
     let nextPart: BodyPartConstant = WORK;
     if (getBodyPartRatio(body, MOVE) <= 0.34) nextPart = MOVE;
-    else if (getBodyPartRatio(body, CARRY) <= 0.1) nextPart = CARRY;
+    else if (getBodyPartRatio(body, CARRY) <= 0.12) nextPart = CARRY;
 
     if (getBodyCost(body) + BODYPART_COST[nextPart] > energyAvailable) return body;
     body.push(nextPart);
