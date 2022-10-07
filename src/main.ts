@@ -1,4 +1,5 @@
 // ToDo: remove handleCreep() from postAction() -> refactor to do withdraw, move, deposit during the same tick
+/* refactor roles: "spawner", "reserver", "carrier", "harvester", "attacker", "worker", "explorer" */
 
 // When compiling TS to JS and bundling with rollup, the line numbers and file names in error messages change
 // This utility uses source maps to get the line numbers and file names of the original, TS source code
@@ -1857,13 +1858,13 @@ function handleSpawn(spawn: StructureSpawn) {
       return;
     } else if ("attack" in Game.flags) {
       roleToSpawn = "attacker";
-      minBudget = 260;
+      minBudget = Math.min(260, spawn.room.energyCapacityAvailable);
     } else if (getCreepCountByRole("explorer") <= 0) {
       roleToSpawn = "explorer";
       body = [MOVE];
     } else if (needWorkers(spawn.room)) {
       roleToSpawn = "worker";
-      minBudget = 300;
+      minBudget = Math.min(450, spawn.room.energyCapacityAvailable);
     } else {
       return;
     }
