@@ -215,10 +215,7 @@ function handleWorker(creep: Creep) {
       if (retrieveEnergy(creep, destination) === ERR_NOT_IN_RANGE) setDestination(creep, destination);
     }
   } else if (!isEmpty(creep)) {
-    upgrade(creep, true);
-    repair(creep);
-    build(creep);
-    upgrade(creep, false);
+    return upgrade(creep, true) || repair(creep) || build(creep) || upgrade(creep, false);
   }
   return;
 }
@@ -343,7 +340,6 @@ function moveTowardMemory(creep: Creep) {
 }
 
 function handleCarrier(creep: Creep) {
-  const moved = moveTowardMemory(creep);
   let upstream;
   let downstream;
   if (!isFull(creep)) {
@@ -361,14 +357,14 @@ function handleCarrier(creep: Creep) {
     if (!downstream) downstream = destinations[Math.floor(Math.random() * destinations.length)]; // another room
   }
   if (upstream && (!downstream || creep.pos.getRangeTo(downstream) >= creep.pos.getRangeTo(upstream))) {
-    if (retrieveEnergy(creep, upstream) === ERR_NOT_IN_RANGE && !moved) {
+    if (retrieveEnergy(creep, upstream) === ERR_NOT_IN_RANGE) {
       move(creep, upstream);
-      if (retrieveEnergy(creep, upstream) === ERR_NOT_IN_RANGE && !moved) setDestination(creep, upstream);
+      if (retrieveEnergy(creep, upstream) === ERR_NOT_IN_RANGE) setDestination(creep, upstream);
     }
   } else if (downstream) {
-    if (transfer(creep, downstream) === ERR_NOT_IN_RANGE && !moved) {
+    if (transfer(creep, downstream) === ERR_NOT_IN_RANGE) {
       move(creep, downstream);
-      if (transfer(creep, downstream) === ERR_NOT_IN_RANGE && !moved) setDestination(creep, downstream);
+      if (transfer(creep, downstream) === ERR_NOT_IN_RANGE) setDestination(creep, downstream);
     }
   }
 }
@@ -1068,9 +1064,18 @@ function getEnergyDestinations() {
 }
 
 function shouldFillStorage() {
-  if (getCreepCountByRole("explorer") > 0) return true;
+  // should we fill storage (instead of spawns/extensions)
   if (areSpawnsFull()) return true;
-  return false;
+  if (getCreepsMaxTicksToLive() < 850) return false; // haven't spawned creeps lately
+  if (getCreepCountByRole("explorer") < 1) return false;
+  return true;
+}
+
+function getCreepsMaxTicksToLive() {
+  return Object.values(Game.creeps).reduce(
+    (aggregated, item) => Math.max(aggregated, item.ticksToLive || 0),
+    0 /* initial*/
+  );
 }
 
 function areSpawnsFull() {
@@ -1321,12 +1326,16 @@ function getRoomStatus(roomName: string) {
   return Game.map.getRoomStatus(roomName).status;
 }
 
-function isRoomSafe(roomName: string, currentRoomName: string) {
-  if (getRoomStatus(currentRoomName) === "novice" && getRoomStatus(roomName) !== "novice") return false;
-  if (getRoomStatus(roomName) === "closed") return false;
+function isRoomSafe(roomName: string) {
   if (!Memory.rooms[roomName]) return true;
   if (Memory.rooms[roomName].hostilesPresent) return false;
   return true;
+}
+
+function isAccessBetweenRooms(aRoomName: string, bRoomName: string) {
+  if (getRoomStatus(aRoomName) !== "novice" && getRoomStatus(bRoomName) !== "novice") return true;
+  if (getRoomStatus(aRoomName) === "novice" && getRoomStatus(bRoomName) === "novice") return true;
+  return false;
 }
 
 function getExit(pos: RoomPosition, safeOnly = true, harvestableOnly = true) {
@@ -1334,8 +1343,9 @@ function getExit(pos: RoomPosition, safeOnly = true, harvestableOnly = true) {
   const exits = Game.map.describeExits(pos.roomName);
   const accessibleRooms = Object.values(exits).filter(
     roomName =>
-      (!safeOnly || isRoomSafe(roomName, pos.roomName)) &&
-      (!harvestableOnly || Memory.rooms[roomName].canHarvest)
+      (!safeOnly || isRoomSafe(roomName)) &&
+      (!harvestableOnly || Memory.rooms[roomName].canHarvest) &&
+      isAccessBetweenRooms(roomName, pos.roomName)
   );
   const getDestinationRoomName = accessibleRooms[Math.floor(Math.random() * accessibleRooms.length)];
   const findExit = Game.map.findExit(pos.roomName, getDestinationRoomName);
