@@ -34,6 +34,7 @@ declare global {
   type DestinationId = Id<
     AnyStructure | Structure | ConstructionSite | Source | Creep | Resource | Tombstone | Ruin | PowerCreep
   >;
+  type EnergySource = Resource | Ruin | StructureContainer | StructureLink | StructureStorage | Tombstone;
 
   interface Memory {
     username: string;
@@ -150,6 +151,7 @@ export const loop = ErrorMapper.wrapLoop(() => {
     const cpuBefore = Game.cpu.getUsed();
     const role = Game.creeps[c].memory.role;
     if (role === "attacker") handleAttacker(Game.creeps[c]);
+    else if (role === "carrier") handleCarrier(Game.creeps[c]);
     else if (role === "harvester") handleHarvester(Game.creeps[c]);
     else if (role === "reserver") handleReserver(Game.creeps[c]);
     else if (role === "spawner") handleSpawner(Game.creeps[c]);
@@ -166,6 +168,55 @@ export const loop = ErrorMapper.wrapLoop(() => {
   if (Game.cpu.getUsed() > Game.cpu.limit)
     msg("loop", Game.cpu.getUsed().toString() + "/" + Game.cpu.limit.toString() + " CPU used");
 });
+
+function handleCarrier(creep: Creep) {
+  let upstream;
+  let downstream;
+  if (!isFull(creep)) {
+    let sources: EnergySource[] = [];
+    for (const i in Game.rooms) {
+      if (Game.rooms[i].memory.hostilesPresent) continue;
+      sources = sources.concat(getEnergyInRoomForCarrier(Game.rooms[i], getMinTransferAmount(creep)));
+    }
+    upstream = creep.pos.findClosestByRange(sources); // same room
+    if (!upstream) upstream = sources[Math.floor(Math.random() * sources.length)]; // another room
+  }
+  if (!isEmpty(creep)) {
+    const destinations = getEnergyDestinations();
+    downstream = creep.pos.findClosestByRange(destinations); // same room
+    if (!downstream) downstream = destinations[Math.floor(Math.random() * destinations.length)]; // another room
+  }
+  if (upstream && (!downstream || creep.pos.getRangeTo(downstream) >= creep.pos.getRangeTo(upstream))) {
+    if (retrieveEnergy(creep, upstream) === ERR_NOT_IN_RANGE) {
+      move(creep, upstream);
+      retrieveEnergy(creep, upstream);
+    }
+  } else if (downstream) {
+    if (transfer(creep, downstream) === ERR_NOT_IN_RANGE) {
+      move(creep, downstream);
+      transfer(creep, downstream);
+    }
+  }
+}
+
+function getEnergyInRoomForCarrier(room: Room, myMinTransfer: number) {
+  let sources: EnergySource[] = room
+    .find(FIND_DROPPED_RESOURCES)
+    .filter(resource => getEnergy(resource) >= myMinTransfer);
+  sources = sources.concat(room.find(FIND_TOMBSTONES).filter(tomb => getEnergy(tomb) >= myMinTransfer));
+  sources = sources.concat(room.find(FIND_RUINS).filter(ruin => getEnergy(ruin) >= myMinTransfer));
+  sources = sources.concat(
+    room
+      .find(FIND_STRUCTURES)
+      .filter(isContainerLinkOrStorage)
+      .filter(
+        structure =>
+          (structure.structureType === STRUCTURE_CONTAINER || isDownstreamLink(structure)) &&
+          getEnergy(structure) >= myMinTransfer
+      )
+  );
+  return sources;
+}
 
 function handleReserver(creep: Creep) {
   let destination;
@@ -198,7 +249,7 @@ function handleSpawner(creep: Creep) {
     | StructureExtension
   )[] = [];
   if (!isFull(creep)) {
-    const source = getEnergySource(minTransferAmount(creep), creep.pos);
+    const source = getEnergySource(getMinTransferAmount(creep), creep.pos);
     if (source) destinations.push(source);
   }
   if (!isEmpty(creep)) destinations = destinations.concat(getGlobalEnergyStructures(creep));
@@ -930,6 +981,7 @@ function setDestination(creep: Creep, destination: Destination) {
       creep.memory.destinationSetTime = Game.time;
     }
   }
+  if ("pos" in destination) setDestinationFlag(creep.name, destination.pos);
 }
 
 function getNewDestination(creep: Creep) {
@@ -973,7 +1025,7 @@ function getTaskForSpawner(creep: Creep) {
   const cpuBefore = Game.cpu.getUsed();
   let tasks: Task[] = [];
   if (!isFull(creep)) {
-    const task = getEnergySourceTask(minTransferAmount(creep), creep.pos, true, true, false);
+    const task = getEnergySourceTask(getMinTransferAmount(creep), creep.pos, true, true, false);
     if (task) tasks.push(task);
   }
   if (!isEmpty(creep)) {
@@ -1010,7 +1062,7 @@ function getTaskForCarrier(creep: Creep) {
   const cpuBefore = Game.cpu.getUsed();
   let tasks: Task[] = [];
   if (!isFull(creep)) {
-    const task = getEnergySourceTask(minTransferAmount(creep), creep.pos, false, false, false);
+    const task = getEnergySourceTask(getMinTransferAmount(creep), creep.pos, false, false, false);
     if (task) tasks.push(task);
   }
   if (!isEmpty(creep)) {
@@ -1102,7 +1154,7 @@ function getEnergyInRoom(
   allowAnyLink = true,
   allowSource = true
 ) {
-  let sources: Destination[] = room
+  let sources: (EnergySource | RoomPosition | Source)[] = room
     .find(FIND_DROPPED_RESOURCES)
     .filter(resource => getEnergy(resource) >= myMinTransfer);
   sources = sources.concat(room.find(FIND_TOMBSTONES).filter(tomb => getEnergy(tomb) >= myMinTransfer));
@@ -1110,6 +1162,7 @@ function getEnergyInRoom(
   sources = sources.concat(
     room
       .find(FIND_STRUCTURES)
+      .filter(isContainerLinkOrStorage)
       .filter(
         structure =>
           (structure.structureType === STRUCTURE_CONTAINER ||
@@ -1531,7 +1584,7 @@ function orderEnergy(creep: Creep) {
     creep.memory.role === "worker" &&
     !creep.memory.awaitingDeliveryFrom &&
     (creep.memory.timeOfLastEnergyReceived || 0) < Game.time &&
-    creep.store.getFreeCapacity(RESOURCE_ENERGY) >= minTransferAmount(creep)
+    creep.store.getFreeCapacity(RESOURCE_ENERGY) >= getMinTransferAmount(creep)
   ) {
     const carriers = Object.values(Game.creeps).filter(function (carrierCreep) {
       return (
@@ -1551,7 +1604,7 @@ function orderEnergy(creep: Creep) {
   if (cpuUsed > 1.5) msg(creep, cpuUsed.toString() + " CPU used on orderEnergy()");
 }
 
-function minTransferAmount(creep: Creep) {
+function getMinTransferAmount(creep: Creep) {
   return creep.store.getCapacity(RESOURCE_ENERGY) / 10;
 }
 
@@ -2094,9 +2147,17 @@ function spawnHarvester(spawn: StructureSpawn) {
   const roleToSpawn: Role = "harvester"; // no energy for workers
   const source = getSourceToHarvest(spawn.pos);
   if (!source || !(source instanceof Source)) return;
-  const body: BodyPartConstant[] = getBodyForHarvester(source);
-  const cost = getBodyCost(body);
-  if (cost > spawn.room.energyAvailable) return false;
+  let body: BodyPartConstant[] = getBodyForHarvester(source);
+  let cost = getBodyCost(body);
+  if (cost > spawn.room.energyAvailable) {
+    if (getCreepCountByRole("harvester") < 1) {
+      body = body.filter((value, index, self) => self.indexOf(value) === index); /* unique */
+      cost = getBodyCost(body);
+      if (cost > spawn.room.energyAvailable) return false;
+    } else {
+      return false;
+    }
+  }
   const energyStructures: (StructureSpawn | StructureExtension)[] = getSpawnsAndExtensionsSorted(spawn.room);
   const name = getNameForCreep(roleToSpawn);
   const harvestPos = getHarvestSpotForSource(source);
@@ -2652,7 +2713,7 @@ function getTaskForWorker(creep: Creep) {
   if (isEmpty(creep) && !creep.memory.awaitingDeliveryFrom) {
     // fetch nearby energy
     const task: Task | undefined = getEnergySourceTask(
-      minTransferAmount(creep),
+      getMinTransferAmount(creep),
       creep.pos,
       true,
       true,
