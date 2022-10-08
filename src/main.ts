@@ -1,5 +1,5 @@
 // ToDo: remove handleCreep() from postAction() -> refactor to do withdraw, move, deposit during the same tick
-/* refactor roles: "carrier", "harvester", "attacker", "worker", "explorer" */
+/* refactor roles: "worker", "explorer" */
 
 // When compiling TS to JS and bundling with rollup, the line numbers and file names in error messages change
 // This utility uses source maps to get the line numbers and file names of the original, TS source code
@@ -169,7 +169,21 @@ export const loop = ErrorMapper.wrapLoop(() => {
     msg("loop", Game.cpu.getUsed().toString() + "/" + Game.cpu.limit.toString() + " CPU used");
 });
 
+function moveTowardMemory(creep: Creep) {
+  let destination;
+  const oldDestination = creep.memory.destination;
+  if (typeof oldDestination === "string") destination = Game.getObjectById(oldDestination);
+  if (destination) {
+    move(creep, destination);
+    if (creep.name === "CP") msg(creep, "old destination: " + destination.pos.toString());
+    if (creep.pos.getRangeTo(destination) <= 1) resetDestination(creep);
+    return true;
+  }
+  return false;
+}
+
 function handleCarrier(creep: Creep) {
+  const moved = moveTowardMemory(creep);
   let upstream;
   let downstream;
   if (!isFull(creep)) {
@@ -187,14 +201,16 @@ function handleCarrier(creep: Creep) {
     if (!downstream) downstream = destinations[Math.floor(Math.random() * destinations.length)]; // another room
   }
   if (upstream && (!downstream || creep.pos.getRangeTo(downstream) >= creep.pos.getRangeTo(upstream))) {
-    if (retrieveEnergy(creep, upstream) === ERR_NOT_IN_RANGE) {
+    if (creep.name === "CP") msg(creep, upstream.pos.toString());
+    if (retrieveEnergy(creep, upstream) === ERR_NOT_IN_RANGE && !moved) {
       move(creep, upstream);
-      retrieveEnergy(creep, upstream);
+      if (retrieveEnergy(creep, upstream) === ERR_NOT_IN_RANGE && !moved) setDestination(creep, upstream);
     }
   } else if (downstream) {
-    if (transfer(creep, downstream) === ERR_NOT_IN_RANGE) {
+    if (creep.name === "CP") msg(creep, downstream.pos.toString());
+    if (transfer(creep, downstream) === ERR_NOT_IN_RANGE && !moved) {
       move(creep, downstream);
-      transfer(creep, downstream);
+      if (transfer(creep, downstream) === ERR_NOT_IN_RANGE && !moved) setDestination(creep, downstream);
     }
   }
 }
@@ -352,7 +368,7 @@ function shouldMaintainStatsFor(pos: RoomPosition) {
   return pos.x % sections === Math.floor(Game.time / interval) % sections;
 }
 
-function trafficFlagName(pos: RoomPosition) {
+function getTrafficFlagName(pos: RoomPosition) {
   return "traffic_" + pos.roomName + "_" + pos.x.toString() + "_" + pos.y.toString();
 }
 
@@ -485,7 +501,7 @@ function handleHarvester(creep: Creep) {
   }
   // move
   if (creep.name in Game.flags) {
-    const flag = Game.flags[creep.name];
+    const flag = Game.flags["creep_" + creep.name];
     move(creep, flag);
   }
   if (!isEmpty(creep)) harvesterSpendEnergy(creep);
@@ -1256,7 +1272,7 @@ function workerTakeAction(creep: Creep, destination: Destination) {
 }
 
 function move(creep: Creep, destination: Destination) {
-  const flagName = trafficFlagName(creep.pos);
+  const flagName = getTrafficFlagName(creep.pos);
   const flag = Game.flags[flagName];
   if (flag) {
     if ("steps" in flag.memory) {
@@ -1436,7 +1452,8 @@ function creepsOnWayToPos(pos: RoomPosition) {
   }
   const flags = pos.lookFor(LOOK_FLAGS);
   for (const flag of flags) {
-    if (flag.name in Game.creeps) return true;
+    if (!flag.name.startsWith("creep_")) continue;
+    if (flag.name.substring(6) in Game.creeps) return true;
   }
   return false;
 }
@@ -1929,7 +1946,7 @@ function getTrafficRate(flag: Flag) {
 }
 
 function getTrafficRateAt(pos: RoomPosition) {
-  return getTrafficRate(Game.flags[trafficFlagName(pos)]);
+  return getTrafficRate(Game.flags[getTrafficFlagName(pos)]);
 }
 
 function getPotentialConstructionSites(room: Room) {
@@ -2209,9 +2226,10 @@ function spawnMsg(
   );
 }
 
-function setDestinationFlag(flagName: string, pos: RoomPosition) {
+function setDestinationFlag(name: string, pos: RoomPosition) {
   const color1 = COLOR_ORANGE;
   const color2 = COLOR_GREEN;
+  const flagName = "creep_" + name;
   if (flagName in Game.flags) {
     const flag = Game.flags[flagName];
     flag.setPosition(pos); /* handles the first setColor or setPosition per tick! */
