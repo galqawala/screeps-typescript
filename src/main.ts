@@ -1,5 +1,5 @@
 // ToDo: remove handleCreep() from postAction() -> refactor to do withdraw, move, deposit during the same tick
-/* refactor roles: "spawner", "reserver", "carrier", "harvester", "attacker", "worker", "explorer" */
+/* refactor roles: "reserver", "carrier", "harvester", "attacker", "worker", "explorer" */
 
 // When compiling TS to JS and bundling with rollup, the line numbers and file names in error messages change
 // This utility uses source maps to get the line numbers and file names of the original, TS source code
@@ -108,6 +108,15 @@ const minRoadTraffic = 0.014;
 function isOwnedStructure(structure: Structure): structure is AnyOwnedStructure {
   return (structure as { my?: boolean }).my !== undefined;
 }
+function isContainerLinkOrStorage(
+  structure: Structure
+): structure is StructureContainer | StructureLink | StructureStorage {
+  return (
+    structure.structureType === STRUCTURE_CONTAINER ||
+    structure.structureType === STRUCTURE_STORAGE ||
+    structure.structureType === STRUCTURE_LINK
+  );
+}
 function isLink(structure: Structure): structure is StructureLink {
   return structure.structureType === STRUCTURE_LINK;
 }
@@ -115,9 +124,10 @@ function isInvaderCore(structure: Structure): structure is StructureInvaderCore 
   return structure.structureType === STRUCTURE_INVADER_CORE;
 }
 function isSpawnOrExtension(
-  structure: Structure | null | undefined
+  structure: Structure | null | undefined | Destination
 ): structure is StructureSpawn | StructureExtension {
   if (!structure) return false;
+  if (!("structureType" in structure)) return false;
   return structure.structureType === STRUCTURE_SPAWN || structure.structureType === STRUCTURE_EXTENSION;
 }
 function isRoomPosition(item: RoomPosition): item is RoomPosition {
@@ -139,8 +149,9 @@ export const loop = ErrorMapper.wrapLoop(() => {
   for (const c in Game.creeps) {
     const cpuBefore = Game.cpu.getUsed();
     const role = Game.creeps[c].memory.role;
-    if (role === "harvester") handleHarvester(Game.creeps[c]);
-    else if (role === "attacker") handleAttacker(Game.creeps[c]);
+    if (role === "attacker") handleAttacker(Game.creeps[c]);
+    else if (role === "harvester") handleHarvester(Game.creeps[c]);
+    else if (role === "spawner") handleSpawner(Game.creeps[c]);
     else handleCreep(Game.creeps[c]);
     const cpuUsed = Game.cpu.getUsed() - cpuBefore;
     if (cpuUsed > 2) msg(Game.creeps[c], cpuUsed.toString() + " CPU used");
@@ -154,6 +165,101 @@ export const loop = ErrorMapper.wrapLoop(() => {
   if (Game.cpu.getUsed() > Game.cpu.limit)
     msg("loop", Game.cpu.getUsed().toString() + "/" + Game.cpu.limit.toString() + " CPU used");
 });
+
+function handleSpawner(creep: Creep) {
+  let destinations: (
+    | Resource
+    | Tombstone
+    | Ruin
+    | StructureContainer
+    | StructureStorage
+    | StructureLink
+    | StructureSpawn
+    | StructureExtension
+  )[] = [];
+  if (!isFull(creep)) {
+    const source = getEnergySource(minTransferAmount(creep), creep.pos);
+    if (source) destinations.push(source);
+  }
+  if (!isEmpty(creep)) destinations = destinations.concat(getGlobalEnergyStructures(creep));
+  let destination = creep.pos.findClosestByRange(destinations); // same room
+  if (!destination) destination = destinations[Math.floor(Math.random() * destinations.length)]; // another room
+  let actionOutcome;
+  actionOutcome = isSpawnOrExtension(destination) ? transfer(creep, destination) : ERR_INVALID_TARGET;
+  if (actionOutcome === ERR_INVALID_TARGET) actionOutcome = retrieveEnergy(creep, destination);
+  if (actionOutcome === ERR_NOT_IN_RANGE) {
+    actionOutcome = move(creep, destination);
+    if (actionOutcome === OK) {
+      // moved
+      actionOutcome = isSpawnOrExtension(destination) ? transfer(creep, destination) : ERR_INVALID_TARGET;
+      if (actionOutcome === ERR_INVALID_TARGET) actionOutcome = retrieveEnergy(creep, destination);
+    }
+  }
+}
+
+function transfer(creep: Creep, destination: Creep | Structure<StructureConstant>) {
+  const actionOutcome = creep.transfer(destination, RESOURCE_ENERGY);
+  if (actionOutcome === OK && destination) {
+    if ("memory" in destination) {
+      destination.memory.timeOfLastEnergyReceived = Game.time;
+      resetDestination(creep);
+    }
+    if (destination instanceof StructureSpawn || destination instanceof StructureExtension) {
+      creep.room.memory.timeOfLastSpawnEnergyDelivery = Game.time;
+      // First filled spawns/extensions should be used first, as they are probably easier to refill
+      if (!creep.room.memory.sortedSpawnStructureIds) creep.room.memory.sortedSpawnStructureIds = [];
+      if (!creep.room.memory.sortedSpawnStructureIds.includes(destination.id)) {
+        creep.room.memory.sortedSpawnStructureIds.push(destination.id);
+      }
+    } else if (destination instanceof Creep) {
+      // the receiver should reconsider what to do after getting the energy
+      resetDestination(destination);
+    }
+  }
+  if (actionOutcome === OK) resetSpecificDestinationFromCreeps(destination);
+  return actionOutcome;
+}
+
+function getEnergySource(myMinTransfer: number, pos: RoomPosition) {
+  const cpuBefore = Game.cpu.getUsed();
+  let sources: (Resource | Tombstone | Ruin | StructureContainer | StructureStorage | StructureLink)[] = [];
+
+  for (const i in Game.rooms) {
+    if (Game.rooms[i].memory.hostilesPresent) continue;
+    sources = sources.concat(getEnergyInRoomForSpawner(Game.rooms[i], myMinTransfer));
+  }
+
+  let destination = pos.findClosestByRange(sources); // same room
+  if (!destination) destination = sources[Math.floor(Math.random() * sources.length)]; // another room
+
+  const cpuUsed = Game.cpu.getUsed() - cpuBefore;
+  if (cpuUsed > 1.5) msg("getEnergySource()", cpuUsed.toString() + " CPU used");
+  return destination;
+}
+
+function getEnergyInRoomForSpawner(room: Room, myMinTransfer: number) {
+  let sources: (Resource | Tombstone | Ruin | StructureContainer | StructureStorage | StructureLink)[] = room
+    .find(FIND_DROPPED_RESOURCES)
+    .filter(resource => getEnergy(resource) >= myMinTransfer);
+  sources = sources.concat(room.find(FIND_TOMBSTONES).filter(tomb => getEnergy(tomb) >= myMinTransfer));
+  sources = sources.concat(room.find(FIND_RUINS).filter(ruin => getEnergy(ruin) >= myMinTransfer));
+  sources = sources.concat(
+    room
+      .find(FIND_STRUCTURES)
+      .filter(isContainerLinkOrStorage)
+      .filter(structure => getEnergy(structure) >= myMinTransfer)
+  );
+  return sources;
+}
+
+function retrieveEnergy(creep: Creep, destination: Structure | Tombstone | Ruin | Resource) {
+  if (destination instanceof Structure || destination instanceof Tombstone || destination instanceof Ruin) {
+    return withdraw(creep, destination);
+  } else if (destination instanceof Resource) {
+    return pickup(creep, destination);
+  }
+  return ERR_INVALID_TARGET;
+}
 
 function purgeFlagsMemory() {
   for (const key in Memory.flags) {
@@ -1100,7 +1206,7 @@ function withdraw(creep: Creep, destination: Destination) {
     if (actionOutcome === OK) resetSpecificDestinationFromCreeps(destination);
     return actionOutcome;
   }
-  return;
+  return ERR_INVALID_TARGET;
 }
 
 function pickup(creep: Creep, destination: Destination) {
@@ -1109,7 +1215,7 @@ function pickup(creep: Creep, destination: Destination) {
     if (actionOutcome === OK) resetSpecificDestinationFromCreeps(destination);
     return actionOutcome;
   }
-  return;
+  return ERR_INVALID_TARGET;
 }
 
 function resetSpecificDestinationFromCreeps(destination: Destination) {
@@ -1119,29 +1225,6 @@ function resetSpecificDestinationFromCreeps(destination: Destination) {
       resetDestination(creep);
     }
   }
-}
-
-function transfer(creep: Creep, destination: Creep | Structure<StructureConstant>) {
-  const actionOutcome = creep.transfer(destination, RESOURCE_ENERGY);
-  if (actionOutcome === OK && destination) {
-    if ("memory" in destination) {
-      destination.memory.timeOfLastEnergyReceived = Game.time;
-      resetDestination(creep);
-    }
-    if (destination instanceof StructureSpawn || destination instanceof StructureExtension) {
-      creep.room.memory.timeOfLastSpawnEnergyDelivery = Game.time;
-      // First filled spawns/extensions should be used first, as they are probably easier to refill
-      if (!creep.room.memory.sortedSpawnStructureIds) creep.room.memory.sortedSpawnStructureIds = [];
-      if (!creep.room.memory.sortedSpawnStructureIds.includes(destination.id)) {
-        creep.room.memory.sortedSpawnStructureIds.push(destination.id);
-      }
-    } else if (destination instanceof Creep) {
-      // the receiver should reconsider what to do after getting the energy
-      resetDestination(destination);
-    }
-  }
-  if (actionOutcome === OK) resetSpecificDestinationFromCreeps(destination);
-  return actionOutcome;
 }
 
 function postAction(creep: Creep, destination: Destination, actionOutcome: ScreepsReturnCode) {
@@ -1479,20 +1562,15 @@ function getEnergyStructures(room: Room) {
 }
 
 function getGlobalEnergyStructures(creep: Creep) {
-  let structures: AnyOwnedStructure[] = [];
+  let structures: (StructureSpawn | StructureExtension)[] = [];
   for (const i in Game.rooms) {
     const room = Game.rooms[i];
     if (room.memory.hostilesPresent) continue;
     structures = structures.concat(
       room
         .find(FIND_MY_STRUCTURES)
-        .filter(
-          structure =>
-            (structure.structureType === STRUCTURE_EXTENSION ||
-              structure.structureType === STRUCTURE_SPAWN) &&
-            !isFull(structure) &&
-            !isBlocked(creep, structure)
-        )
+        .filter(isSpawnOrExtension)
+        .filter(structure => !isFull(structure) && !isBlocked(creep, structure))
     );
   }
   return structures;
