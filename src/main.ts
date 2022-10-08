@@ -730,7 +730,7 @@ function checkRoomCanOperate(room: Room) {
   if (room.memory && room.memory.canOperate !== value) {
     msg(
       room,
-      "Can harvest: " + (room.memory.canOperate || "-").toString() + " ➤ " + (value || "-").toString(),
+      "Can operate: " + (room.memory.canOperate || "-").toString() + " ➤ " + (value || "-").toString(),
       true
     );
     room.memory.canOperate = value;
@@ -738,7 +738,7 @@ function checkRoomCanOperate(room: Room) {
 }
 
 function checkRoomEnergy(room: Room) {
-  if (room.memory.energyAvailable < 50) {
+  if (room.energyAvailable < 50) {
     tryResetSpawnsAndExtensionsSorting(room);
   } else if (room.energyAvailable >= room.energyCapacityAvailable) {
     room.memory.lastTimeSpawnsFull = Game.time;
