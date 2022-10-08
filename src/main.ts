@@ -1,5 +1,5 @@
 // ToDo: remove handleCreep() from postAction() -> refactor to do withdraw, move, deposit during the same tick
-/* refactor roles: "worker", "explorer" */
+/* refactor roles: "explorer" */
 
 // When compiling TS to JS and bundling with rollup, the line numbers and file names in error messages change
 // This utility uses source maps to get the line numbers and file names of the original, TS source code
@@ -179,6 +179,7 @@ export const loop = ErrorMapper.wrapLoop(() => {
     else if (role === "carrier") handleCarrier(Game.creeps[c]);
     else if (role === "harvester") handleHarvester(Game.creeps[c]);
     else if (role === "reserver") handleReserver(Game.creeps[c]);
+    else if (role === "worker") handleWorker(Game.creeps[c]);
     else handleCreep(Game.creeps[c]);
 
     logCpu("creep: " + c);
@@ -191,15 +192,111 @@ export const loop = ErrorMapper.wrapLoop(() => {
   cpuInfo();
 });
 
+function handleWorker(creep: Creep) {
+  if (creep.memory.awaitingDeliveryFrom) {
+    if (isEdge(creep.pos)) move(creep, getRandomPos(creep.pos.roomName)); // move once towards a random position
+  } else if (isEmpty(creep)) {
+    const sources = getEnergySourcesForWorker(creep);
+    let destination = creep.pos.findClosestByRange(sources); // same room
+    if (!destination) destination = sources[Math.floor(Math.random() * sources.length)]; // another room
+    if (destination instanceof RoomPosition) {
+      move(creep, destination);
+    } else if (destination instanceof Source && creep.harvest(destination) === ERR_NOT_IN_RANGE) {
+      if (move(creep, destination) === OK) creep.harvest(destination);
+    } else if (!(destination instanceof Source) && retrieveEnergy(creep, destination) === ERR_NOT_IN_RANGE) {
+      move(creep, destination);
+      if (retrieveEnergy(creep, destination) === ERR_NOT_IN_RANGE) setDestination(creep, destination);
+    }
+  } else if (!isEmpty(creep)) {
+    upgrade(creep, true);
+    repair(creep);
+    build(creep);
+    upgrade(creep, false);
+  }
+  return;
+}
+
+function build(creep: Creep) {
+  const destinations = getConstructionSites(creep);
+  let destination = creep.pos.findClosestByRange(destinations); // same room
+  if (!destination) destination = destinations[Math.floor(Math.random() * destinations.length)]; // another room
+  if (destination && creep.build(destination) === ERR_NOT_IN_RANGE) {
+    if (move(creep, destination) === OK) creep.build(destination);
+    return true;
+  }
+  return false;
+}
+
+function repair(creep: Creep) {
+  const repairTarget = getRepairTarget(creep);
+  if (repairTarget && creep.repair(repairTarget) === ERR_NOT_IN_RANGE) {
+    if (move(creep, repairTarget) === OK) creep.repair(repairTarget);
+    return true;
+  }
+  return false;
+}
+
+function upgrade(creep: Creep, urgentOnly: boolean) {
+  const controller = getControllerToUpgrade(creep.pos, urgentOnly);
+  if (controller && creep.upgradeController(controller) === ERR_NOT_IN_RANGE) {
+    if (move(creep, controller) === OK) creep.upgradeController(controller);
+    return true;
+  }
+  return false;
+}
+
+function getRepairTarget(creep: Creep) {
+  logCpu("getRepairTarget(" + creep.name + ")");
+  const destinations: Structure[] = creep.pos
+    .findInRange(FIND_STRUCTURES, 10) /* limited range to improve performance */
+    .filter(target => worthRepair(creep.pos, target) && !isUnderRepair(target) && !isBlocked(creep, target));
+
+  let destination = creep.pos.findClosestByRange(destinations); // same room
+  if (!destination) destination = destinations[Math.floor(Math.random() * destinations.length)]; // another room
+  logCpu("getRepairTarget(" + creep.name + ")");
+  return destination;
+}
+
+function getControllerToUpgrade(pos: RoomPosition, urgentOnly: boolean) {
+  logCpu("getControllerToUpgrade()");
+  const targets = [];
+  for (const i in Game.rooms) {
+    const room = Game.rooms[i];
+    if (room.memory.hostilesPresent) continue;
+    if (!room.controller) continue;
+    if (!room.controller.my) continue;
+    if (urgentOnly && room.controller.ticksToDowngrade > 2000) continue;
+    targets.push(room.controller);
+  }
+  let destination = pos.findClosestByRange(targets); // same room
+  if (!destination) destination = targets[Math.floor(Math.random() * targets.length)]; // another room
+  logCpu("getControllerToUpgrade()");
+  return destination;
+}
+
+function getEnergySourcesForWorker(creep: Creep) {
+  let sources: (EnergySource | RoomPosition | Source)[] = [];
+  for (const i in Game.rooms) {
+    if (Game.rooms[i].memory.hostilesPresent) continue;
+    sources = sources.concat(
+      getEnergyInRoom(
+        Game.rooms[i],
+        getMinTransferAmount(creep),
+        creep.pos,
+        true,
+        true,
+        getCreepCountByRole("harvester") < 1
+      )
+    );
+  }
+  return sources;
+}
+
 function cpuInfo() {
   if (Game.cpu.getUsed() > Game.cpu.limit) {
     msg(
-      "loop",
-      Game.cpu.getUsed().toString() +
-        "/" +
-        Game.cpu.limit.toString() +
-        " CPU used. Most used on: " +
-        getCpuLog()
+      "cpuInfo()",
+      Game.cpu.getUsed().toString() + "/" + Game.cpu.limit.toString() + " CPU used!\n" + getCpuLog()
     );
   }
 }
@@ -215,7 +312,7 @@ function getCpuLog() {
       return b.cpu - a.cpu;
     })
     .map(entry => entry.name + ": " + entry.cpu.toString())
-    .join();
+    .join("\n");
 }
 
 function moveTowardMemory(creep: Creep) {
@@ -250,13 +347,11 @@ function handleCarrier(creep: Creep) {
     if (!downstream) downstream = destinations[Math.floor(Math.random() * destinations.length)]; // another room
   }
   if (upstream && (!downstream || creep.pos.getRangeTo(downstream) >= creep.pos.getRangeTo(upstream))) {
-    if (creep.name === "CP") msg(creep, upstream.pos.toString());
     if (retrieveEnergy(creep, upstream) === ERR_NOT_IN_RANGE && !moved) {
       move(creep, upstream);
       if (retrieveEnergy(creep, upstream) === ERR_NOT_IN_RANGE && !moved) setDestination(creep, upstream);
     }
   } else if (downstream) {
-    if (creep.name === "CP") msg(creep, downstream.pos.toString());
     if (transfer(creep, downstream) === ERR_NOT_IN_RANGE && !moved) {
       move(creep, downstream);
       if (transfer(creep, downstream) === ERR_NOT_IN_RANGE && !moved) setDestination(creep, downstream);
@@ -1769,8 +1864,10 @@ function getPlacesRequiringLink(room: Room) {
   return placesRequiringLink;
 }
 
-function getNearbyWorkSpotCount(pos: RoomPosition, upgrade: boolean) {
-  const spots = upgrade ? Memory.rooms[pos.roomName].upgradeSpots : Memory.rooms[pos.roomName].harvestSpots;
+function getNearbyWorkSpotCount(pos: RoomPosition, upgradeSpots: boolean) {
+  const spots = upgradeSpots
+    ? Memory.rooms[pos.roomName].upgradeSpots
+    : Memory.rooms[pos.roomName].harvestSpots;
   let spotsAround = 0;
   spots.forEach(spot => {
     if (pos.getRangeTo(spot.x, spot.y) === 1) spotsAround++;
