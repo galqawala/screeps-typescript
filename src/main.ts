@@ -194,7 +194,6 @@ function handleExplorer(creep: Creep) {
     const destination = getExit(creep.pos, !creep.ticksToLive || creep.ticksToLive > 300, false);
     if (destination) {
       move(creep, destination);
-      msg(creep, "setDestination() " + destination.toString());
       setDestination(creep, destination);
     }
   }
@@ -230,6 +229,7 @@ function build(creep: Creep) {
   if (!destination) destination = destinations[Math.floor(Math.random() * destinations.length)]; // another room
   if (destination && creep.build(destination) === ERR_NOT_IN_RANGE) {
     if (move(creep, destination) === OK) creep.build(destination);
+    flagEnergyConsumer(destination.pos);
     return true;
   }
   return false;
@@ -239,6 +239,7 @@ function repair(creep: Creep) {
   const repairTarget = getRepairTarget(creep);
   if (repairTarget && creep.repair(repairTarget) === ERR_NOT_IN_RANGE) {
     if (move(creep, repairTarget) === OK) creep.repair(repairTarget);
+    flagEnergyConsumer(repairTarget.pos);
     return true;
   }
   return false;
@@ -248,6 +249,7 @@ function upgrade(creep: Creep, urgentOnly: boolean) {
   const controller = getControllerToUpgrade(creep.pos, urgentOnly);
   if (controller && creep.upgradeController(controller) === ERR_NOT_IN_RANGE) {
     if (move(creep, controller) === OK) creep.upgradeController(controller);
+    flagEnergyConsumer(controller.pos);
     return true;
   }
   return false;
@@ -1006,80 +1008,12 @@ function getTargetScore(pos: RoomPosition, target: Structure | Creep | PowerCree
   return score;
 }
 
-function getDestinationFromMemory(creep: Creep) {
-  const oldDestination = creep.memory.destination;
-  let destination: Destination | undefined;
-
-  if ((!creep.memory.empty && isEmpty(creep)) || (!creep.memory.full && isFull(creep))) {
-    return resetDestination(creep); // abandon the old plan after getting full/empty
-  } else if (oldDestination) {
-    if (typeof oldDestination === "string") {
-      const object = Game.getObjectById(oldDestination);
-      if (object) destination = object;
-    } else if ("x" in oldDestination && "y" in oldDestination && "roomName" in oldDestination) {
-      if (posEquals(creep.pos, oldDestination)) {
-        creep.say("🛬");
-        return resetDestination(creep); // abandon the old plan after reaching the target position
-      } else {
-        destination = new RoomPosition(oldDestination.x, oldDestination.y, oldDestination.roomName); // keep going
-      }
-    }
-
-    if (destination && isRepairFinished(creep, destination)) {
-      return resetDestination(creep); // abandon the old plan after repair target doesn't need any more repair
-    }
-
-    if (
-      destination &&
-      creep.pos.roomName !== creep.memory.roomName &&
-      creep.pos.roomName === getDestinationRoom(destination)
-    ) {
-      /*  we've just arrived to the destination room, let's reconsider the destination,
-          now that we can calculate the distances within the room */
-      return resetDestination(creep);
-    }
-  }
-  return destination;
-}
-
-function isRepairFinished(creep: Creep, destination: Destination) {
-  return (
-    creep.memory.action === "repair" &&
-    destination &&
-    "hits" in destination &&
-    destination instanceof Structure &&
-    !needRepair(destination)
-  );
-}
-
-function getDestinationRoom(destination: Destination) {
-  if ("roomName" in destination) return destination.roomName;
-  if ("pos" in destination) return destination.pos.roomName;
-  return;
-}
-
 function isEdge(pos: RoomPosition) {
   if (pos.x <= 0) return true;
   if (pos.y <= 0) return true;
   if (pos.x >= 49) return true;
   if (pos.y >= 49) return true;
   return false;
-}
-
-function memorizeCreepState(creep: Creep) {
-  logCpu("memorizeCreepState(" + creep.name + ")");
-
-  if ((creep.memory.x || -1) !== creep.pos.x || (creep.memory.y || -1) !== creep.pos.y) {
-    creep.memory.x = creep.pos.x;
-    creep.memory.y = creep.pos.y;
-    creep.memory.roomName = creep.pos.roomName;
-    creep.memory.lastMoveTime = Game.time;
-  }
-  creep.memory.empty = isEmpty(creep);
-  creep.memory.full = isFull(creep);
-  updateConstructionSiteScoreForCreep(creep);
-
-  logCpu("memorizeCreepState(" + creep.name + ")");
 }
 
 function posEquals(a: RoomPosition, b: RoomPosition) {
@@ -1099,76 +1033,6 @@ function setDestination(creep: Creep, destination: Destination) {
   }
   if ("pos" in destination) setDestinationFlag(creep.name, destination.pos);
   else if (destination instanceof RoomPosition) setDestinationFlag(creep.name, destination);
-}
-
-function getNewDestination(creep: Creep) {
-  logCpu("getNewDestination(" + creep.name + ")");
-  if (creep.spawning) return;
-  const role = creep.memory.role;
-  let task: Task | undefined;
-
-  if (role === "worker") {
-    task = getTaskForWorker(creep);
-  } else if (role === "carrier") {
-    task = getTaskForCarrier(creep);
-  } else if (role === "reserver") {
-    const destinations = getControllersToReserve();
-    if (destinations.length && destinations[0]) {
-      task = { action: "reserveController", destination: destinations[0] };
-    } else {
-      const flag = Game.flags.reserve;
-      if (flag) {
-        task = { action: "moveTo", destination: flag };
-      }
-    }
-  } else if (role === "explorer") {
-    const destination = getExit(creep.pos, !creep.ticksToLive || creep.ticksToLive > 300, false);
-    if (destination) task = { action: "moveTo", destination };
-  }
-  logCpu("getNewDestination(" + creep.name + ")");
-
-  if (task) {
-    creep.memory.action = task.action;
-    return task.destination;
-  }
-
-  return;
-}
-
-function getClosestTask(pos: RoomPosition, tasks: Task[]) {
-  let closest;
-  let minRange = Number.POSITIVE_INFINITY;
-
-  tasks.forEach(task => {
-    // this only works inside a single room
-    const range = pos.getRangeTo(task.destination);
-    if (minRange > range) {
-      minRange = range;
-      closest = task;
-    }
-  });
-
-  /* we don't have ranges between rooms */
-  return closest || tasks[Math.floor(Math.random() * tasks.length)];
-}
-
-function getTaskForCarrier(creep: Creep) {
-  logCpu("getTaskForCarrier(" + creep.name + ")");
-  let tasks: Task[] = [];
-  if (!isFull(creep)) {
-    const task = getEnergySourceTask(getMinTransferAmount(creep), creep.pos, false, false, false);
-    if (task) tasks.push(task);
-  }
-  if (!isEmpty(creep)) {
-    tasks = tasks.concat(
-      getEnergyDestinations().map(d => {
-        return { action: "transfer", destination: d };
-      })
-    );
-  }
-  const finalTask = getClosestTask(creep.pos, tasks);
-  logCpu("getTaskForCarrier(" + creep.name + ")");
-  return finalTask;
 }
 
 function getEnergyDestinations() {
@@ -1216,42 +1080,6 @@ function areSpawnsFull() {
   return true;
 }
 
-function getEnergySourceTask(
-  myMinTransfer: number,
-  pos: RoomPosition,
-  allowStorage = true,
-  allowAnyLink = true,
-  allowSource = true
-) {
-  logCpu("getEnergySourceTask()");
-  let sources: Destination[] = [];
-
-  for (const i in Game.rooms) {
-    if (Game.rooms[i].memory.hostilesPresent) continue;
-    sources = sources.concat(
-      getEnergyInRoom(Game.rooms[i], myMinTransfer, pos, allowStorage, allowAnyLink, allowSource)
-    );
-  }
-
-  let destination = pos.findClosestByRange(sources); // same room
-  if (!destination) destination = sources[Math.floor(Math.random() * sources.length)]; // another room
-
-  logCpu("getEnergySourceTask()");
-
-  if (!destination) return;
-
-  let action: Action = "withdraw";
-  if (destination instanceof Source) {
-    action = "harvest";
-  } else if (destination instanceof Resource) {
-    action = "pickup";
-  } else if (destination instanceof RoomPosition) {
-    action = "moveTo";
-  }
-
-  return { action, destination };
-}
-
 function getEnergyInRoom(
   room: Room,
   myMinTransfer: number,
@@ -1289,77 +1117,6 @@ function getEnergyInRoom(
   return sources;
 }
 
-function nonWorkerTakeAction(creep: Creep, destination: Destination) {
-  logCpu("nonWorkerTakeAction(" + creep.name + ")");
-  let actionOutcome;
-  if (!destination) return;
-
-  if (
-    creep.memory.action === "withdraw" &&
-    (destination instanceof Structure || destination instanceof Tombstone || destination instanceof Ruin)
-  ) {
-    actionOutcome = withdraw(creep, destination);
-  } else if (
-    creep.memory.action === "transfer" &&
-    (destination instanceof Creep || destination instanceof Structure)
-  ) {
-    actionOutcome = transfer(creep, destination);
-  } else if (creep.memory.action === "pickup" && destination instanceof Resource) {
-    actionOutcome = pickup(creep, destination);
-  } else if (creep.memory.action === "moveTo") {
-    move(creep, destination);
-  } else if (creep.memory.action === "reserveController" && destination instanceof StructureController) {
-    actionOutcome = creep.reserveController(destination);
-  } else if (creep.memory.action === "recycleCreep" && destination instanceof StructureSpawn) {
-    actionOutcome = destination.recycleCreep(creep);
-    if (actionOutcome === OK) msg(creep, "recycled!");
-  } else if (creep.memory.action) {
-    msg(creep, "can't handle action: " + creep.memory.action, true);
-  } else if (destination) {
-    msg(creep, "doesn't have action for destination: " + destination.toString(), true);
-  }
-  logCpu("nonWorkerTakeAction(" + creep.name + ")");
-
-  return actionOutcome;
-}
-
-function workerTakeAction(creep: Creep, destination: Destination) {
-  if (!destination) {
-    return;
-  } else if (creep.memory.action === "repair" && destination instanceof Structure) {
-    return creep.repair(destination);
-  } else if (
-    creep.memory.action === "withdraw" &&
-    (destination instanceof Structure || destination instanceof Tombstone || destination instanceof Ruin)
-  ) {
-    return withdraw(creep, destination);
-  } else if (
-    creep.memory.action === "transfer" &&
-    (destination instanceof Creep || destination instanceof Structure)
-  ) {
-    return transfer(creep, destination);
-  } else if (creep.memory.action === "upgradeController" && destination instanceof StructureController) {
-    return creep.upgradeController(destination);
-  } else if (creep.memory.action === "pickup" && destination instanceof Resource) {
-    return pickup(creep, destination);
-  } else if (creep.memory.action === "harvest" && destination instanceof Source) {
-    return creep.harvest(destination);
-  } else if (creep.memory.action === "moveTo") {
-    move(creep, destination);
-  } else if (creep.memory.action === "build" && destination instanceof ConstructionSite) {
-    return creep.build(destination);
-  } else if (creep.memory.action === "recycleCreep" && destination instanceof StructureSpawn) {
-    const actionOutcome = destination.recycleCreep(creep);
-    if (actionOutcome === OK) msg(creep, "recycled!");
-    return actionOutcome;
-  } else if (creep.memory.action) {
-    msg(creep, "can't handle action: " + creep.memory.action, true);
-  } else if (destination) {
-    msg(creep, "doesn't have action for destination: " + destination.toString(), true);
-  }
-  return;
-}
-
 function move(creep: Creep, destination: Destination) {
   const flagName = getTrafficFlagName(creep.pos);
   const flag = Game.flags[flagName];
@@ -1372,6 +1129,7 @@ function move(creep: Creep, destination: Destination) {
     }
   } else if (shouldMaintainStatsFor(creep.pos)) {
     creep.pos.createFlag(flagName, COLOR_GREEN, COLOR_GREY);
+    updateConstructionSiteScoreForCreep(creep);
   }
   return creep.moveTo(destination, {
     visualizePathStyle: { stroke: getHashColor(creep.memory.role) }
@@ -1405,47 +1163,6 @@ function resetSpecificDestinationFromCreeps(destination: Destination) {
   }
 }
 
-function postAction(creep: Creep, destination: Destination, actionOutcome: ScreepsReturnCode) {
-  if (actionOutcome === OK) {
-    creep.memory.lastOkActionTime = Game.time;
-  } else if (destination) {
-    if (actionOutcome === ERR_NOT_IN_RANGE && (destination instanceof RoomPosition || "pos" in destination)) {
-      move(creep, destination);
-    } else if (actionOutcome === ERR_FULL) {
-      resetDestination(creep);
-      handleCreep(creep);
-      return;
-    } else if (actionOutcome === ERR_NOT_ENOUGH_RESOURCES) {
-      resetDestination(creep);
-      handleCreep(creep);
-      return;
-    } else if (actionOutcome === ERR_NO_PATH) {
-      creep.say("🚧");
-      resetDestination(creep);
-      handleCreep(creep);
-    } else if (actionOutcome === ERR_INVALID_TARGET) {
-      creep.say("🔎");
-      resetDestination(creep);
-      if (destination instanceof Structure || destination instanceof RoomPosition)
-        memorizeBlockedObject(creep, destination);
-    } else if (actionOutcome === ERR_TIRED) {
-      creep.say("😓");
-    } else if (actionOutcome === ERR_NOT_OWNER) {
-      handleNotOwner(creep);
-    }
-  }
-}
-
-function handleNotOwner(creep: Creep) {
-  creep.say("👮");
-  resetDestination(creep);
-  const exit = getExit(creep.pos);
-  if (exit) {
-    creep.memory.destination = exit;
-    creep.memory.destinationSetTime = Game.time;
-  }
-}
-
 function needRepair(structure: Structure) {
   if (!structure) return false;
   if (isOwnedStructure(structure) && structure.my === false) return false;
@@ -1469,49 +1186,6 @@ function isDownstreamLink(link: Structure) {
     return hasStructureInRange(link.pos, STRUCTURE_CONTROLLER, 6, false);
   }
   return false;
-}
-
-function getRepairTaskInRange(pos: RoomPosition) {
-  const destination = pos.findClosestByRange(pos.findInRange(FIND_STRUCTURES, 3).filter(needRepair));
-  if (destination) {
-    const task: Task = { action: "repair", destination };
-    if (task) return task;
-  }
-  return;
-}
-
-function getBuildTaskInRange(pos: RoomPosition) {
-  const destination = pos.findClosestByRange(pos.findInRange(FIND_MY_CONSTRUCTION_SITES, 3));
-  if (destination) {
-    const action: Action = "build";
-    const task: Task = { action, destination };
-    return task;
-  }
-  return;
-}
-
-function getUpgradeTask(pos: RoomPosition, urgentOnly: boolean) {
-  logCpu("getUpgradeTask()");
-
-  const targets = [];
-  for (const i in Game.rooms) {
-    const room = Game.rooms[i];
-    if (room.memory.hostilesPresent) continue;
-    if (!room.controller) continue;
-    if (!room.controller.my) continue;
-    if (urgentOnly && room.controller.ticksToDowngrade > 2000) continue;
-    targets.push(room.controller);
-  }
-  let destination = pos.findClosestByRange(targets); // same room
-  if (!destination) destination = targets[Math.floor(Math.random() * targets.length)]; // another room
-
-  logCpu("getUpgradeTask()");
-
-  if (destination) {
-    const task: Task = { action: "upgradeController", destination };
-    return task;
-  }
-  return;
 }
 
 function getAvailableHarvestSpots(room: Room) {
@@ -1546,54 +1220,10 @@ function creepsOnWayToPos(pos: RoomPosition) {
   return false;
 }
 
-function getRepairTask(creep: Creep) {
-  logCpu("getRepairTask(" + creep.name + ")");
-  const destinations: Destination[] = creep.pos
-    .findInRange(FIND_STRUCTURES, 10) /* limited range to improve performance */
-    .filter(target => worthRepair(creep.pos, target) && !isUnderRepair(target) && !isBlocked(creep, target));
-
-  let destination = creep.pos.findClosestByRange(destinations); // same room
-  if (!destination) destination = destinations[Math.floor(Math.random() * destinations.length)]; // another room
-  logCpu("getRepairTask(" + creep.name + ")");
-
-  if (!destination) return;
-
-  return { action: "repair", destination } as Task;
-}
-
 function getRandomPos(roomName: string) {
   const x = Math.floor(Math.random() * 10);
   const y = Math.floor(Math.random() * 10);
   return new RoomPosition(x, y, roomName);
-}
-
-function getWorkerSpendEnergyTask(creep: Creep) {
-  logCpu("getWorkerSpendEnergyTask(" + creep.name + ")");
-  // upgrade the room controller if it's about to downgrade
-  let task: Task | undefined = getUpgradeTask(creep.pos, true);
-  // repair structures
-  if (!task) task = getRepairTask(creep);
-  // build structures
-  if (!task) {
-    const destinations = getConstructionSites(creep);
-    let destination = creep.pos.findClosestByRange(destinations); // same room
-    if (!destination) destination = destinations[Math.floor(Math.random() * destinations.length)]; // another room
-    if (destination) task = { action: "build", destination };
-  }
-  // upgrade the room controller
-  if (!task) task = getUpgradeTask(creep.pos, false);
-  // return the final destination
-  if (task) {
-    let pos;
-    if (task.destination instanceof RoomPosition) pos = task.destination;
-    else if (task.destination.pos instanceof RoomPosition) pos = task.destination.pos;
-
-    if (pos) flagEnergyConsumer(pos);
-    logCpu("getWorkerSpendEnergyTask(" + creep.name + ")");
-    return task;
-  }
-  logCpu("getWorkerSpendEnergyTask(" + creep.name + ")");
-  return;
 }
 
 function flagEnergyConsumer(pos: RoomPosition) {
@@ -1628,12 +1258,6 @@ function isUnderRepair(structure: Structure) {
   return false;
 }
 
-function useLink(creep: Creep) {
-  if (getStructureCount(creep.room, STRUCTURE_LINK, false) < 2) return false;
-  if (!isLinkNear(creep.pos)) return false;
-  return true;
-}
-
 function getHashColor(seed: string) {
   const hash = Md5.hashStr(seed);
   let offset = 0;
@@ -1652,45 +1276,6 @@ function isBlocked(creep: Creep, target: ConstructionSite | Structure) {
   if (!creep.memory.lastBlockedIds) return false;
   if (creep.memory.lastBlockedIds.includes(target.id)) return true;
   return false;
-}
-
-function memorizeBlockedObject(creep: Creep, destination: Destination) {
-  if (!creep.memory.lastBlockedIds) creep.memory.lastBlockedIds = [];
-  if (destination && "id" in destination) {
-    creep.memory.lastBlockedIds.push(destination.id);
-    if (creep.memory.lastBlockedIds.length > 1) creep.memory.lastBlockedIds.shift();
-  }
-}
-
-function isLinkNear(pos: RoomPosition) {
-  const maxRange = 6;
-  return pos.findInRange(FIND_MY_STRUCTURES, maxRange).filter(isLink).length > 0;
-}
-
-function orderEnergy(creep: Creep) {
-  // order energy from closest available carrier
-  logCpu("orderEnergy(" + creep.name + ")");
-  if (
-    creep.memory.role === "worker" &&
-    !creep.memory.awaitingDeliveryFrom &&
-    (creep.memory.timeOfLastEnergyReceived || 0) < Game.time &&
-    creep.store.getFreeCapacity(RESOURCE_ENERGY) >= getMinTransferAmount(creep)
-  ) {
-    const carriers = Object.values(Game.creeps).filter(function (carrierCreep) {
-      return (
-        carrierCreep.memory.role === "carrier" && !isEmpty(carrierCreep) && !hasImportantTask(carrierCreep)
-      );
-    });
-    const carrier = creep.pos.findClosestByRange(carriers);
-    if (carrier) {
-      carrier.memory.action = "transfer";
-      carrier.memory.destination = creep.id; // deliver to me
-      carrier.memory.destinationSetTime = Game.time;
-      creep.memory.awaitingDeliveryFrom = carrier.name; // my carrier
-      creep.say(carrier.name);
-    }
-  }
-  logCpu("orderEnergy(" + creep.name + ")");
 }
 
 function getMinTransferAmount(creep: Creep) {
@@ -2596,15 +2181,6 @@ function getBodyCost(body: BodyPartConstant[]) {
   }, 0);
 }
 
-function hasImportantTask(creep: Creep) {
-  const destinationId = creep.memory.destination;
-  if (!destinationId) return false;
-  if (destinationId instanceof RoomPosition) return false;
-  const destination = Game.getObjectById(destinationId);
-  if (!destination) return false;
-  return destination instanceof Creep;
-}
-
 function resetDestination(creep: Creep) {
   // save last values
   creep.memory.lastDestination = creep.memory.destination;
@@ -2678,105 +2254,4 @@ function hexToHSL(hex: string) {
     if (h) h /= 6;
   }
   return { h, s, l };
-}
-
-function recycleIfUseless(creep: Creep) {
-  if (creep.getActiveBodyparts(MOVE) < 1) recycleCreep(creep);
-  if (
-    getBodyPartRatio(
-      creep.body.map(part => part.type),
-      MOVE
-    ) <= 0.02
-  )
-    recycleCreep(creep);
-}
-
-function handleCreep(creep: Creep) {
-  logCpu("handleCreep(" + creep.name + ")");
-  if (creep.spawning) return;
-  recycleIfUseless(creep);
-  if (creep.memory.awaitingDeliveryFrom && !Game.creeps[creep.memory.awaitingDeliveryFrom])
-    creep.memory.awaitingDeliveryFrom = undefined; // no longer await delivery from a dead creep
-
-  const destination = getDestination(creep);
-
-  if (destination) {
-    let actionOutcome;
-    if (creep.memory.role === "worker") actionOutcome = workerTakeAction(creep, destination);
-    else actionOutcome = nonWorkerTakeAction(creep, destination);
-
-    if (actionOutcome !== undefined) {
-      creep.memory.lastActionOutcome = actionOutcome;
-      if (actionOutcome === OK) creep.memory.lastOkActionTime = Game.time;
-      postAction(creep, destination, actionOutcome);
-    }
-
-    handleBlockedDestination(creep, destination);
-  }
-
-  memorizeCreepState(creep);
-  logCpu("handleCreep(" + creep.name + ")");
-}
-
-function getDestination(creep: Creep) {
-  logCpu("getDestination(" + creep.name + ")");
-
-  let destination = getDestinationFromMemory(creep);
-
-  // create a new plan if situation requires
-  if (!destination && (!creep.memory.awaitingDeliveryFrom || isEdge(creep.pos))) {
-    destination = getNewDestination(creep);
-    if (destination) {
-      setDestination(creep, destination);
-    } else if (creep.memory.role !== "carrier" && !creep.memory.awaitingDeliveryFrom) {
-      recycleCreep(creep);
-    }
-  }
-
-  logCpu("getDestination(" + creep.name + ")");
-
-  return destination;
-}
-
-function handleBlockedDestination(creep: Creep, destination: Destination) {
-  if (creep.memory.posRevisits > 0) {
-    creep.say("⌛️");
-    resetDestination(creep);
-    memorizeBlockedObject(creep, destination);
-  }
-}
-
-function getTaskForWorker(creep: Creep) {
-  if (creep.memory.awaitingDeliveryFrom && isEdge(creep.pos)) {
-    move(creep, getRandomPos(creep.pos.roomName)); // move once towards a random position
-    return; // just wait for the delivery
-  }
-
-  if (isFull(creep)) {
-    // spend energy without moving
-    const task: Task | undefined = getRepairTaskInRange(creep.pos) || getBuildTaskInRange(creep.pos);
-    if (task) return task;
-  }
-
-  // order more energy
-  if (!useLink(creep)) orderEnergy(creep);
-
-  if (isEmpty(creep) && !creep.memory.awaitingDeliveryFrom) {
-    // fetch nearby energy
-    const task: Task | undefined = getEnergySourceTask(
-      getMinTransferAmount(creep),
-      creep.pos,
-      true,
-      true,
-      getCreepCountByRole("harvester") < 1
-    );
-    if (task) {
-      return task;
-    }
-    return { action: "moveTo", destination: getExit(creep.pos) } as Task;
-  } else if (!isEmpty(creep)) {
-    // use energy
-    return getWorkerSpendEnergyTask(creep);
-  }
-  return;
 }
