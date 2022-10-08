@@ -50,17 +50,14 @@ declare global {
   }
 
   interface RoomMemory {
-    canHarvest: boolean;
-    constructionSiteCount: number;
+    canOperate: boolean;
     constructionSiteScore: number[][];
-    energyAvailable: number;
     harvestSpots: RoomPosition[];
     hostilesPresent: boolean;
     lastTimeSpawnsFull: number;
+    linkIsUpstream: Record<Id<StructureLink>, boolean>;
     sortedSpawnStructureIds: Id<Structure>[];
     status: "normal" | "closed" | "novice" | "respawn";
-    structureCount: number;
-    timeOfLastSpawnEnergyDelivery: number;
     upgradeSpots: RoomPosition[];
   }
 
@@ -140,6 +137,10 @@ function isContainerLinkOrStorage(
 }
 function isLink(structure: Structure): structure is StructureLink {
   return structure.structureType === STRUCTURE_LINK;
+}
+function isLinkUpstream(structure: Structure): structure is StructureLink {
+  if (!(structure instanceof StructureLink)) return false;
+  return structure.room.memory.linkIsUpstream[structure.id];
 }
 function isTower(structure: Structure): structure is StructureTower {
   return structure.structureType === STRUCTURE_TOWER;
@@ -353,7 +354,9 @@ function handleCarrier(creep: Creep) {
     if (!upstream) upstream = sources[Math.floor(Math.random() * sources.length)]; // another room
   }
   if (!isEmpty(creep)) {
-    const destinations = getEnergyDestinations();
+    const destinations = getEnergyDestinations().concat(
+      creep.pos.findInRange(FIND_MY_STRUCTURES, 6).filter(isLinkUpstream).filter(hasSpace)
+    );
     downstream = creep.pos.findClosestByRange(destinations); // same room
     if (!downstream) downstream = destinations[Math.floor(Math.random() * destinations.length)]; // another room
   }
@@ -418,7 +421,6 @@ function transfer(creep: Creep, destination: Creep | Structure<StructureConstant
       resetDestination(creep);
     }
     if (destination instanceof StructureSpawn || destination instanceof StructureExtension) {
-      creep.room.memory.timeOfLastSpawnEnergyDelivery = Game.time;
       // First filled spawns/extensions should be used first, as they are probably easier to refill
       if (!creep.room.memory.sortedSpawnStructureIds) creep.room.memory.sortedSpawnStructureIds = [];
       if (!creep.room.memory.sortedSpawnStructureIds.includes(destination.id)) {
@@ -697,7 +699,7 @@ function handleRoom(room: Room) {
 
   // check the room details
   checkRoomStatus(room);
-  checkRoomCanHarvest(room);
+  checkRoomCanOperate(room);
   checkRoomEnergy(room);
   logCpu("handleRoom(" + room.name + ")");
 }
@@ -723,26 +725,24 @@ function checkRoomStatus(room: Room) {
   }
 }
 
-function checkRoomCanHarvest(room: Room) {
+function checkRoomCanOperate(room: Room) {
   const value = canOperateInRoom(room);
-  if (room.memory && room.memory.canHarvest !== value) {
+  if (room.memory && room.memory.canOperate !== value) {
     msg(
       room,
-      "Can harvest: " + (room.memory.canHarvest || "-").toString() + " ➤ " + (value || "-").toString(),
+      "Can harvest: " + (room.memory.canOperate || "-").toString() + " ➤ " + (value || "-").toString(),
       true
     );
-    room.memory.canHarvest = value;
+    room.memory.canOperate = value;
   }
 }
 
 function checkRoomEnergy(room: Room) {
-  const energy = room.energyAvailable;
-  if (room.memory.energyAvailable > energy) {
+  if (room.memory.energyAvailable < 50) {
     tryResetSpawnsAndExtensionsSorting(room);
   } else if (room.energyAvailable >= room.energyCapacityAvailable) {
     room.memory.lastTimeSpawnsFull = Game.time;
   }
-  room.memory.energyAvailable = energy;
 }
 
 function handleHostilesInRoom(room: Room) {
@@ -877,8 +877,15 @@ function handleLinks(room: Room) {
       upstreamIndex++;
       resetSpecificDestinationFromCreeps(upstreamLink);
       resetSpecificDestinationFromCreeps(downstreamLink);
+      updateLinkMemory(upstreamLink, downstreamLink);
     }
   }
+}
+
+function updateLinkMemory(upstreamLink: StructureLink, downstreamLink: StructureLink) {
+  if (!upstreamLink.room.memory.linkIsUpstream) upstreamLink.room.memory.linkIsUpstream = {};
+  upstreamLink.room.memory.linkIsUpstream[upstreamLink.id] = true;
+  downstreamLink.room.memory.linkIsUpstream[downstreamLink.id] = false;
 }
 
 function canAttack(myUnit: StructureTower | Creep) {
@@ -1051,11 +1058,9 @@ function getEnergyDestinations() {
         .find(FIND_MY_STRUCTURES)
         .filter(
           structure =>
-            !isFull(structure) &&
-            (isLink(structure) ||
-              (structure.structureType === STRUCTURE_STORAGE && shouldFillStorage(room)) ||
+            ((structure.structureType === STRUCTURE_STORAGE && shouldFillStorage(room)) ||
               isSpawnOrExtension(structure)) &&
-            !isDownstreamLink(structure)
+            hasSpace(structure)
         );
     }
     if (roomTargets.length < 1) {
@@ -1194,7 +1199,7 @@ function worthRepair(pos: RoomPosition, structure: Structure) {
 
 function isDownstreamLink(link: Structure) {
   if (isLink(link)) {
-    return hasStructureInRange(link.pos, STRUCTURE_CONTROLLER, 6, false);
+    return !link.room.memory.linkIsUpstream[link.id];
   }
   return false;
 }
@@ -1350,7 +1355,7 @@ function getExit(pos: RoomPosition, safeOnly = true, harvestableOnly = true) {
   const accessibleRooms = Object.values(exits).filter(
     roomName =>
       (!safeOnly || isRoomSafe(roomName)) &&
-      (!harvestableOnly || Memory.rooms[roomName].canHarvest) &&
+      (!harvestableOnly || Memory.rooms[roomName].canOperate) &&
       isAccessBetweenRooms(roomName, pos.roomName)
   );
   const getDestinationRoomName = accessibleRooms[Math.floor(Math.random() * accessibleRooms.length)];
@@ -2223,6 +2228,12 @@ function isEmpty(object: Structure | Creep) {
   const store = getStore(object);
   if (!store) return false;
   return store.getUsedCapacity(RESOURCE_ENERGY) <= 0;
+}
+function hasSpace(object: Structure | Creep) {
+  if (!object) return false;
+  const store = getStore(object);
+  if (!store) return false;
+  return store.getFreeCapacity(RESOURCE_ENERGY) > 0;
 }
 function isFull(object: Structure | Creep) {
   if (!object) return false;
