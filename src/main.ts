@@ -1079,7 +1079,7 @@ function getEnergyDestinations() {
           structure =>
             !isFull(structure) &&
             (isLink(structure) ||
-              structure.structureType === STRUCTURE_STORAGE ||
+              (structure.structureType === STRUCTURE_STORAGE && shouldFillStorage()) ||
               isSpawnOrExtension(structure)) &&
             !isDownstreamLink(structure)
         );
@@ -1092,6 +1092,19 @@ function getEnergyDestinations() {
   logCpu("getEnergyDestinations()");
 
   return targets;
+}
+
+function shouldFillStorage() {
+  if (getCreepCountByRole("explorer") > 0) return true;
+  if (areSpawnsFull()) return true;
+  return false;
+}
+
+function areSpawnsFull() {
+  for (const room of Object.values(Game.rooms)) {
+    if (room.energyAvailable < room.energyCapacityAvailable) return false;
+  }
+  return true;
 }
 
 function getEnergySourceTask(
