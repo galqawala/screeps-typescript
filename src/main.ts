@@ -829,7 +829,7 @@ function getNewDestination(creep: Creep) {
       }
     }
   } else if (role === "explorer") {
-    const destination = getExit(creep.pos, !creep.ticksToLive || creep.ticksToLive > 150, false);
+    const destination = getExit(creep.pos, !creep.ticksToLive || creep.ticksToLive > 300, false);
     if (destination) task = { action: "moveTo", destination };
   }
   const cpuUsed = Game.cpu.getUsed() - cpuBefore;
