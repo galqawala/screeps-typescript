@@ -366,6 +366,8 @@ function handleCarrier(creep: Creep) {
     if (transfer(creep, downstream) === ERR_NOT_IN_RANGE) {
       move(creep, downstream);
       if (transfer(creep, downstream) === ERR_NOT_IN_RANGE) setDestination(creep, downstream);
+      if (getCreepCountByRole("worker") < 1 && !(downstream instanceof StructureLink))
+        flagEnergyConsumer(downstream.pos);
     }
   }
 }
