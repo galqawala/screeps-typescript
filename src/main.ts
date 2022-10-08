@@ -1,5 +1,5 @@
 // ToDo: remove handleCreep() from postAction() -> refactor to do withdraw, move, deposit during the same tick
-/* refactor roles: "reserver", "carrier", "harvester", "attacker", "worker", "explorer" */
+/* refactor roles: "carrier", "harvester", "attacker", "worker", "explorer" */
 
 // When compiling TS to JS and bundling with rollup, the line numbers and file names in error messages change
 // This utility uses source maps to get the line numbers and file names of the original, TS source code
@@ -151,6 +151,7 @@ export const loop = ErrorMapper.wrapLoop(() => {
     const role = Game.creeps[c].memory.role;
     if (role === "attacker") handleAttacker(Game.creeps[c]);
     else if (role === "harvester") handleHarvester(Game.creeps[c]);
+    else if (role === "reserver") handleReserver(Game.creeps[c]);
     else if (role === "spawner") handleSpawner(Game.creeps[c]);
     else handleCreep(Game.creeps[c]);
     const cpuUsed = Game.cpu.getUsed() - cpuBefore;
@@ -165,6 +166,25 @@ export const loop = ErrorMapper.wrapLoop(() => {
   if (Game.cpu.getUsed() > Game.cpu.limit)
     msg("loop", Game.cpu.getUsed().toString() + "/" + Game.cpu.limit.toString() + " CPU used");
 });
+
+function handleReserver(creep: Creep) {
+  let destination;
+  const oldDestination = creep.memory.destination;
+  if (typeof oldDestination === "string") destination = Game.getObjectById(oldDestination);
+
+  if (destination && destination instanceof StructureController) {
+    if (creep.reserveController(destination) === ERR_NOT_IN_RANGE) move(creep, destination);
+  } else {
+    const destinations = getControllersToReserve();
+    if (destinations.length && destinations[0]) {
+      setDestination(creep, destinations[0]);
+      move(creep, destinations[0]);
+    } else {
+      const flag = Game.flags.reserve;
+      if (flag) move(creep, flag);
+    }
+  }
+}
 
 function handleSpawner(creep: Creep) {
   let destinations: (
