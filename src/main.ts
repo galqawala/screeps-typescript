@@ -347,6 +347,7 @@ function purgeFlags() {
   for (const flag of Object.values(Game.flags)) {
     const name = flag.name;
     if (name.startsWith("traffic_") && !shouldMaintainStatsFor(flag.pos)) flag.remove();
+    if (name.startsWith("creep_") && !(name.substring(6) in Game.creeps)) flag.remove();
   }
   logCpu("purgeFlags()");
 }
