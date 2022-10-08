@@ -1,6 +1,3 @@
-// ToDo: remove handleCreep() from postAction() -> refactor to do withdraw, move, deposit during the same tick
-/* refactor roles: "explorer" */
-
 // When compiling TS to JS and bundling with rollup, the line numbers and file names in error messages change
 // This utility uses source maps to get the line numbers and file names of the original, TS source code
 import { ErrorMapper } from "utils/ErrorMapper";
@@ -177,10 +174,10 @@ export const loop = ErrorMapper.wrapLoop(() => {
 
     if (role === "attacker") handleAttacker(Game.creeps[c]);
     else if (role === "carrier") handleCarrier(Game.creeps[c]);
+    else if (role === "explorer") handleExplorer(Game.creeps[c]);
     else if (role === "harvester") handleHarvester(Game.creeps[c]);
     else if (role === "reserver") handleReserver(Game.creeps[c]);
     else if (role === "worker") handleWorker(Game.creeps[c]);
-    else handleCreep(Game.creeps[c]);
 
     logCpu("creep: " + c);
   }
@@ -191,6 +188,17 @@ export const loop = ErrorMapper.wrapLoop(() => {
   if (!(Game.time in Memory.time)) Memory.time[Game.time] = { getTotalEnergyToHaul: getTotalEnergyToHaul() };
   cpuInfo();
 });
+
+function handleExplorer(creep: Creep) {
+  if (!moveTowardMemory(creep)) {
+    const destination = getExit(creep.pos, !creep.ticksToLive || creep.ticksToLive > 300, false);
+    if (destination) {
+      move(creep, destination);
+      msg(creep, "setDestination() " + destination.toString());
+      setDestination(creep, destination);
+    }
+  }
+}
 
 function handleWorker(creep: Creep) {
   if (creep.memory.awaitingDeliveryFrom) {
@@ -316,12 +324,16 @@ function getCpuLog() {
 }
 
 function moveTowardMemory(creep: Creep) {
-  let destination;
-  const oldDestination = creep.memory.destination;
-  if (typeof oldDestination === "string") destination = Game.getObjectById(oldDestination);
+  let destination: Destination = Game.flags["creep_" + creep.name];
+  if (!destination) {
+    const destinationMemory = creep.memory.destination;
+    if (typeof destinationMemory === "string") {
+      const destinationObject = Game.getObjectById(destinationMemory);
+      if (destinationObject) destination = destinationObject;
+    }
+  }
   if (destination) {
     move(creep, destination);
-    if (creep.name === "CP") msg(creep, "old destination: " + destination.pos.toString());
     if (creep.pos.getRangeTo(destination) <= 1) resetDestination(creep);
     return true;
   }
@@ -1086,6 +1098,7 @@ function setDestination(creep: Creep, destination: Destination) {
     }
   }
   if ("pos" in destination) setDestinationFlag(creep.name, destination.pos);
+  else if (destination instanceof RoomPosition) setDestinationFlag(creep.name, destination);
 }
 
 function getNewDestination(creep: Creep) {
@@ -2608,7 +2621,8 @@ function resetDestination(creep: Creep) {
   if (destination && "memory" in destination && "awaitingDeliveryFrom" in destination.memory) {
     destination.memory.awaitingDeliveryFrom = undefined;
   }
-
+  const flag = Game.flags["creep_" + creep.name];
+  if (flag) flag.remove();
   return;
 }
 
