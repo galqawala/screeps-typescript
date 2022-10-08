@@ -50,17 +50,18 @@ declare global {
   }
 
   interface RoomMemory {
-    upgradeSpots: RoomPosition[];
-    harvestSpots: RoomPosition[];
-    energyAvailable: number;
-    hostilesPresent: boolean;
-    constructionSiteCount: number;
-    structureCount: number;
-    status: "normal" | "closed" | "novice" | "respawn";
     canHarvest: boolean;
-    timeOfLastSpawnEnergyDelivery: number;
-    sortedSpawnStructureIds: Id<Structure>[];
+    constructionSiteCount: number;
     constructionSiteScore: number[][];
+    energyAvailable: number;
+    harvestSpots: RoomPosition[];
+    hostilesPresent: boolean;
+    lastTimeSpawnsFull: number;
+    sortedSpawnStructureIds: Id<Structure>[];
+    status: "normal" | "closed" | "novice" | "respawn";
+    structureCount: number;
+    timeOfLastSpawnEnergyDelivery: number;
+    upgradeSpots: RoomPosition[];
   }
 
   interface CreepMemory {
@@ -736,6 +737,8 @@ function checkRoomEnergy(room: Room) {
   const energy = room.energyAvailable;
   if (room.memory.energyAvailable > energy) {
     tryResetSpawnsAndExtensionsSorting(room);
+  } else if (room.energyAvailable >= room.energyCapacityAvailable) {
+    room.memory.lastTimeSpawnsFull = Game.time;
   }
   room.memory.energyAvailable = energy;
 }
@@ -1048,7 +1051,7 @@ function getEnergyDestinations() {
           structure =>
             !isFull(structure) &&
             (isLink(structure) ||
-              (structure.structureType === STRUCTURE_STORAGE && shouldFillStorage()) ||
+              (structure.structureType === STRUCTURE_STORAGE && shouldFillStorage(room)) ||
               isSpawnOrExtension(structure)) &&
             !isDownstreamLink(structure)
         );
@@ -1063,11 +1066,12 @@ function getEnergyDestinations() {
   return targets;
 }
 
-function shouldFillStorage() {
+function shouldFillStorage(room: Room) {
   // should we fill storage (instead of spawns/extensions)
   if (areSpawnsFull()) return true;
   if (getCreepsMaxTicksToLive() < 850) return false; // haven't spawned creeps lately
   if (getCreepCountByRole("explorer") < 1) return false;
+  if (room.memory.lastTimeSpawnsFull || 0 < Game.time - 1500) return false;
   return true;
 }
 
