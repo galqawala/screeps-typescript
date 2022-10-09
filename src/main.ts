@@ -1707,7 +1707,6 @@ function handleSpawn(spawn: StructureSpawn) {
 function spawnReserver(spawn: StructureSpawn, controllerToReserve: StructureController) {
   const minBudget = Math.max(1300, spawn.room.energyCapacityAvailable);
   if (minBudget > spawn.room.energyAvailable) return;
-  msg(spawn, "spawning a reserver for " + minBudget.toString());
   if (spawn.room.energyAvailable >= minBudget) {
     const task: Task = { destination: controllerToReserve, action: "reserveController" };
     spawnCreep(spawn, "reserver", minBudget, undefined, task);
@@ -1856,7 +1855,7 @@ function spawnHarvester(spawn: StructureSpawn) {
   if (spawn.spawnCreep(body, name, { memory, energyStructures }) === OK) {
     Memory.needHarvesters = false;
     setDestinationFlag(name, harvestPos);
-    spawnMsg(spawn, roleToSpawn, name, body, harvestPos);
+    spawnMsg(spawn, roleToSpawn, name, body, harvestPos.toString());
   }
   return true;
 }
@@ -1879,7 +1878,7 @@ function spawnMsg(
   roleToSpawn: Role,
   name: string,
   body: BodyPartConstant[],
-  harvestPos: RoomPosition | undefined
+  target: string | undefined
 ) {
   msg(
     spawn,
@@ -1893,8 +1892,7 @@ function spawnMsg(
       spawn.room.energyAvailable.toString() +
       "/" +
       spawn.room.energyCapacityAvailable.toString() +
-      " " +
-      (harvestPos ? "for " + harvestPos.toString() : "")
+      (target ? " for " + target : "")
   );
 }
 
@@ -2069,7 +2067,7 @@ function spawnCreep(
   });
 
   if (outcome === OK) {
-    spawnMsg(spawn, roleToSpawn, name, body, undefined);
+    spawnMsg(spawn, roleToSpawn, name, body, task?.destination.toString());
   } else {
     msg(spawn, "Failed to spawn creep: " + outcome.toString());
   }
