@@ -65,25 +65,26 @@ declare global {
   }
 
   interface CreepMemory {
-    role: Role;
-    sourceId: undefined | Id<Source>;
+    action: undefined | Action;
+    awaitingDeliveryFrom: undefined | string; // Creep name
+    destination: undefined | DestinationId | RoomPosition;
+    destinationSetTime: number;
     empty: boolean;
     full: boolean;
-    timeOfLastEnergyReceived: number;
-    lastOkActionTime: number;
-    x: number;
-    y: number;
-    roomName: string;
-    lastMoveTime: number;
-    destinationSetTime: number;
-    destination: undefined | DestinationId | RoomPosition;
-    lastDestination: undefined | DestinationId | RoomPosition;
-    action: undefined | Action;
+    getEnergy: boolean;
     lastAction: undefined | Action;
     lastActionOutcome: ScreepsReturnCode;
     lastBlockedIds: DestinationId[];
-    awaitingDeliveryFrom: undefined | string; // Creep name
+    lastDestination: undefined | DestinationId | RoomPosition;
+    lastMoveTime: number;
+    lastOkActionTime: number;
     posRevisits: number;
+    role: Role;
+    roomName: string;
+    sourceId: undefined | Id<Source>;
+    timeOfLastEnergyReceived: number;
+    x: number;
+    y: number;
   }
 
   interface Task {
@@ -165,11 +166,11 @@ export const loop = ErrorMapper.wrapLoop(() => {
   purgeFlags();
   if (!Memory.username) setUsername();
 
+  for (const r in Game.rooms) handleRoom(Game.rooms[r]);
   updateFlagAttack();
   updateFlagReserve();
   handleCreeps();
   for (const s in Game.spawns) handleSpawn(Game.spawns[s]);
-  for (const r in Game.rooms) handleRoom(Game.rooms[r]);
 
   if (!Memory.time) Memory.time = {};
   if (!(Game.time in Memory.time)) Memory.time[Game.time] = { getTotalEnergyToHaul: getTotalEnergyToHaul() };
@@ -204,9 +205,9 @@ function handleExplorer(creep: Creep) {
   }
 }
 
-function getEnergySource(creep: Creep) {
+function getEnergySource(creep: Creep, allowStorage: boolean) {
   logCpu("getEnergySource(" + creep.name + ")");
-  const destination = getRoomEnergySource(creep.pos);
+  const destination = getRoomEnergySource(creep.pos, allowStorage);
   logCpu("getEnergySource(" + creep.name + ")");
   if (destination) return destination;
   const shuffledRoomNames = Object.keys(Game.rooms)
@@ -214,7 +215,8 @@ function getEnergySource(creep: Creep) {
     .sort((a, b) => a.sort - b.sort) /* sort */
     .map(({ value }) => value); /* remove sort values */
   for (const roomName of shuffledRoomNames) {
-    const source = getRoomEnergySource(getRandomPos(roomName));
+    if (roomName === creep.pos.roomName) continue; // checked this already in the beginning
+    const source = getRoomEnergySource(getRandomPos(roomName), allowStorage);
     logCpu("getEnergySource(" + creep.name + ")");
     if (source) return source;
   }
@@ -222,13 +224,34 @@ function getEnergySource(creep: Creep) {
   return;
 }
 
-function getRoomEnergySource(pos: RoomPosition) {
+function getRoomEnergySource(pos: RoomPosition, allowStorage: boolean) {
   const sources = [];
-  for (const id of Memory.rooms[pos.roomName].energySources) {
-    const source = Game.getObjectById(id);
-    if (source) sources.push(source);
+  const ids = Memory.rooms[pos.roomName].energyDestinations;
+  if (ids) {
+    for (const id of Memory.rooms[pos.roomName].energySources) {
+      const source = Game.getObjectById(id);
+      if (source && (allowStorage || (!(source instanceof StructureStorage) && !isUpstreamLink(source))))
+        sources.push(source);
+    }
+    const closest = pos.findClosestByRange(sources);
+    if (closest) {
+      const index = Memory.rooms[pos.roomName].energySources.indexOf(closest.id);
+      if (index) delete Memory.rooms[pos.roomName].energySources[index];
+    }
+    return closest;
   }
-  return pos.findClosestByRange(sources);
+  return;
+}
+
+function isUpstreamLink(structure: Destination) {
+  if (!(structure instanceof StructureLink)) return false;
+  if (structure.room.memory.linkIsUpstream[structure.id] === true) return true;
+  return false;
+}
+function isDownstreamLink(structure: Destination) {
+  if (!(structure instanceof StructureLink)) return false;
+  if (structure.room.memory.linkIsUpstream[structure.id] === false) return true;
+  return false;
 }
 
 function getEnergyDestination(creep: Creep) {
@@ -241,6 +264,7 @@ function getEnergyDestination(creep: Creep) {
     .sort((a, b) => a.sort - b.sort) /* sort */
     .map(({ value }) => value); /* remove sort values */
   for (const roomName of shuffledRoomNames) {
+    if (roomName === creep.pos.roomName) continue; // checked this already in the beginning
     const roomDestination = getRoomEnergyDestination(getRandomPos(roomName));
     logCpu("getEnergyDestination(" + creep.name + ")");
     if (roomDestination) return roomDestination;
@@ -255,9 +279,20 @@ function getRoomEnergyDestination(pos: RoomPosition) {
   if (ids) {
     for (const id of Memory.rooms[pos.roomName].energyDestinations) {
       const destination = Game.getObjectById(id);
-      if (destination) destinations.push(destination);
+      if (
+        destination &&
+        !isDownstreamLink(destination) &&
+        !(destination instanceof StructureContainer) &&
+        (!(destination instanceof StructureLink) || pos.getRangeTo(destination) <= 6)
+      )
+        destinations.push(destination);
     }
-    return pos.findClosestByRange(destinations);
+    const closest = pos.findClosestByRange(destinations);
+    if (closest) {
+      const index = Memory.rooms[pos.roomName].energyDestinations.indexOf(closest.id);
+      if (index) delete Memory.rooms[pos.roomName].energyDestinations[index];
+    }
+    return closest;
   }
   return;
 }
@@ -267,7 +302,7 @@ function handleWorker(creep: Creep) {
   if (creep.memory.awaitingDeliveryFrom) {
     if (isEdge(creep.pos)) move(creep, getRandomPos(creep.pos.roomName)); // move once towards a random position
   } else if (isEmpty(creep)) {
-    const destination = getEnergySource(creep);
+    const destination = getEnergySource(creep, true);
     if (destination instanceof RoomPosition) {
       move(creep, destination);
     } else if (destination instanceof Source && creep.harvest(destination) === ERR_NOT_IN_RANGE) {
@@ -277,8 +312,10 @@ function handleWorker(creep: Creep) {
       !(destination instanceof Source) &&
       retrieveEnergy(creep, destination) === ERR_NOT_IN_RANGE
     ) {
+      logCpu("handleWorker(" + creep.name + ") retrieve");
       move(creep, destination);
       if (retrieveEnergy(creep, destination) === ERR_NOT_IN_RANGE) setDestination(creep, destination);
+      logCpu("handleWorker(" + creep.name + ") retrieve");
     }
   } else if (!isEmpty(creep)) {
     const result = upgrade(creep, true) || repair(creep) || build(creep) || upgrade(creep, false);
@@ -391,31 +428,56 @@ function moveTowardMemory(creep: Creep) {
 }
 
 function handleCarrier(creep: Creep) {
-  logCpu("handleCarrier(" + creep.name + ") source/destination");
+  logCpu("handleCarrier(" + creep.name + ")");
+  let destination;
+  if ("getEnergy" in creep.memory) {
+    const oldDestination = creep.memory.destination;
+    if (typeof oldDestination === "string") destination = Game.getObjectById(oldDestination);
+  }
+  if (!destination) {
+    destination = getCarrierDestination(creep);
+    if (destination) setDestination(creep, destination);
+  }
+  if (destination) {
+    move(creep, destination);
+    if (
+      creep.memory.getEnergy &&
+      (destination instanceof Structure ||
+        destination instanceof Tombstone ||
+        destination instanceof Ruin ||
+        destination instanceof Resource)
+    ) {
+      if (retrieveEnergy(creep, destination) !== ERR_NOT_IN_RANGE) resetDestination(creep);
+    } else if (
+      !creep.memory.getEnergy &&
+      (destination instanceof Creep || destination instanceof Structure)
+    ) {
+      const outcome = transfer(creep, destination);
+      if (outcome !== ERR_NOT_IN_RANGE) {
+        resetDestination(creep);
+      }
+    }
+  }
+  logCpu("handleCarrier(" + creep.name + ")");
+}
+
+function getCarrierDestination(creep: Creep) {
+  logCpu("getCarrierDestination(" + creep.name + ")");
   let upstream;
   let downstream;
-  if (getFillRatio(creep) < 0.9) upstream = getEnergySource(creep);
+  if (getFillRatio(creep) < 0.9) upstream = getEnergySource(creep, false);
   if (!isEmpty(creep)) downstream = getEnergyDestination(creep);
-  logCpu("handleCarrier(" + creep.name + ") source/destination");
-  logCpu("handleCarrier(" + creep.name + ") retrieve/transfer");
   if (upstream && (!downstream || creep.pos.getRangeTo(downstream) >= creep.pos.getRangeTo(upstream))) {
-    logCpu("handleCarrier(" + creep.name + ") retrieve");
-    if (retrieveEnergy(creep, upstream) === ERR_NOT_IN_RANGE) {
-      move(creep, upstream);
-      if (retrieveEnergy(creep, upstream) === ERR_NOT_IN_RANGE) setDestination(creep, upstream);
-    }
-    logCpu("handleCarrier(" + creep.name + ") retrieve");
+    creep.memory.getEnergy = true;
+    logCpu("getCarrierDestination(" + creep.name + ")");
+    return upstream;
   } else if (downstream) {
-    logCpu("handleCarrier(" + creep.name + ") transfer");
-    if (transfer(creep, downstream) === ERR_NOT_IN_RANGE) {
-      move(creep, downstream);
-      if (transfer(creep, downstream) === ERR_NOT_IN_RANGE) setDestination(creep, downstream);
-      if (getCreepCountByRole("worker") < 1 && !(downstream instanceof StructureLink))
-        flagEnergyConsumer(downstream.pos);
-    }
-    logCpu("handleCarrier(" + creep.name + ") transfer");
+    creep.memory.getEnergy = false;
+    logCpu("getCarrierDestination(" + creep.name + ")");
+    return downstream;
   }
-  logCpu("handleCarrier(" + creep.name + ") retrieve/transfer");
+  logCpu("getCarrierDestination(" + creep.name + ")");
+  return;
 }
 
 function handleReserver(creep: Creep) {
@@ -748,8 +810,32 @@ function updateRoomEnergyDestinations(room: Room) {
   room.memory.energyDestinations = room
     .find(FIND_STRUCTURES)
     .filter(hasSpace)
+    .filter(structure => !(structure instanceof StructureStorage) || shouldFillStorage(room))
     .map(structure => structure.id);
   logCpu("updateRoomEnergyDestinations(" + room.name + ")");
+}
+
+function shouldFillStorage(room: Room) {
+  // should we fill storage (instead of spawns/extensions)
+  if (areSpawnsFull()) return true;
+  if (getCreepsMaxTicksToLive() < 850) return false; // haven't spawned creeps lately
+  if (getCreepCountByRole("explorer") < 1) return false;
+  if (room.memory.lastTimeSpawnsFull || 0 < Game.time - 1500) return false;
+  return true;
+}
+
+function getCreepsMaxTicksToLive() {
+  return Object.values(Game.creeps).reduce(
+    (aggregated, item) => Math.max(aggregated, item.ticksToLive || 0),
+    0 /* initial*/
+  );
+}
+
+function areSpawnsFull() {
+  for (const room of Object.values(Game.rooms)) {
+    if (room.energyAvailable < room.energyCapacityAvailable) return false;
+  }
+  return true;
 }
 
 function constructInRoom(room: Room) {
@@ -1838,26 +1924,27 @@ function getInitialCreepMemory(
   let destination;
   if (task?.destination && "id" in task?.destination) destination = task?.destination?.id;
   return {
-    role,
-    sourceId,
+    action: task?.action,
+    awaitingDeliveryFrom: undefined, // Creep name
+    destination,
+    destinationSetTime: Game.time,
     empty: true,
     full: false,
-    timeApproachedDestination: Game.time,
-    timeOfLastEnergyReceived: Game.time,
-    lastOkActionTime: Game.time,
-    x: pos.x,
-    y: pos.y,
-    roomName: pos.roomName,
-    lastMoveTime: Game.time,
-    destinationSetTime: Game.time,
-    destination,
-    lastDestination: undefined,
-    action: task?.action,
+    getEnergy: true,
     lastAction: undefined,
     lastActionOutcome: OK,
     lastBlockedIds: [],
-    awaitingDeliveryFrom: undefined, // Creep name
-    posRevisits: 0
+    lastDestination: undefined,
+    lastMoveTime: Game.time,
+    lastOkActionTime: Game.time,
+    posRevisits: 0,
+    role,
+    roomName: pos.roomName,
+    sourceId,
+    timeApproachedDestination: Game.time,
+    timeOfLastEnergyReceived: Game.time,
+    x: pos.x,
+    y: pos.y
   };
 }
 
