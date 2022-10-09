@@ -607,7 +607,12 @@ function getControllersToReserve() {
   const controllers = [];
   for (const r in Game.rooms) {
     const controller = Game.rooms[r].controller;
-    if (controller && shouldReserveRoom(Game.rooms[r]) && !creepsHaveDestination(controller)) {
+    if (
+      controller &&
+      shouldReserveRoom(Game.rooms[r]) &&
+      shouldHarvestRoom(Game.rooms[r]) &&
+      !creepsHaveDestination(controller)
+    ) {
       controllers.push(controller);
     }
   }
@@ -1805,6 +1810,7 @@ function getSourceToHarvest(pos: RoomPosition) {
     const room = Game.rooms[r];
     if (room.memory.hostilesPresent) continue;
     if (!canOperateInRoom(room)) continue;
+    if (!shouldHarvestRoom(room)) continue;
     sources = sources.concat(
       room.find(FIND_SOURCES).filter(harvestSource => !sourceHasHarvester(harvestSource))
     );
@@ -1814,6 +1820,16 @@ function getSourceToHarvest(pos: RoomPosition) {
   if (source) return source;
   source = sources[Math.floor(Math.random() * sources.length)]; // another room
   return source;
+}
+
+function shouldHarvestRoom(room: Room) {
+  if (!room) return false;
+  if (room.controller?.my) return true;
+  const exits = Game.map.describeExits(room.name);
+  return (
+    Object.values(exits).filter(roomName => Game.rooms[roomName] && Game.rooms[roomName].controller?.my)
+      .length > 0
+  );
 }
 
 function spawnHarvester(spawn: StructureSpawn) {
