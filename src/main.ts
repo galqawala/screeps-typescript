@@ -347,10 +347,9 @@ function moveTowardMemory(creep: Creep) {
 }
 
 function handleCarrier(creep: Creep) {
-  logCpu("handleCarrier(" + creep.name + ")");
   let upstream;
   let downstream;
-  if (!isFull(creep)) {
+  if (getFillRatio(creep) < 0.9) {
     let sources: EnergySource[] = [];
     for (const i in Game.rooms) {
       if (Game.rooms[i].memory.hostilesPresent) continue;
@@ -384,7 +383,13 @@ function noOtherCarriersOnWayHere(structure: Structure, creep: Creep) {
   return (
     structure.pos
       .lookFor(LOOK_FLAGS)
-      .filter(flag => flag.name !== "creep_" + creep.name && flag.name.startsWith("creep_C")).length < 1
+      .filter(flag => flag.name !== "creep_" + creep.name && flag.name.startsWith("creep_C")).length < 1 &&
+    Object.values(Game.creeps).filter(
+      carrier =>
+        carrier.memory.destination === structure.id &&
+        carrier.name !== creep.name &&
+        carrier.memory.role === "carrier"
+    ).length < 1
   );
 }
 
