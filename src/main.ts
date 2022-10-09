@@ -112,8 +112,6 @@ declare global {
 const minRoadTraffic = 0.014;
 
 function logCpu(name: string) {
-  if (!Memory.cpuLog) Memory.cpuLog = {};
-
   if (!(name in Memory.cpuLog)) {
     // cpuLog is not defined
     Memory.cpuLog[name] = { before: Game.cpu.getUsed(), after: Game.cpu.getUsed() };
@@ -161,6 +159,7 @@ function isRoomPosition(item: RoomPosition): item is RoomPosition {
 
 // Main loop
 export const loop = ErrorMapper.wrapLoop(() => {
+  Memory.cpuLog = {};
   const memLimit = 500;
   if (Object.keys(Memory.time).length > memLimit) purgeTimeMemory();
   if (Object.keys(Memory.flags).length > memLimit) purgeFlagsMemory();
