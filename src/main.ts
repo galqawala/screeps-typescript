@@ -55,6 +55,7 @@ declare global {
     harvestSpots: RoomPosition[];
     hostilesPresent: boolean;
     lastTimeSpawnsFull: number;
+    lastTimeFlagEnergyConsumerSet: number;
     linkIsUpstream: Record<Id<StructureLink>, boolean>;
     sortedSpawnStructureIds: Id<Structure>[];
     status: "normal" | "closed" | "novice" | "respawn";
@@ -163,12 +164,22 @@ export const loop = ErrorMapper.wrapLoop(() => {
   const memLimit = 500;
   if (Object.keys(Memory.time).length > memLimit) purgeTimeMemory();
   if (Object.keys(Memory.flags).length > memLimit) purgeFlagsMemory();
-  if (Object.keys(Game.flags).length > memLimit) purgeFlags();
+  purgeFlags();
   if (!Memory.username) setUsername();
 
   updateFlagAttack();
   updateFlagReserve();
+  handleCreeps();
+  for (const s in Game.spawns) handleSpawn(Game.spawns[s]);
+  for (const r in Game.rooms) handleRoom(Game.rooms[r]);
 
+  if (!Memory.time) Memory.time = {};
+  if (!(Game.time in Memory.time)) Memory.time[Game.time] = { getTotalEnergyToHaul: getTotalEnergyToHaul() };
+  cpuInfo();
+});
+
+function handleCreeps() {
+  logCpu("handleCreeps()");
   for (const c in Game.creeps) {
     logCpu("creep: " + c);
     const role = Game.creeps[c].memory.role;
@@ -182,13 +193,8 @@ export const loop = ErrorMapper.wrapLoop(() => {
 
     logCpu("creep: " + c);
   }
-  for (const s in Game.spawns) handleSpawn(Game.spawns[s]);
-  for (const r in Game.rooms) handleRoom(Game.rooms[r]);
-
-  if (!Memory.time) Memory.time = {};
-  if (!(Game.time in Memory.time)) Memory.time[Game.time] = { getTotalEnergyToHaul: getTotalEnergyToHaul() };
-  cpuInfo();
-});
+  logCpu("handleCreeps()");
+}
 
 function handleExplorer(creep: Creep) {
   if (!moveTowardMemory(creep)) {
@@ -341,6 +347,7 @@ function moveTowardMemory(creep: Creep) {
 }
 
 function handleCarrier(creep: Creep) {
+  logCpu("handleCarrier(" + creep.name + ")");
   let upstream;
   let downstream;
   if (!isFull(creep)) {
@@ -353,9 +360,7 @@ function handleCarrier(creep: Creep) {
     if (!upstream) upstream = sources[Math.floor(Math.random() * sources.length)]; // another room
   }
   if (!isEmpty(creep)) {
-    const destinations = getEnergyDestinations().concat(
-      creep.pos.findInRange(FIND_MY_STRUCTURES, 6).filter(isLinkUpstream).filter(hasSpace)
-    );
+    const destinations = getEnergyDestinations(creep);
     downstream = creep.pos.findClosestByRange(destinations); // same room
     if (!downstream) downstream = destinations[Math.floor(Math.random() * destinations.length)]; // another room
   }
@@ -372,6 +377,15 @@ function handleCarrier(creep: Creep) {
         flagEnergyConsumer(downstream.pos);
     }
   }
+  logCpu("handleCarrier(" + creep.name + ")");
+}
+
+function noOtherCarriersOnWayHere(structure: Structure, creep: Creep) {
+  return (
+    structure.pos
+      .lookFor(LOOK_FLAGS)
+      .filter(flag => flag.name !== "creep_" + creep.name && flag.name.startsWith("creep_C")).length < 1
+  );
 }
 
 function getEnergyInRoomForCarrier(room: Room, myMinTransfer: number) {
@@ -1042,34 +1056,50 @@ function setDestination(creep: Creep, destination: Destination) {
   else if (destination instanceof RoomPosition) setDestinationFlag(creep.name, destination);
 }
 
-function getEnergyDestinations() {
+function getEnergyDestinations(creep: Creep) {
   logCpu("getEnergyDestinations()");
   let targets: Structure[] = [];
 
   for (const i in Game.rooms) {
     const room = Game.rooms[i];
     if (room.memory.hostilesPresent) continue;
-    let roomTargets = room
-      .find(FIND_MY_STRUCTURES)
-      .filter(structure => structure.structureType === STRUCTURE_TOWER && !isFull(structure));
-    if (roomTargets.length < 1) {
-      roomTargets = room
-        .find(FIND_MY_STRUCTURES)
-        .filter(
-          structure =>
-            ((structure.structureType === STRUCTURE_STORAGE && shouldFillStorage(room)) ||
-              isSpawnOrExtension(structure)) &&
-            hasSpace(structure)
-        );
-    }
-    if (roomTargets.length < 1) {
-      roomTargets = getEnergyStructures(room);
-    }
-    targets = targets.concat(roomTargets);
+    targets = targets.concat(getEnergyDestinationsInRoom(creep, room));
   }
   logCpu("getEnergyDestinations()");
-
   return targets;
+}
+
+function getEnergyDestinationsInRoom(creep: Creep, room: Room) {
+  logCpu("getEnergyDestinations(" + creep.name + "," + room.name + ")");
+  let roomTargets = room
+    .find(FIND_MY_STRUCTURES)
+    .filter(
+      structure =>
+        structure.structureType === STRUCTURE_TOWER &&
+        !isFull(structure) &&
+        noOtherCarriersOnWayHere(structure, creep)
+    );
+  if (roomTargets.length < 1) {
+    roomTargets = room
+      .find(FIND_MY_STRUCTURES)
+      .filter(
+        structure =>
+          ((structure.structureType === STRUCTURE_STORAGE && shouldFillStorage(room)) ||
+            isSpawnOrExtension(structure)) &&
+          hasSpace(structure) &&
+          noOtherCarriersOnWayHere(structure, creep)
+      )
+      .concat(
+        creep.pos
+          .findInRange(FIND_MY_STRUCTURES, 6)
+          .filter(
+            structure =>
+              isLinkUpstream(structure) && hasSpace(structure) && noOtherCarriersOnWayHere(structure, creep)
+          )
+      );
+  }
+  logCpu("getEnergyDestinations(" + creep.name + "," + room.name + ")");
+  return roomTargets;
 }
 
 function shouldFillStorage(room: Room) {
@@ -1242,6 +1272,7 @@ function getRandomPos(roomName: string) {
 }
 
 function flagEnergyConsumer(pos: RoomPosition) {
+  if (Memory.rooms[pos.roomName].lastTimeFlagEnergyConsumerSet >= Game.time) return;
   logCpu("flagEnergyConsumer(" + pos.toString() + ")");
   const flagName = pos.roomName + "_EnergyConsumer";
   if (flagName in Game.flags) {
@@ -1250,6 +1281,7 @@ function flagEnergyConsumer(pos: RoomPosition) {
   } else {
     pos.createFlag(flagName, COLOR_BLUE, COLOR_PURPLE);
   }
+  Memory.rooms[pos.roomName].lastTimeFlagEnergyConsumerSet = Game.time;
   logCpu("flagEnergyConsumer(" + pos.toString() + ")");
 }
 
@@ -1311,16 +1343,6 @@ function tryResetSpawnsAndExtensionsSorting(room: Room) {
   ) {
     room.memory.sortedSpawnStructureIds = [];
   }
-}
-
-function getEnergyStructures(room: Room) {
-  return room
-    .find(FIND_MY_STRUCTURES)
-    .filter(
-      structure =>
-        (structure.structureType === STRUCTURE_EXTENSION || structure.structureType === STRUCTURE_SPAWN) &&
-        !isFull(structure)
-    );
 }
 
 function canOperateInRoom(room: Room) {
