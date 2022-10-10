@@ -1,4 +1,4 @@
-// ToDo: punch holes into constructed walls to shorten the haul path
+// ToDo: punch holes into constructed walls to shorten the haul distance
 // ToDo: CPU msg only when limit exceeded twice in a row
 
 // When compiling TS to JS and bundling with rollup, the line numbers and file names in error messages change
@@ -1340,12 +1340,6 @@ function isRoomSafe(roomName: string) {
   return true;
 }
 
-function isAccessBetweenRooms(aRoomName: string, bRoomName: string) {
-  if (getRoomStatus(aRoomName) !== "novice" && getRoomStatus(bRoomName) !== "novice") return true;
-  if (getRoomStatus(aRoomName) === "novice" && getRoomStatus(bRoomName) === "novice") return true;
-  return false;
-}
-
 function getExit(pos: RoomPosition, safeOnly = true, harvestableOnly = true) {
   if (!pos) return;
   const exits = Game.map.describeExits(pos.roomName);
@@ -1353,7 +1347,7 @@ function getExit(pos: RoomPosition, safeOnly = true, harvestableOnly = true) {
     roomName =>
       (!safeOnly || isRoomSafe(roomName)) &&
       (!harvestableOnly || Memory.rooms[roomName].canOperate) &&
-      isAccessBetweenRooms(roomName, pos.roomName)
+      getRoomStatus(roomName) === getRoomStatus(pos.roomName)
   );
   const getDestinationRoomName = accessibleRooms[Math.floor(Math.random() * accessibleRooms.length)];
   const findExit = Game.map.findExit(pos.roomName, getDestinationRoomName);
