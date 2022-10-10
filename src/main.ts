@@ -1,4 +1,3 @@
-// ToDo: punch holes into constructed walls to shorten the haul distance
 // ToDo: CPU msg only when limit exceeded twice in a row
 
 // When compiling TS to JS and bundling with rollup, the line numbers and file names in error messages change
@@ -139,6 +138,9 @@ function isContainerLinkOrStorage(
     structure.structureType === STRUCTURE_STORAGE ||
     structure.structureType === STRUCTURE_LINK
   );
+}
+function isDestructibleWall(structure: Structure): structure is StructureWall {
+  return structure.structureType === STRUCTURE_WALL && "hits" in structure;
 }
 function isLink(structure: Structure): structure is StructureLink {
   return structure.structureType === STRUCTURE_LINK;
@@ -570,6 +572,8 @@ function handleAttacker(creep: Creep) {
     const flag = Game.flags.attack;
     if (flag) {
       move(creep, flag);
+      const wall = getDestructibleWallAt(flag.pos);
+      if (wall) creep.attack(wall);
     } else {
       recycleCreep(creep);
     }
@@ -1707,10 +1711,20 @@ function spawnReserver(spawn: StructureSpawn, controllerToReserve: StructureCont
   }
 }
 
+function getDestructibleWallAt(pos: RoomPosition) {
+  const walls = pos.lookFor(LOOK_STRUCTURES).filter(isDestructibleWall);
+  if (walls.length && walls[0].destroy() === ERR_NOT_OWNER) return walls[0];
+  return;
+}
+
 function updateFlagAttack() {
   const flagAttack = Game.flags.attack;
   if (flagAttack) {
-    if (flagAttack.room && getHostilesInRoom(flagAttack.room).length < 1) {
+    if (
+      flagAttack.room &&
+      !getDestructibleWallAt(flagAttack.pos) &&
+      getTargetsInRoom(flagAttack.room).length < 1
+    ) {
       flagAttack.remove(); // have visibility to the room and it's clear of hostiles
     } else {
       return; // current flag is still valid (to the best of our knowledge)
@@ -1720,18 +1734,48 @@ function updateFlagAttack() {
   let targets: (Structure | Creep | PowerCreep)[] = [];
   for (const r in Game.rooms) {
     if (!shouldHarvestRoom(Game.rooms[r])) continue;
-    targets = targets.concat(getHostilesInRoom(Game.rooms[r]));
+    targets = targets.concat(getTargetsInRoom(Game.rooms[r]));
   }
   const core = targets[Math.floor(Math.random() * targets.length)];
   if (core) core.pos.createFlag("attack", COLOR_CYAN, COLOR_BROWN);
 }
 
-function getHostilesInRoom(room: Room) {
+function getTargetsInRoom(room: Room) {
   let targets: (Structure | Creep | PowerCreep)[] = [];
   targets = targets.concat(room.find(FIND_HOSTILE_STRUCTURES));
   targets = targets.concat(room.find(FIND_HOSTILE_CREEPS));
   targets = targets.concat(room.find(FIND_HOSTILE_POWER_CREEPS));
+  if (targets.length < 1) {
+    const wall = getWallToDestroy(room);
+    if (wall) targets.push(wall);
+  }
   return targets;
+}
+
+function getWallToDestroy(room: Room) {
+  // shorten the routes between containers and storages by destroying walls
+  if (!shouldHarvestRoom(room)) return;
+  logCpu("getWallToDestroy(" + room.name + ")");
+  const containers = room.find(FIND_STRUCTURES);
+  for (const container of containers) {
+    if (container.structureType !== STRUCTURE_CONTAINER) continue;
+    const storages = Object.values(Game.structures);
+    for (const storage of storages) {
+      if (storage.structureType !== STRUCTURE_STORAGE) continue;
+      const path = room.findPath(container.pos, storage.pos, {
+        ignoreCreeps: true,
+        ignoreDestructibleStructures: true,
+        ignoreRoads: true
+      });
+      for (const step of path) {
+        const wall = getDestructibleWallAt(new RoomPosition(step.x, step.y, room.name));
+        logCpu("getWallToDestroy(" + room.name + ")");
+        if (wall && wall.destroy() === ERR_NOT_OWNER) return wall;
+      }
+    }
+  }
+  logCpu("getWallToDestroy(" + room.name + ")");
+  return;
 }
 
 function updateFlagReserve() {
