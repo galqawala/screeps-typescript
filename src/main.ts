@@ -36,10 +36,11 @@ declare global {
   type EnergySource = Resource | Ruin | StructureContainer | StructureLink | StructureStorage | Tombstone;
 
   interface Memory {
-    username: string;
+    cpuLimitExceededStreak: number;
+    cpuLog: Record<string, CpuLogEntry>;
     needHarvesters: boolean;
     time: Record<number, TimeMemory>;
-    cpuLog: Record<string, CpuLogEntry>;
+    username: string;
   }
 
   interface FlagMemory {
@@ -391,10 +392,19 @@ function getControllerToUpgrade(pos: RoomPosition, urgentOnly: boolean) {
 
 function cpuInfo() {
   if (Game.cpu.getUsed() > Game.cpu.limit) {
+    Memory.cpuLimitExceededStreak++;
     msg(
       "cpuInfo()",
-      Game.cpu.getUsed().toString() + "/" + Game.cpu.limit.toString() + " CPU used!\n" + getCpuLog()
+      Game.cpu.getUsed().toString() +
+        "/" +
+        Game.cpu.limit.toString() +
+        " CPU used! Limit exceeded " +
+        Memory.cpuLimitExceededStreak.toString() +
+        " ticks in a row.\n" +
+        getCpuLog()
     );
+  } else {
+    Memory.cpuLimitExceededStreak = 0;
   }
 }
 
