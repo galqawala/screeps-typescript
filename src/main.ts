@@ -230,9 +230,9 @@ function getEnergySource(creep: Creep, allowStorage: boolean) {
 
 function getRoomEnergySource(pos: RoomPosition, allowStorage: boolean) {
   const sources = [];
-  const ids = Memory.rooms[pos.roomName].energyDestinations;
+  const ids = Memory.rooms[pos.roomName].energySources;
   if (ids) {
-    for (const id of Memory.rooms[pos.roomName].energySources) {
+    for (const id of ids) {
       const source = Game.getObjectById(id);
       if (source && (allowStorage || (!(source instanceof StructureStorage) && !isUpstreamLink(source))))
         sources.push(source);
@@ -281,7 +281,7 @@ function getRoomEnergyDestination(pos: RoomPosition) {
   const destinations = [];
   const ids = Memory.rooms[pos.roomName].energyDestinations;
   if (ids) {
-    for (const id of Memory.rooms[pos.roomName].energyDestinations) {
+    for (const id of ids) {
       const destination = Game.getObjectById(id);
       if (
         destination &&
@@ -421,7 +421,7 @@ function getRepairTarget(pos: RoomPosition) {
   const sources = [];
   const ids = Memory.rooms[pos.roomName].repairTargets;
   if (ids) {
-    for (const id of Memory.rooms[pos.roomName].repairTargets) {
+    for (const id of ids) {
       const source = Game.getObjectById(id);
       if (source) sources.push(source);
     }
