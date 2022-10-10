@@ -1,3 +1,6 @@
+// ToDo: punch holes into constructed walls to shorten the haul path
+// ToDo: CPU msg only when limit exceeded twice in a row
+
 // When compiling TS to JS and bundling with rollup, the line numbers and file names in error messages change
 // This utility uses source maps to get the line numbers and file names of the original, TS source code
 import { ErrorMapper } from "utils/ErrorMapper";
@@ -1755,7 +1758,7 @@ function needWorkers(room: Room) {
     if (
       Game.rooms[i]
         .find(FIND_MY_STRUCTURES)
-        .filter(structure => structure.structureType === STRUCTURE_STORAGE && getEnergy(structure) < 40000)
+        .filter(structure => structure.structureType === STRUCTURE_STORAGE && getEnergy(structure) < 75000)
         .length >= 1
     )
       return false;
@@ -1795,7 +1798,7 @@ function needHarvesters(pos: RoomPosition) {
     if (
       Game.rooms[i]
         .find(FIND_MY_STRUCTURES)
-        .filter(structure => structure.structureType === STRUCTURE_STORAGE && getEnergy(structure) < 100000)
+        .filter(structure => structure.structureType === STRUCTURE_STORAGE && getEnergy(structure) < 150000)
         .length >= 1
     )
       return true;
