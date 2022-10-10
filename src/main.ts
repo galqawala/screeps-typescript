@@ -143,9 +143,6 @@ function isLink(structure: Structure): structure is StructureLink {
 function isTower(structure: Structure): structure is StructureTower {
   return structure.structureType === STRUCTURE_TOWER;
 }
-function isInvaderCore(structure: Structure): structure is StructureInvaderCore {
-  return structure.structureType === STRUCTURE_INVADER_CORE;
-}
 function isSpawnOrExtension(
   structure: Structure | null | undefined | Destination
 ): structure is StructureSpawn | StructureExtension {
@@ -1716,24 +1713,28 @@ function spawnReserver(spawn: StructureSpawn, controllerToReserve: StructureCont
 function updateFlagAttack() {
   const flagAttack = Game.flags.attack;
   if (flagAttack) {
-    if (flagAttack.room && flagAttack.room.find(FIND_HOSTILE_STRUCTURES).filter(isInvaderCore).length < 1) {
-      flagAttack.remove();
+    if (flagAttack.room && getHostilesInRoom(flagAttack.room).length < 1) {
+      flagAttack.remove(); // have visibility to the room and it's clear of hostiles
     } else {
-      return; // current flag is still valid
+      return; // current flag is still valid (to the best of our knowledge)
     }
   }
-  let targets: (StructureInvaderCore | Creep | PowerCreep)[] = [];
+  // no flag, find new targets
+  let targets: (Structure | Creep | PowerCreep)[] = [];
   for (const r in Game.rooms) {
-    targets = targets.concat(Game.rooms[r].find(FIND_HOSTILE_STRUCTURES).filter(isInvaderCore));
-    targets = targets.concat(
-      Game.rooms[r].find(FIND_HOSTILE_CREEPS).filter(target => target.owner.username === "Invader")
-    );
-    targets = targets.concat(
-      Game.rooms[r].find(FIND_HOSTILE_POWER_CREEPS).filter(target => target.owner.username === "Invader")
-    );
+    if (!shouldHarvestRoom(Game.rooms[r])) continue;
+    targets = targets.concat(getHostilesInRoom(Game.rooms[r]));
   }
   const core = targets[Math.floor(Math.random() * targets.length)];
   if (core) core.pos.createFlag("attack", COLOR_CYAN, COLOR_BROWN);
+}
+
+function getHostilesInRoom(room: Room) {
+  let targets: (Structure | Creep | PowerCreep)[] = [];
+  targets = targets.concat(room.find(FIND_HOSTILE_STRUCTURES));
+  targets = targets.concat(room.find(FIND_HOSTILE_CREEPS));
+  targets = targets.concat(room.find(FIND_HOSTILE_POWER_CREEPS));
+  return targets;
 }
 
 function updateFlagReserve() {
