@@ -1694,7 +1694,7 @@ function handleSpawn(spawn: StructureSpawn) {
       return;
     } else if ("attack" in Game.flags) {
       roleToSpawn = "attacker";
-      minBudget = Math.min(260, spawn.room.energyCapacityAvailable);
+      minBudget = Math.min(400, spawn.room.energyCapacityAvailable);
     } else if (getCreepCountByRole("explorer") <= 0) {
       roleToSpawn = "explorer";
       body = [MOVE];
