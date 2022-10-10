@@ -1,5 +1,3 @@
-// ToDo: CPU msg only when limit exceeded twice in a row
-
 // When compiling TS to JS and bundling with rollup, the line numbers and file names in error messages change
 // This utility uses source maps to get the line numbers and file names of the original, TS source code
 import { ErrorMapper } from "utils/ErrorMapper";
@@ -39,7 +37,6 @@ declare global {
     cpuLimitExceededStreak: number;
     cpuLog: Record<string, CpuLogEntry>;
     needHarvesters: boolean;
-    time: Record<number, TimeMemory>;
     username: string;
   }
 
@@ -48,15 +45,12 @@ declare global {
     initTime: number;
   }
 
-  interface TimeMemory {
-    getTotalEnergyToHaul: number;
-  }
-
   interface RoomMemory {
     canOperate: boolean;
     constructionSiteScore: number[][];
     energySources: Id<EnergySource>[];
     energyDestinations: Id<Structure>[];
+    repairTargets: Id<Structure>[];
     harvestSpots: RoomPosition[];
     hostilesPresent: boolean;
     lastTimeSpawnsFull: number;
@@ -165,7 +159,6 @@ export const loop = ErrorMapper.wrapLoop(() => {
   Memory.cpuLog = {};
   logCpu("purge/update memory");
   const memLimit = 500;
-  if (Object.keys(Memory.time).length > memLimit) purgeTimeMemory();
   if (Object.keys(Memory.flags).length > memLimit) purgeFlagsMemory();
   purgeFlags();
   if (!Memory.username) setUsername();
@@ -175,16 +168,12 @@ export const loop = ErrorMapper.wrapLoop(() => {
   for (const r in Game.rooms) handleRoom(Game.rooms[r]);
   updateFlagAttack();
   updateFlagReserve();
+  updateFlagDismantle();
   handleCreeps();
   logCpu("updateFlagReserve() handleSpawn");
   for (const s in Game.spawns) handleSpawn(Game.spawns[s]);
   logCpu("updateFlagReserve() handleSpawn");
   logCpu("handle rooms, flags, creeps, spawns");
-
-  logCpu("updateFlagReserve() time memory");
-  if (!Memory.time) Memory.time = {};
-  if (!(Game.time in Memory.time)) Memory.time[Game.time] = { getTotalEnergyToHaul: getTotalEnergyToHaul() };
-  logCpu("updateFlagReserve() time memory");
   cpuInfo();
 });
 
@@ -332,7 +321,8 @@ function handleWorker(creep: Creep) {
     logCpu("handleWorker(" + creep.name + ") refill");
   } else if (!isEmpty(creep)) {
     logCpu("handleWorker(" + creep.name + ") work");
-    const result = upgrade(creep, true) || repair(creep) || build(creep) || upgrade(creep, false);
+    const result =
+      upgrade(creep, true) || repair(creep) || dismantle(creep) || build(creep) || upgrade(creep, false);
     logCpu("handleWorker(" + creep.name + ")");
     logCpu("handleWorker(" + creep.name + ") work");
     return result;
@@ -358,7 +348,7 @@ function build(creep: Creep) {
 
 function repair(creep: Creep) {
   logCpu("repair(" + creep.name + ")");
-  const repairTarget = getRepairTarget(creep);
+  const repairTarget = getRepairTarget(creep.pos);
   if (repairTarget && creep.repair(repairTarget) === ERR_NOT_IN_RANGE) {
     if (move(creep, repairTarget) === OK) creep.repair(repairTarget);
     flagEnergyConsumer(repairTarget.pos);
@@ -382,19 +372,38 @@ function upgrade(creep: Creep, urgentOnly: boolean) {
   return false;
 }
 
-function getRepairTarget(creep: Creep) {
-  logCpu("getRepairTarget(" + creep.name + ")");
-  logCpu("getRepairTarget(" + creep.name + ") find");
-  const destinations: Structure[] = creep.pos
-    .findInRange(FIND_STRUCTURES, 10) /* limited range to improve performance */
-    .filter(target => worthRepair(creep.pos, target) && !isUnderRepair(target) && !isBlocked(creep, target));
+function dismantle(creep: Creep) {
+  logCpu("dismantle(" + creep.name + ")");
+  const flag = Game.flags.dismantle;
+  if (!flag) return false;
+  const targets = flag.pos.lookFor(LOOK_STRUCTURES);
+  if (targets.length < 1) return false;
+  const target = targets[0];
+  if (creep.dismantle(target) === ERR_NOT_IN_RANGE) {
+    if (move(creep, target) === OK) creep.dismantle(target);
+    logCpu("dismantle(" + creep.name + ")");
+    return true;
+  }
+  logCpu("dismantle(" + creep.name + ")");
+  return false;
+}
 
-  logCpu("getRepairTarget(" + creep.name + ") choose");
-  let destination = creep.pos.findClosestByRange(destinations); // same room
-  if (!destination) destination = destinations[Math.floor(Math.random() * destinations.length)]; // another room
-  logCpu("getRepairTarget(" + creep.name + ") choose");
-  logCpu("getRepairTarget(" + creep.name + ")");
-  return destination;
+function getRepairTarget(pos: RoomPosition) {
+  const sources = [];
+  const ids = Memory.rooms[pos.roomName].repairTargets;
+  if (ids) {
+    for (const id of Memory.rooms[pos.roomName].repairTargets) {
+      const source = Game.getObjectById(id);
+      if (source) sources.push(source);
+    }
+    const closest = pos.findClosestByRange(sources);
+    if (closest) {
+      const index = Memory.rooms[pos.roomName].repairTargets.indexOf(closest.id);
+      if (index) delete Memory.rooms[pos.roomName].repairTargets[index];
+    }
+    return closest;
+  }
+  return;
 }
 
 function getControllerToUpgrade(pos: RoomPosition, urgentOnly: boolean) {
@@ -639,16 +648,6 @@ function getTargetAt(pos: RoomPosition) {
   return;
 }
 
-function purgeTimeMemory() {
-  logCpu("purgeTimeMemory()");
-  let remove = true;
-  for (const time in Memory.time) {
-    if (remove) delete Memory.time[time];
-    remove = !remove;
-  }
-  logCpu("purgeTimeMemory()");
-}
-
 function setUsername() {
   // room controllers
   for (const r in Game.rooms) {
@@ -855,6 +854,7 @@ function handleRoom(room: Room) {
   if (!room.memory.harvestSpots) updateHarvestSpots(room);
   updateRoomEnergySources(room);
   updateRoomEnergyDestinations(room);
+  updateRoomRepairTargets(room);
   logCpu("handleRoom(" + room.name + ") updates");
 
   // check the room details
@@ -866,7 +866,17 @@ function handleRoom(room: Room) {
   logCpu("handleRoom(" + room.name + ")");
 }
 
+function updateRoomRepairTargets(room: Room) {
+  logCpu("updateRoomRepairTargets(" + room.name + ")");
+  const targets: Structure[] = room
+    .find(FIND_STRUCTURES)
+    .filter(target => needRepair(target) && !isUnderRepair(target));
+  room.memory.repairTargets = targets.map(target => target.id);
+  logCpu("updateRoomRepairTargets(" + room.name + ")");
+}
+
 function updateRoomEnergySources(room: Room) {
+  logCpu("updateRoomEnergySources(" + room.name + ")");
   let sources: EnergySource[] = room.find(FIND_DROPPED_RESOURCES);
   sources = sources.concat(room.find(FIND_TOMBSTONES).filter(tomb => getEnergy(tomb) > 0));
   sources = sources.concat(room.find(FIND_RUINS).filter(ruin => getEnergy(ruin) > 0));
@@ -877,6 +887,7 @@ function updateRoomEnergySources(room: Room) {
       .filter(structure => getEnergy(structure) > 0)
   );
   room.memory.energySources = sources.map(source => source.id);
+  logCpu("updateRoomEnergySources(" + room.name + ")");
 }
 
 function updateRoomEnergyDestinations(room: Room) {
@@ -971,7 +982,7 @@ function handleHostilesInRoom(room: Room) {
         .filter((value, index, self) => self.indexOf(value) === index); // unique
       msg(room, totalHostiles.toString() + " hostiles from " + hostileOwners.join() + " detected!", true);
     } else {
-      msg(room, "clear from hostiles =)", true);
+      msg(room, "clear of hostiles =)", true);
     }
     room.memory.hostilesPresent = hostilesPresent;
   }
@@ -1317,14 +1328,6 @@ function needRepair(structure: Structure) {
   if (!structure.hitsMax) return false;
   if (structure.hits >= structure.hitsMax) return false;
   if (structure instanceof StructureRoad && getTrafficRateAt(structure.pos) < minRoadTraffic) return false;
-  return true;
-}
-
-function worthRepair(pos: RoomPosition, structure: Structure) {
-  if (!needRepair(structure)) return false;
-  let maxHpRatio = 1 - (pos.getRangeTo(structure) - 5) / 100;
-  if ((maxHpRatio || 0) < 0.5) maxHpRatio = 0.5;
-  if (structure.hits / structure.hitsMax > maxHpRatio) return false;
   return true;
 }
 
@@ -1812,7 +1815,6 @@ function updateFlagAttack() {
       !getDestructibleWallAt(flagAttack.pos) &&
       getTargetsInRoom(flagAttack.room).length < 1
     ) {
-      msg(flagAttack, "removing");
       flagAttack.remove(); // have visibility to the room and it's clear of hostiles
     } else {
       logCpu("updateFlagAttack()");
@@ -1820,18 +1822,47 @@ function updateFlagAttack() {
     }
   }
   // no flag, find new targets
+  logCpu("updateFlagAttack() new");
   let targets: (Structure | Creep | PowerCreep)[] = [];
   for (const r in Game.rooms) {
     if (!shouldHarvestRoom(Game.rooms[r])) continue;
+    logCpu("updateFlagAttack() targets");
     targets = targets.concat(getTargetsInRoom(Game.rooms[r]));
-    if (targets.length < 1) {
-      const wall = getWallToDestroy(Game.rooms[r]);
-      if (wall) targets.push(wall);
-    }
+    logCpu("updateFlagAttack() targets");
   }
   const core = targets[Math.floor(Math.random() * targets.length)];
   if (core) core.pos.createFlag("attack", COLOR_CYAN, COLOR_BROWN);
+  logCpu("updateFlagAttack() new");
   logCpu("updateFlagAttack()");
+}
+
+function updateFlagDismantle() {
+  logCpu("updateFlagDismantle()");
+  const flagDismantle = Game.flags.dismantle;
+  if (flagDismantle) {
+    if (flagDismantle.room && flagDismantle.pos.lookFor(LOOK_STRUCTURES).length < 1) {
+      flagDismantle.remove(); // have visibility to the room and it's clear of hostiles
+    } else {
+      return; // current flag is still valid (to the best of our knowledge)
+    }
+  }
+  // no flag, find new targets
+  const shuffledRoomNames = Object.keys(Game.rooms)
+    .map(value => ({ value, sort: Math.random() })) /* persist sort values */
+    .sort((a, b) => a.sort - b.sort) /* sort */
+    .map(({ value }) => value); /* remove sort values */
+  for (const r of shuffledRoomNames) {
+    if (!shouldHarvestRoom(Game.rooms[r])) continue;
+    if (Math.random() < 0.1) {
+      const wall = getWallToDestroy(Game.rooms[r]);
+      if (wall) {
+        wall.pos.createFlag("dismantle", COLOR_BLUE, COLOR_BLUE);
+        logCpu("updateFlagDismantle()");
+        return;
+      }
+    }
+  }
+  logCpu("updateFlagDismantle()");
 }
 
 function getTargetsInRoom(room: Room) {
