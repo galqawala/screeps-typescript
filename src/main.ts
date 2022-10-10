@@ -163,20 +163,28 @@ function isRoomPosition(item: RoomPosition): item is RoomPosition {
 // Main loop
 export const loop = ErrorMapper.wrapLoop(() => {
   Memory.cpuLog = {};
+  logCpu("purge/update memory");
   const memLimit = 500;
   if (Object.keys(Memory.time).length > memLimit) purgeTimeMemory();
   if (Object.keys(Memory.flags).length > memLimit) purgeFlagsMemory();
   purgeFlags();
   if (!Memory.username) setUsername();
+  logCpu("purge/update memory");
 
+  logCpu("handle rooms, flags, creeps, spawns");
   for (const r in Game.rooms) handleRoom(Game.rooms[r]);
   updateFlagAttack();
   updateFlagReserve();
   handleCreeps();
+  logCpu("updateFlagReserve() handleSpawn");
   for (const s in Game.spawns) handleSpawn(Game.spawns[s]);
+  logCpu("updateFlagReserve() handleSpawn");
+  logCpu("handle rooms, flags, creeps, spawns");
 
+  logCpu("updateFlagReserve() time memory");
   if (!Memory.time) Memory.time = {};
   if (!(Game.time in Memory.time)) Memory.time[Game.time] = { getTotalEnergyToHaul: getTotalEnergyToHaul() };
+  logCpu("updateFlagReserve() time memory");
   cpuInfo();
 });
 
@@ -305,6 +313,7 @@ function handleWorker(creep: Creep) {
   if (creep.memory.awaitingDeliveryFrom) {
     if (isEdge(creep.pos)) move(creep, getRandomPos(creep.pos.roomName)); // move once towards a random position
   } else if (isEmpty(creep)) {
+    logCpu("handleWorker(" + creep.name + ") refill");
     const destination = getEnergySource(creep, true);
     if (destination instanceof RoomPosition) {
       move(creep, destination);
@@ -320,9 +329,12 @@ function handleWorker(creep: Creep) {
       if (retrieveEnergy(creep, destination) === ERR_NOT_IN_RANGE) setDestination(creep, destination);
       logCpu("handleWorker(" + creep.name + ") retrieve");
     }
+    logCpu("handleWorker(" + creep.name + ") refill");
   } else if (!isEmpty(creep)) {
+    logCpu("handleWorker(" + creep.name + ") work");
     const result = upgrade(creep, true) || repair(creep) || build(creep) || upgrade(creep, false);
     logCpu("handleWorker(" + creep.name + ")");
+    logCpu("handleWorker(" + creep.name + ") work");
     return result;
   }
   logCpu("handleWorker(" + creep.name + ")");
@@ -330,45 +342,57 @@ function handleWorker(creep: Creep) {
 }
 
 function build(creep: Creep) {
+  logCpu("build(" + creep.name + ")");
   const destinations = getConstructionSites(creep);
   let destination = creep.pos.findClosestByRange(destinations); // same room
   if (!destination) destination = destinations[Math.floor(Math.random() * destinations.length)]; // another room
   if (destination && creep.build(destination) === ERR_NOT_IN_RANGE) {
     if (move(creep, destination) === OK) creep.build(destination);
     flagEnergyConsumer(destination.pos);
+    logCpu("build(" + creep.name + ")");
     return true;
   }
+  logCpu("build(" + creep.name + ")");
   return false;
 }
 
 function repair(creep: Creep) {
+  logCpu("repair(" + creep.name + ")");
   const repairTarget = getRepairTarget(creep);
   if (repairTarget && creep.repair(repairTarget) === ERR_NOT_IN_RANGE) {
     if (move(creep, repairTarget) === OK) creep.repair(repairTarget);
     flagEnergyConsumer(repairTarget.pos);
+    logCpu("repair(" + creep.name + ")");
     return true;
   }
+  logCpu("repair(" + creep.name + ")");
   return false;
 }
 
 function upgrade(creep: Creep, urgentOnly: boolean) {
+  logCpu("upgrade(" + creep.name + "," + urgentOnly.toString() + ")");
   const controller = getControllerToUpgrade(creep.pos, urgentOnly);
   if (controller && creep.upgradeController(controller) === ERR_NOT_IN_RANGE) {
     if (move(creep, controller) === OK) creep.upgradeController(controller);
     flagEnergyConsumer(controller.pos);
+    logCpu("upgrade(" + creep.name + "," + urgentOnly.toString() + ")");
     return true;
   }
+  logCpu("upgrade(" + creep.name + "," + urgentOnly.toString() + ")");
   return false;
 }
 
 function getRepairTarget(creep: Creep) {
   logCpu("getRepairTarget(" + creep.name + ")");
+  logCpu("getRepairTarget(" + creep.name + ") find");
   const destinations: Structure[] = creep.pos
     .findInRange(FIND_STRUCTURES, 10) /* limited range to improve performance */
     .filter(target => worthRepair(creep.pos, target) && !isUnderRepair(target) && !isBlocked(creep, target));
 
+  logCpu("getRepairTarget(" + creep.name + ") choose");
   let destination = creep.pos.findClosestByRange(destinations); // same room
   if (!destination) destination = destinations[Math.floor(Math.random() * destinations.length)]; // another room
+  logCpu("getRepairTarget(" + creep.name + ") choose");
   logCpu("getRepairTarget(" + creep.name + ")");
   return destination;
 }
@@ -443,35 +467,44 @@ function moveTowardMemory(creep: Creep) {
 function handleCarrier(creep: Creep) {
   logCpu("handleCarrier(" + creep.name + ")");
   let destination;
+  logCpu("handleCarrier(" + creep.name + ") oldDestination");
   if ("getEnergy" in creep.memory) {
     const oldDestination = creep.memory.destination;
     if (typeof oldDestination === "string") destination = Game.getObjectById(oldDestination);
   }
+  logCpu("handleCarrier(" + creep.name + ") oldDestination");
+  logCpu("handleCarrier(" + creep.name + ") plan new destination");
   if (!destination) {
     destination = getCarrierDestination(creep);
     if (destination) setDestination(creep, destination);
   }
-  if (destination) {
-    move(creep, destination);
-    if (
-      creep.memory.getEnergy &&
-      (destination instanceof Structure ||
-        destination instanceof Tombstone ||
-        destination instanceof Ruin ||
-        destination instanceof Resource)
-    ) {
-      if (retrieveEnergy(creep, destination) !== ERR_NOT_IN_RANGE) resetDestination(creep);
-    } else if (
-      !creep.memory.getEnergy &&
-      (destination instanceof Creep || destination instanceof Structure)
-    ) {
-      const outcome = transfer(creep, destination);
-      if (outcome !== ERR_NOT_IN_RANGE) {
-        resetDestination(creep);
-      }
+  logCpu("handleCarrier(" + creep.name + ") plan new destination");
+  logCpu("handleCarrier(" + creep.name + ") carrierExecutePlan");
+  if (destination) carrierExecutePlan(creep, destination);
+  logCpu("handleCarrier(" + creep.name + ") carrierExecutePlan");
+  logCpu("handleCarrier(" + creep.name + ")");
+}
+
+function carrierExecutePlan(creep: Creep, destination: Destination) {
+  logCpu("carrierExecutePlan(" + creep.name + "," + destination.toString() + ")");
+  logCpu("carrierExecutePlan(" + creep.name + "," + destination.toString() + ") move");
+  move(creep, destination);
+  logCpu("carrierExecutePlan(" + creep.name + "," + destination.toString() + ") move");
+  if (
+    creep.memory.getEnergy &&
+    (destination instanceof Structure ||
+      destination instanceof Tombstone ||
+      destination instanceof Ruin ||
+      destination instanceof Resource)
+  ) {
+    if (retrieveEnergy(creep, destination) !== ERR_NOT_IN_RANGE) resetDestination(creep);
+  } else if (!creep.memory.getEnergy && (destination instanceof Creep || destination instanceof Structure)) {
+    const outcome = transfer(creep, destination);
+    if (outcome !== ERR_NOT_IN_RANGE) {
+      resetDestination(creep);
     }
   }
-  logCpu("handleCarrier(" + creep.name + ")");
+  logCpu("carrierExecutePlan(" + creep.name + "," + destination.toString() + ")");
 }
 
 function getCarrierDestination(creep: Creep) {
@@ -573,22 +606,37 @@ function getTrafficFlagName(pos: RoomPosition) {
 }
 
 function handleAttacker(creep: Creep) {
-  const bestTarget = getTarget(creep);
+  logCpu("handleAttacker(" + creep.name + ")");
+  const flag = Game.flags.attack;
+  let bestTarget;
+  if (flag) {
+    move(creep, flag);
+    bestTarget = getTargetAt(flag.pos);
+  }
+  if (!bestTarget) bestTarget = getTarget(creep);
+  if (!flag && !bestTarget) recycleCreep(creep);
   if (bestTarget) {
     if (engageTarget(creep, bestTarget) === ERR_NOT_IN_RANGE) {
       move(creep, bestTarget);
       engageTarget(creep, bestTarget);
     }
-  } else {
-    const flag = Game.flags.attack;
-    if (flag) {
-      move(creep, flag);
-      const wall = getDestructibleWallAt(flag.pos);
-      if (wall) creep.attack(wall);
-    } else {
-      recycleCreep(creep);
-    }
   }
+  logCpu("handleAttacker(" + creep.name + ")");
+}
+
+function getTargetAt(pos: RoomPosition) {
+  const objects = pos.look();
+  for (const obj of objects) {
+    if (obj.type === "structure" && obj.structure instanceof StructureWall) return obj.structure;
+    if (
+      obj.type === "structure" &&
+      obj.structure &&
+      isOwnedStructure(obj.structure) &&
+      obj.structure.my === false
+    )
+      return obj.structure;
+  }
+  return;
 }
 
 function purgeTimeMemory() {
@@ -786,12 +834,14 @@ function wantsEnergy(target: Creep) {
 function handleRoom(room: Room) {
   logCpu("handleRoom(" + room.name + ")");
   // control the towers
+  logCpu("handleRoom(" + room.name + ") towers");
   const towers = room.find(FIND_MY_STRUCTURES).filter(isTower);
   for (const t of towers) {
     const bestTarget = getTarget(t);
     if (!bestTarget) break; // no targets in this room for any tower
     engageTarget(t, bestTarget);
   }
+  logCpu("handleRoom(" + room.name + ") towers");
 
   handleHostilesInRoom(room);
 
@@ -800,15 +850,19 @@ function handleRoom(room: Room) {
   // handle the links
   handleLinks(room);
 
+  logCpu("handleRoom(" + room.name + ") updates");
   if (!room.memory.upgradeSpots) updateUpgradeSpots(room);
   if (!room.memory.harvestSpots) updateHarvestSpots(room);
   updateRoomEnergySources(room);
   updateRoomEnergyDestinations(room);
+  logCpu("handleRoom(" + room.name + ") updates");
 
   // check the room details
+  logCpu("handleRoom(" + room.name + ") details");
   checkRoomStatus(room);
   checkRoomCanOperate(room);
   checkRoomEnergy(room);
+  logCpu("handleRoom(" + room.name + ") details");
   logCpu("handleRoom(" + room.name + ")");
 }
 
@@ -859,6 +913,7 @@ function areSpawnsFull() {
 }
 
 function constructInRoom(room: Room) {
+  logCpu("constructInRoom(" + room.name + ")");
   // construct some structures
   const structureTypes = [
     STRUCTURE_EXTENSION,
@@ -869,6 +924,7 @@ function constructInRoom(room: Room) {
     STRUCTURE_TOWER
   ];
   structureTypes.forEach(structureType => construct(room, structureType));
+  logCpu("constructInRoom(" + room.name + ")");
 }
 
 function checkRoomStatus(room: Room) {
@@ -900,6 +956,7 @@ function checkRoomEnergy(room: Room) {
 }
 
 function handleHostilesInRoom(room: Room) {
+  logCpu("handleHostilesInRoom(" + room.name + ")");
   // check for presence of hostiles
   const hostileCreeps = room.find(FIND_HOSTILE_CREEPS);
   const hostilePowerCreeps = room.find(FIND_HOSTILE_POWER_CREEPS);
@@ -930,6 +987,7 @@ function handleHostilesInRoom(room: Room) {
       }
     }
   }
+  logCpu("handleHostilesInRoom(" + room.name + ")");
 }
 
 function updateUpgradeSpots(room: Room) {
@@ -1006,8 +1064,10 @@ function getLinkDownstreamPos(room: Room) {
 }
 
 function handleLinks(room: Room) {
+  logCpu("handleLinks(" + room.name + ")");
   // move energy towards the energy consumer
   const downstreamPos = getLinkDownstreamPos(room);
+  logCpu("handleLinks(" + room.name + ")");
   if (!downstreamPos) return;
 
   const links = room
@@ -1034,6 +1094,7 @@ function handleLinks(room: Room) {
       updateLinkMemory(upstreamLink, downstreamLink);
     }
   }
+  logCpu("handleLinks(" + room.name + ")");
 }
 
 function updateLinkMemory(upstreamLink: StructureLink, downstreamLink: StructureLink) {
@@ -1050,11 +1111,6 @@ function canAttack(myUnit: StructureTower | Creep) {
 function canHeal(myUnit: StructureTower | Creep) {
   if (myUnit instanceof StructureTower) return true;
   if (myUnit.getActiveBodyparts(HEAL) > 0) return true;
-  return false;
-}
-function canRepair(myUnit: StructureTower | Creep) {
-  if (myUnit instanceof StructureTower) return true;
-  if (myUnit.getActiveBodyparts(WORK) > 0) return true;
   return false;
 }
 
@@ -1107,16 +1163,10 @@ function getTargetPowerCreep(myUnit: StructureTower | Creep) {
 }
 
 function getTargetStructure(myUnit: StructureTower | Creep) {
+  if (!canAttack(myUnit)) return;
   let bestTarget;
   let bestTargetScore = Number.NEGATIVE_INFINITY;
-  const structures = myUnit.room
-    .find(FIND_STRUCTURES)
-    .filter(
-      target =>
-        target.hitsMax > 0 &&
-        ((!isEnemy(target) && canRepair(myUnit) && needRepair(target) && target.hits < target.hitsMax / 2) ||
-          (isEnemy(target) && canAttack(myUnit)))
-    );
+  const structures = myUnit.room.find(FIND_HOSTILE_STRUCTURES);
   for (const targetStructure of structures) {
     const score = getTargetScore(myUnit.pos, targetStructure);
     if (bestTargetScore < score) {
@@ -1137,7 +1187,7 @@ function isEnemy(object: Structure | Creep | PowerCreep) {
 }
 
 function engageTarget(myUnit: StructureTower | Creep, target: Structure | Creep | PowerCreep) {
-  if (isEnemy(target)) {
+  if (isEnemy(target) || target instanceof StructureWall) {
     return myUnit.attack(target);
   } else if (target instanceof Creep || target instanceof PowerCreep) {
     return myUnit.heal(target);
@@ -1147,17 +1197,31 @@ function engageTarget(myUnit: StructureTower | Creep, target: Structure | Creep 
 }
 
 function getTarget(myUnit: StructureTower | Creep) {
+  logCpu("getTarget(" + myUnit.toString() + ")");
+  logCpu("getTarget(" + myUnit.toString() + ") getTargetCreep");
   const creep = getTargetCreep(myUnit);
+  logCpu("getTarget(" + myUnit.toString() + ") getTargetCreep");
+  logCpu("getTarget(" + myUnit.toString() + ") getTargetPowerCreep");
   const powerCreep = getTargetPowerCreep(myUnit);
+  logCpu("getTarget(" + myUnit.toString() + ") getTargetPowerCreep");
+  logCpu("getTarget(" + myUnit.toString() + ") getTargetStructure");
   const structure = getTargetStructure(myUnit);
+  logCpu("getTarget(" + myUnit.toString() + ") getTargetStructure");
 
+  logCpu("getTarget(" + myUnit.toString() + ") target");
   const targets = [];
   if (creep) targets.push(creep);
   if (powerCreep) targets.push(powerCreep);
   if (structure) targets.push(structure);
+  logCpu("getTarget(" + myUnit.toString() + ") target");
 
+  logCpu("getTarget(" + myUnit.toString() + ")");
   if (targets.length < 1) return;
-  return targets.sort((a, b) => b.score - a.score)[0].target;
+  logCpu("getTarget(" + myUnit.toString() + ") sort");
+  const best = targets.sort((a, b) => b.score - a.score)[0].target;
+  logCpu("getTarget(" + myUnit.toString() + ") sort");
+  logCpu("getTarget(" + myUnit.toString() + ")");
+  return best;
 }
 
 function getTargetScore(pos: RoomPosition, target: Structure | Creep | PowerCreep) {
@@ -1209,10 +1273,14 @@ function move(creep: Creep, destination: Destination) {
     creep.pos.createFlag(flagName, COLOR_GREEN, COLOR_GREY);
     updateConstructionSiteScoreForCreep(creep);
   }
-  logCpu("move(" + creep.name + ")");
-  return creep.moveTo(destination, {
-    visualizePathStyle: { stroke: getHashColor(creep.memory.role) }
+  logCpu("move(" + creep.name + ") moveTo");
+  const outcome = creep.moveTo(destination, {
+    reusePath: 20,
+    visualizePathStyle: { stroke: getHashColor(creep.memory.role), opacity: 1 }
   });
+  logCpu("move(" + creep.name + ") moveTo");
+  logCpu("move(" + creep.name + ")");
+  return outcome;
 }
 
 function withdraw(creep: Creep, destination: Destination) {
@@ -1693,9 +1761,8 @@ function handleSpawn(spawn: StructureSpawn) {
     } else if (controllersToReserve.length > 0) {
       spawnReserver(spawn, controllersToReserve[0]);
       return;
-    } else if ("attack" in Game.flags) {
+    } else if (needAttackers(spawn.room)) {
       roleToSpawn = "attacker";
-      minBudget = Math.min(400, spawn.room.energyCapacityAvailable);
     } else if (getCreepCountByRole("explorer") <= 0) {
       roleToSpawn = "explorer";
       body = [MOVE];
@@ -1711,6 +1778,14 @@ function handleSpawn(spawn: StructureSpawn) {
       spawnCreep(spawn, roleToSpawn, budget, body, undefined);
     }
   }
+}
+
+function needAttackers(room: Room) {
+  return (
+    "attack" in Game.flags &&
+    room.energyAvailable >= room.energyCapacityAvailable &&
+    getCreepCountByRole("attacker") < 5
+  );
 }
 
 function spawnReserver(spawn: StructureSpawn, controllerToReserve: StructureController) {
@@ -1729,6 +1804,7 @@ function getDestructibleWallAt(pos: RoomPosition) {
 }
 
 function updateFlagAttack() {
+  logCpu("updateFlagAttack()");
   const flagAttack = Game.flags.attack;
   if (flagAttack) {
     if (
@@ -1736,8 +1812,10 @@ function updateFlagAttack() {
       !getDestructibleWallAt(flagAttack.pos) &&
       getTargetsInRoom(flagAttack.room).length < 1
     ) {
+      msg(flagAttack, "removing");
       flagAttack.remove(); // have visibility to the room and it's clear of hostiles
     } else {
+      logCpu("updateFlagAttack()");
       return; // current flag is still valid (to the best of our knowledge)
     }
   }
@@ -1746,9 +1824,14 @@ function updateFlagAttack() {
   for (const r in Game.rooms) {
     if (!shouldHarvestRoom(Game.rooms[r])) continue;
     targets = targets.concat(getTargetsInRoom(Game.rooms[r]));
+    if (targets.length < 1) {
+      const wall = getWallToDestroy(Game.rooms[r]);
+      if (wall) targets.push(wall);
+    }
   }
   const core = targets[Math.floor(Math.random() * targets.length)];
   if (core) core.pos.createFlag("attack", COLOR_CYAN, COLOR_BROWN);
+  logCpu("updateFlagAttack()");
 }
 
 function getTargetsInRoom(room: Room) {
@@ -1756,10 +1839,6 @@ function getTargetsInRoom(room: Room) {
   targets = targets.concat(room.find(FIND_HOSTILE_STRUCTURES));
   targets = targets.concat(room.find(FIND_HOSTILE_CREEPS));
   targets = targets.concat(room.find(FIND_HOSTILE_POWER_CREEPS));
-  if (targets.length < 1) {
-    const wall = getWallToDestroy(room);
-    if (wall) targets.push(wall);
-  }
   return targets;
 }
 
@@ -1790,16 +1869,19 @@ function getWallToDestroy(room: Room) {
 }
 
 function updateFlagReserve() {
+  logCpu("updateFlagReserve()");
   const flagReserve = Game.flags.reserve;
   if (flagReserve) {
     if (flagReserve.room && !shouldReserveRoom(flagReserve.room)) {
       flagReserve.remove();
     } else {
+      logCpu("updateFlagReserve()");
       return; // current flag is still valid
     }
   }
   const targets = getControllersToReserve();
   if (targets.length && targets[0]) targets[0].pos.createFlag("reserve", COLOR_ORANGE, COLOR_WHITE);
+  logCpu("updateFlagReserve()");
 }
 
 function needWorkers(room: Room) {
@@ -2263,10 +2345,12 @@ function getBodyCost(body: BodyPartConstant[]) {
 }
 
 function resetDestination(creep: Creep) {
+  logCpu("resetDestination(" + creep.name + ")");
   // save last values
   creep.memory.lastDestination = creep.memory.destination;
   creep.memory.lastAction = creep.memory.action;
   // reset properties
+  logCpu("resetDestination(" + creep.name + ")");
   if (!creep.memory.destination) return;
   let destination;
   if (!(creep.memory.destination instanceof RoomPosition))
@@ -2280,6 +2364,7 @@ function resetDestination(creep: Creep) {
   }
   const flag = Game.flags["creep_" + creep.name];
   if (flag) flag.remove();
+  logCpu("resetDestination(" + creep.name + ")");
   return;
 }
 
