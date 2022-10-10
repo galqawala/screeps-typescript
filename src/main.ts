@@ -393,16 +393,17 @@ function getControllerToUpgrade(pos: RoomPosition, urgentOnly: boolean) {
 function cpuInfo() {
   if (Game.cpu.getUsed() > Game.cpu.limit) {
     Memory.cpuLimitExceededStreak++;
-    msg(
-      "cpuInfo()",
-      Game.cpu.getUsed().toString() +
-        "/" +
-        Game.cpu.limit.toString() +
-        " CPU used! Limit exceeded " +
-        Memory.cpuLimitExceededStreak.toString() +
-        " ticks in a row.\n" +
-        getCpuLog()
-    );
+    if (Memory.cpuLimitExceededStreak >= 2)
+      msg(
+        "cpuInfo()",
+        Game.cpu.getUsed().toString() +
+          "/" +
+          Game.cpu.limit.toString() +
+          " CPU used! Limit exceeded " +
+          Memory.cpuLimitExceededStreak.toString() +
+          " ticks in a row.\n" +
+          getCpuLog()
+      );
   } else {
     Memory.cpuLimitExceededStreak = 0;
   }
