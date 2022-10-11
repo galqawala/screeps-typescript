@@ -799,7 +799,7 @@ function handleHarvester(creep: Creep) {
   logCpu("handleHarvester(" + creep.name + ")");
   if (creep.memory.role !== "harvester") return false;
   if (creep.spawning) return true;
-  if (creep.memory.action === "recycleCreep") {
+  if (creep.memory.action === "recycleCreep" || creep.room.memory.hostilesPresent) {
     recycleCreep(creep);
     return true;
   }
@@ -929,6 +929,10 @@ function updateRoomRepairTargets(room: Room) {
 
 function updateRoomEnergySources(room: Room) {
   logCpu("updateRoomEnergySources(" + room.name + ")");
+  if (room.memory.hostilesPresent) {
+    room.memory.energySources = [];
+    return;
+  }
   let sources: EnergySource[] = room.find(FIND_DROPPED_RESOURCES);
   sources = sources.concat(room.find(FIND_TOMBSTONES).filter(tomb => getEnergy(tomb) > 0));
   sources = sources.concat(room.find(FIND_RUINS).filter(ruin => getEnergy(ruin) > 0));
