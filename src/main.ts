@@ -1385,13 +1385,6 @@ function move(creep: Creep, destination: Destination) {
   } else if (shouldMaintainStatsFor(creep.pos)) {
     creep.pos.createFlag(flagName, COLOR_GREEN, COLOR_GREY);
   }
-  logCpu("move(" + creep.name + ") exit");
-  const destinationRoomName = getRoomName(destination);
-  if (destinationRoomName && creep.room.name !== destinationRoomName) {
-    const exit = getExitTowards(creep, destinationRoomName);
-    if (exit) destination = exit;
-  }
-  logCpu("move(" + creep.name + ") exit");
   logCpu("move(" + creep.name + ") moveTo");
   const outcome = creep.moveTo(destination, {
     reusePath: 50,
@@ -1400,26 +1393,6 @@ function move(creep: Creep, destination: Destination) {
   logCpu("move(" + creep.name + ") moveTo");
   logCpu("move(" + creep.name + ")");
   return outcome;
-}
-
-function getExitTowards(creep: Creep, destinationRoomName: string) {
-  const findExit = Game.map.findExit(creep.room.name, destinationRoomName);
-  if (findExit === ERR_NO_PATH) {
-    msg(creep, "getExit(): no path between rooms: " + creep.room.name + " - " + destinationRoomName);
-  } else if (findExit === ERR_INVALID_ARGS) {
-    msg(creep, "getExit() passed invalid arguments to Game.map.findExit()");
-  } else {
-    const exit = creep.pos.findClosestByRange(findExit);
-    if (exit) return exit;
-  }
-  return;
-}
-
-function getRoomName(destination: Destination) {
-  if (!destination) return;
-  if (destination instanceof RoomPosition) return destination.roomName;
-  if ("pos" in destination) return destination.pos.roomName;
-  return;
 }
 
 function withdraw(creep: Creep, destination: Destination) {
