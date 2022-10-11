@@ -668,7 +668,7 @@ function handleAttacker(creep: Creep) {
   let bestTarget;
   if (flag) {
     move(creep, flag);
-    bestTarget = getTargetAt(flag.pos);
+    if (flag.room) bestTarget = getTargetAt(flag.pos);
   }
   if (!bestTarget) bestTarget = getTarget(creep);
   if (!flag && !bestTarget) recycleCreep(creep);
