@@ -624,6 +624,7 @@ function transfer(creep: Creep, destination: Creep | Structure<StructureConstant
 }
 
 function retrieveEnergy(creep: Creep, destination: Structure | Tombstone | Ruin | Resource) {
+  if (getEnergy(destination) <= 0) delete creep.memory.retrieve;
   if (destination instanceof Structure || destination instanceof Tombstone || destination instanceof Ruin) {
     return withdraw(creep, destination);
   } else if (destination instanceof Resource) {
@@ -1451,7 +1452,15 @@ function getConstructionSites(creep: Creep) {
   for (const i in Game.rooms) {
     const room = Game.rooms[i];
     if (room.memory.hostilesPresent) continue;
-    sites = sites.concat(room.find(FIND_MY_CONSTRUCTION_SITES).filter(target => !isBlocked(creep, target)));
+    sites = sites.concat(
+      room
+        .find(FIND_MY_CONSTRUCTION_SITES)
+        .filter(
+          target =>
+            target.structureType !== STRUCTURE_CONTAINER /* leave for harvesters */ &&
+            !isBlocked(creep, target)
+        )
+    );
   }
   return sites;
 }
