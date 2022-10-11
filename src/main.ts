@@ -61,24 +61,25 @@ declare global {
   }
 
   interface CreepMemory {
-    action: undefined | Action;
-    awaitingDeliveryFrom: undefined | string; // Creep name
-    build: undefined | Id<ConstructionSite>;
-    destination: undefined | DestinationId | RoomPosition;
+    action?: Action;
+    awaitingDeliveryFrom?: string; // Creep name
+    build?: Id<ConstructionSite>;
+    destination?: DestinationId | RoomPosition;
     destinationSetTime: number;
     empty: boolean;
     full: boolean;
     getEnergy: boolean;
-    lastAction: undefined | Action;
+    lastAction?: Action;
     lastActionOutcome: ScreepsReturnCode;
     lastBlockedIds: DestinationId[];
-    lastDestination: undefined | DestinationId | RoomPosition;
+    lastDestination?: DestinationId | RoomPosition;
     lastMoveTime: number;
     lastOkActionTime: number;
     posRevisits: number;
+    retrieve?: Id<Structure | Tombstone | Ruin | Resource>;
     role: Role;
     roomName: string;
-    sourceId: undefined | Id<Source>;
+    sourceId?: Id<Source>;
     timeOfLastEnergyReceived: number;
     x: number;
     y: number;
@@ -238,7 +239,7 @@ function getRoomEnergySource(pos: RoomPosition, allowStorage: boolean) {
         sources.push(source);
     }
     const closest = pos.findClosestByRange(sources);
-    if (closest) {
+    if (closest && !(closest instanceof StructureStorage)) {
       const index = Memory.rooms[pos.roomName].energySources.indexOf(closest.id);
       if (index > -1) Memory.rooms[pos.roomName].energySources.splice(index, 1);
     }
@@ -292,7 +293,7 @@ function getRoomEnergyDestination(pos: RoomPosition) {
         destinations.push(destination);
     }
     const closest = pos.findClosestByRange(destinations);
-    if (closest) {
+    if (closest && !(closest instanceof StructureStorage)) {
       const index = Memory.rooms[pos.roomName].energyDestinations.indexOf(closest.id);
       if (index > -1) Memory.rooms[pos.roomName].energyDestinations.splice(index, 1);
     }
@@ -304,12 +305,14 @@ function getRoomEnergyDestination(pos: RoomPosition) {
 function handleWorker(creep: Creep) {
   logCpu("handleWorker(" + creep.name + ")");
   if (isEmpty(creep)) delete creep.memory.build;
+  else if (isFull(creep)) delete creep.memory.retrieve;
+
   if (creep.memory.build) {
     build(creep);
   } else if (creep.memory.awaitingDeliveryFrom && isEdge(creep.pos)) {
     move(creep, getRandomPos(creep.pos.roomName)); // move once towards a random position
   } else if (isEmpty(creep)) {
-    workerFetchEnergy(creep);
+    workerRetrieveEnergy(creep);
   } else if (!isEmpty(creep)) {
     logCpu("handleWorker(" + creep.name + ") work");
     const result =
@@ -322,22 +325,30 @@ function handleWorker(creep: Creep) {
   return;
 }
 
-function workerFetchEnergy(creep: Creep) {
-  logCpu("workerFetchEnergy(" + creep.name + ")");
-  const destination = getEnergySource(creep, true);
+function workerRetrieveEnergy(creep: Creep) {
+  logCpu("workerRetrieveEnergy(" + creep.name + ")");
+  let destination;
+  const oldDestination = creep.memory.destination;
+  if (typeof oldDestination === "string") destination = Game.getObjectById(oldDestination);
+  if (!destination) {
+    destination = getEnergySource(creep, true);
+    if (destination) creep.memory.retrieve = destination.id;
+  }
   if (destination instanceof RoomPosition) {
     move(creep, destination);
   } else if (destination instanceof Source && creep.harvest(destination) === ERR_NOT_IN_RANGE) {
     if (move(creep, destination) === OK) creep.harvest(destination);
   } else if (
-    destination &&
-    !(destination instanceof Source) &&
+    (destination instanceof Structure ||
+      destination instanceof Tombstone ||
+      destination instanceof Ruin ||
+      destination instanceof Resource) &&
     retrieveEnergy(creep, destination) === ERR_NOT_IN_RANGE
   ) {
     move(creep, destination);
     if (retrieveEnergy(creep, destination) === ERR_NOT_IN_RANGE) setDestination(creep, destination);
   }
-  logCpu("workerFetchEnergy(" + creep.name + ")");
+  logCpu("workerRetrieveEnergy(" + creep.name + ")");
 }
 
 function build(creep: Creep) {
