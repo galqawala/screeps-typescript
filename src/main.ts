@@ -328,7 +328,7 @@ function handleWorker(creep: Creep) {
 function workerRetrieveEnergy(creep: Creep) {
   logCpu("workerRetrieveEnergy(" + creep.name + ")");
   let destination;
-  const oldDestination = creep.memory.retrieve || creep.memory.destination;
+  const oldDestination = creep.memory.retrieve;
   if (typeof oldDestination === "string") destination = Game.getObjectById(oldDestination);
   if (!destination) {
     destination = getEnergySource(creep, true);
@@ -337,6 +337,7 @@ function workerRetrieveEnergy(creep: Creep) {
       setDestination(creep, destination);
     }
   }
+
   if (destination instanceof RoomPosition) {
     move(creep, destination);
   } else if (destination instanceof Source && creep.harvest(destination) === ERR_NOT_IN_RANGE) {
@@ -2301,7 +2302,12 @@ function spawnCreep(
   });
 
   if (outcome === OK) {
-    spawnMsg(spawn, roleToSpawn, name, body, task?.destination.toString());
+    let targetStr;
+    if (task) {
+      targetStr = task.destination.toString();
+      if ("pos" in task.destination) targetStr += " @ " + task.destination.pos.roomName;
+    }
+    spawnMsg(spawn, roleToSpawn, name, body, targetStr);
   } else {
     msg(spawn, "Failed to spawn creep: " + outcome.toString());
   }
