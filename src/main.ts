@@ -359,8 +359,11 @@ function build(creep: Creep) {
   logCpu("build(" + creep.name + ")");
   logCpu("build(" + creep.name + ") find");
   let destination;
-  const oldDestination = creep.memory.destination;
-  if (typeof oldDestination === "string") destination = Game.getObjectById(oldDestination);
+  const oldDestination = creep.memory.build;
+  if (typeof oldDestination === "string") {
+    destination = Game.getObjectById(oldDestination);
+    if (!destination) delete creep.memory.build;
+  }
   if (!destination || !(destination instanceof ConstructionSite)) {
     const destinations = getConstructionSites(creep);
     if (!destination) destination = creep.pos.findClosestByRange(destinations); // same room
