@@ -4,7 +4,7 @@ import { ErrorMapper } from "utils/ErrorMapper";
 import { Md5 } from "ts-md5";
 
 declare global {
-  type Role = "attacker" | "carrier" | "explorer" | "harvester" | "reserver" | "worker";
+  type Role = "attacker" | "carrier" | "explorer" | "harvester" | "infantry" | "reserver" | "worker";
   type Action =
     | "build"
     | "harvest"
@@ -47,14 +47,15 @@ declare global {
 
   interface RoomMemory {
     canOperate: boolean;
-    energySources: Id<EnergySource>[];
     energyDestinations: Id<Structure>[];
-    repairTargets: Id<Structure>[];
+    energySources: Id<EnergySource>[];
     harvestSpots: RoomPosition[];
+    hostileRangeAttackParts: number;
     hostilesPresent: boolean;
-    lastTimeSpawnsFull: number;
     lastTimeFlagEnergyConsumerSet: number;
+    lastTimeSpawnsFull: number;
     linkIsUpstream: Record<Id<StructureLink>, boolean>;
+    repairTargets: Id<Structure>[];
     sortedSpawnStructureIds: Id<Structure>[];
     status: "normal" | "closed" | "novice" | "respawn";
     upgradeSpots: RoomPosition[];
@@ -190,6 +191,7 @@ function handleCreeps() {
     else if (role === "carrier") handleCarrier(Game.creeps[c]);
     else if (role === "explorer") handleExplorer(Game.creeps[c]);
     else if (role === "harvester") handleHarvester(Game.creeps[c]);
+    else if (role === "infantry") handleInfantry(Game.creeps[c]);
     else if (role === "reserver") handleReserver(Game.creeps[c]);
     else if (role === "worker") handleWorker(Game.creeps[c]);
 
@@ -681,6 +683,25 @@ function handleAttacker(creep: Creep) {
   logCpu("handleAttacker(" + creep.name + ")");
 }
 
+function handleInfantry(creep: Creep) {
+  logCpu("handleInfantry(" + creep.name + ")");
+  const flag = Game.flags.attack;
+  let bestTarget;
+  if (flag) {
+    move(creep, flag);
+    if (flag.room) bestTarget = getTargetAt(flag.pos);
+  }
+  if (!bestTarget) bestTarget = getTarget(creep);
+  if (!flag && !bestTarget) recycleCreep(creep);
+  if (bestTarget) {
+    if (creep.rangedAttack(bestTarget) === ERR_NOT_IN_RANGE) {
+      move(creep, bestTarget);
+      creep.rangedAttack(bestTarget);
+    }
+  }
+  logCpu("handleInfantry(" + creep.name + ")");
+}
+
 function getTargetAt(pos: RoomPosition) {
   const objects = pos.look();
   for (const obj of objects) {
@@ -1032,15 +1053,15 @@ function handleHostilesInRoom(room: Room) {
 
   if (room.memory.hostilesPresent !== hostilesPresent) {
     if (hostilesPresent) {
-      const hostileOwners = hostileCreeps
-        .map(creep => creep.owner.username)
-        .concat(hostilePowerCreeps.map(creep => creep.owner.username))
-        .filter((value, index, self) => self.indexOf(value) === index); // unique
+      const hostileOwners = getHostileUsernames(hostileCreeps, hostilePowerCreeps);
       msg(room, totalHostiles.toString() + " hostiles from " + hostileOwners.join() + " detected!", true);
     } else {
       msg(room, "clear of hostiles =)", true);
     }
     room.memory.hostilesPresent = hostilesPresent;
+    room.memory.hostileRangeAttackParts = room
+      .find(FIND_HOSTILE_CREEPS)
+      .reduce((aggregated, item) => aggregated + item.getActiveBodyparts(RANGED_ATTACK), 0 /* initial*/);
   }
 
   // enable safe mode if necessary
@@ -1055,6 +1076,13 @@ function handleHostilesInRoom(room: Room) {
     }
   }
   logCpu("handleHostilesInRoom(" + room.name + ")");
+}
+
+function getHostileUsernames(hostileCreeps: Creep[], hostilePowerCreeps: PowerCreep[]) {
+  return hostileCreeps
+    .map(creep => creep.owner.username)
+    .concat(hostilePowerCreeps.map(creep => creep.owner.username))
+    .filter((value, index, self) => self.indexOf(value) === index); // unique
 }
 
 function updateUpgradeSpots(room: Room) {
@@ -1848,6 +1876,8 @@ function handleSpawn(spawn: StructureSpawn) {
     } else if (controllersToReserve.length > 0) {
       spawnReserver(spawn, controllersToReserve[0]);
       return;
+    } else if (needInfantry()) {
+      roleToSpawn = "infantry";
     } else if (needAttackers(spawn.room)) {
       roleToSpawn = "attacker";
     } else if (getCreepCountByRole("explorer") <= 0) {
@@ -1865,6 +1895,11 @@ function handleSpawn(spawn: StructureSpawn) {
       spawnCreep(spawn, roleToSpawn, budget, body, undefined);
     }
   }
+}
+
+function needInfantry() {
+  if (!("attack" in Game.flags)) return false;
+  return Memory.rooms[Game.flags.attack.pos.roomName].hostileRangeAttackParts > 0;
 }
 
 function needAttackers(room: Room) {
@@ -2306,6 +2341,7 @@ function spawnCreep(
     else if (roleToSpawn === "carrier") body = getBodyForCarrier(energyAvailable);
     else if (roleToSpawn === "reserver") body = getBodyForReserver(Math.min(4800, energyAvailable));
     else if (roleToSpawn === "attacker") body = getBodyForAttacker(energyAvailable);
+    else if (roleToSpawn === "infantry") body = getBodyForInfantry(energyAvailable);
   }
   const energyStructures = getSpawnsAndExtensionsSorted(spawn.room);
   const name = getNameForCreep(roleToSpawn);
@@ -2363,6 +2399,15 @@ function getBodyForAttacker(energyAvailable: number) {
   const body: BodyPartConstant[] = [ATTACK, MOVE];
   for (;;) {
     const nextPart = getBodyPartRatio(body) <= 0.34 ? MOVE : ATTACK;
+    if (getBodyCost(body) + BODYPART_COST[nextPart] > energyAvailable) return body;
+    body.push(nextPart);
+    if (body.length >= 50) return body;
+  }
+}
+function getBodyForInfantry(energyAvailable: number) {
+  const body: BodyPartConstant[] = [MOVE, RANGED_ATTACK];
+  for (;;) {
+    const nextPart = getBodyPartRatio(body) <= 0.34 ? MOVE : RANGED_ATTACK;
     if (getBodyCost(body) + BODYPART_COST[nextPart] > energyAvailable) return body;
     body.push(nextPart);
     if (body.length >= 50) return body;
