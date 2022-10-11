@@ -328,11 +328,14 @@ function handleWorker(creep: Creep) {
 function workerRetrieveEnergy(creep: Creep) {
   logCpu("workerRetrieveEnergy(" + creep.name + ")");
   let destination;
-  const oldDestination = creep.memory.destination;
+  const oldDestination = creep.memory.retrieve || creep.memory.destination;
   if (typeof oldDestination === "string") destination = Game.getObjectById(oldDestination);
   if (!destination) {
     destination = getEnergySource(creep, true);
-    if (destination) creep.memory.retrieve = destination.id;
+    if (destination) {
+      creep.memory.retrieve = destination.id;
+      setDestination(creep, destination);
+    }
   }
   if (destination instanceof RoomPosition) {
     move(creep, destination);
