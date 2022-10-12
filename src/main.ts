@@ -50,7 +50,7 @@ declare global {
     energyDestinations: Id<Structure>[];
     energySources: Id<EnergySource>[];
     harvestSpots: RoomPosition[];
-    hostileRangeAttackParts: number;
+    hostileRangedAttackParts: number;
     hostilesPresent: boolean;
     lastTimeFlagEnergyConsumerSet: number;
     lastTimeSpawnsFull: number;
@@ -1100,7 +1100,7 @@ function handleHostilesInRoom(room: Room) {
       msg(room, "clear of hostiles =)", true);
     }
     room.memory.hostilesPresent = hostilesPresent;
-    room.memory.hostileRangeAttackParts = room
+    room.memory.hostileRangedAttackParts = room
       .find(FIND_HOSTILE_CREEPS)
       .reduce((aggregated, item) => aggregated + item.getActiveBodyparts(RANGED_ATTACK), 0 /* initial*/);
   }
@@ -1914,7 +1914,7 @@ function handleSpawn(spawn: StructureSpawn) {
 
 function needInfantry() {
   if (!("attack" in Game.flags)) return false;
-  return Memory.rooms[Game.flags.attack.pos.roomName].hostileRangeAttackParts > 0;
+  return Memory.rooms[Game.flags.attack.pos.roomName].hostileRangedAttackParts > 0;
 }
 
 function needAttackers(room: Room) {
