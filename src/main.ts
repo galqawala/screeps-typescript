@@ -397,8 +397,9 @@ function repair(creep: Creep) {
   if (typeof oldDestination === "string") destination = Game.getObjectById(oldDestination);
   if (destination instanceof Structure && needRepair(destination)) repairTarget = destination;
   if (!repairTarget) repairTarget = getRepairTarget(creep.pos);
-  if (repairTarget && creep.repair(repairTarget) === ERR_NOT_IN_RANGE) {
-    if (move(creep, repairTarget) === OK) creep.repair(repairTarget);
+  if (repairTarget) {
+    if (creep.repair(repairTarget) === ERR_NOT_IN_RANGE)
+      if (move(creep, repairTarget) === OK) creep.repair(repairTarget);
     flagEnergyConsumer(repairTarget.pos);
     setDestination(creep, repairTarget);
     logCpu("repair(" + creep.name + ")");
@@ -980,9 +981,14 @@ function updateRoomRepairTargets(room: Room) {
   logCpu("updateRoomRepairTargets(" + room.name + ")");
   const targets: Structure[] = room
     .find(FIND_STRUCTURES)
-    .filter(target => needRepair(target) && !isUnderRepair(target));
+    .filter(target => needRepair(target) && (getHpRatio(target) || 1) < 0.9 && !isUnderRepair(target));
   room.memory.repairTargets = targets.map(target => target.id);
   logCpu("updateRoomRepairTargets(" + room.name + ")");
+}
+
+function getHpRatio(obj: Structure) {
+  if ("hits" in obj && "hitsMax" in obj) return obj.hits / obj.hitsMax;
+  return;
 }
 
 function updateRoomEnergySources(room: Room) {
