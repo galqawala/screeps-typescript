@@ -670,10 +670,7 @@ function handleAttacker(creep: Creep) {
   const bestTarget = getTarget(creep);
   if (!flag && !bestTarget) {
     recycleCreep(creep);
-    logCpu("handleAttacker(" + creep.name + ")");
-    return;
-  }
-  if (bestTarget) {
+  } else if (bestTarget) {
     if (creep.attack(bestTarget) === ERR_NOT_IN_RANGE) {
       move(creep, bestTarget);
       creep.attack(bestTarget);
@@ -690,10 +687,7 @@ function handleInfantry(creep: Creep) {
   const bestTarget = getTarget(creep);
   if (!flag && !bestTarget) {
     recycleCreep(creep);
-    logCpu("handleInfantry(" + creep.name + ")");
-    return;
-  }
-  if (bestTarget) {
+  } else if (bestTarget) {
     if (creep.rangedAttack(bestTarget) === ERR_NOT_IN_RANGE || bestTarget instanceof Structure) {
       move(creep, bestTarget);
       creep.rangedAttack(bestTarget);
