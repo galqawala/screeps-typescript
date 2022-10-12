@@ -673,9 +673,9 @@ function handleAttacker(creep: Creep) {
     return;
   }
   if (bestTarget) {
-    if (creep.rangedAttack(bestTarget) === ERR_NOT_IN_RANGE) {
+    if (creep.attack(bestTarget) === ERR_NOT_IN_RANGE) {
       move(creep, bestTarget);
-      engageTarget(creep, bestTarget);
+      creep.attack(bestTarget);
     }
   } else if (flag) {
     move(creep, flag);
