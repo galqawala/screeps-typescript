@@ -670,6 +670,7 @@ function handleAttacker(creep: Creep) {
   const bestTarget = getTarget(creep);
   if (!flag && !bestTarget) {
     recycleCreep(creep);
+    logCpu("handleAttacker(" + creep.name + ")");
     return;
   }
   if (bestTarget) {
@@ -689,6 +690,7 @@ function handleInfantry(creep: Creep) {
   const bestTarget = getTarget(creep);
   if (!flag && !bestTarget) {
     recycleCreep(creep);
+    logCpu("handleInfantry(" + creep.name + ")");
     return;
   }
   if (bestTarget) {
