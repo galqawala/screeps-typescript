@@ -667,18 +667,18 @@ function getTrafficFlagName(pos: RoomPosition) {
 function handleAttacker(creep: Creep) {
   logCpu("handleAttacker(" + creep.name + ")");
   const flag = Game.flags.attack;
-  let bestTarget;
-  if (flag) {
-    move(creep, flag);
-    if (flag.room) bestTarget = getTargetAt(flag.pos);
+  const bestTarget = getTarget(creep);
+  if (!flag && !bestTarget) {
+    recycleCreep(creep);
+    return;
   }
-  if (!bestTarget) bestTarget = getTarget(creep);
-  if (!flag && !bestTarget) recycleCreep(creep);
   if (bestTarget) {
-    if (engageTarget(creep, bestTarget) === ERR_NOT_IN_RANGE) {
+    if (creep.rangedAttack(bestTarget) === ERR_NOT_IN_RANGE) {
       move(creep, bestTarget);
       engageTarget(creep, bestTarget);
     }
+  } else if (flag) {
+    move(creep, flag);
   }
   logCpu("handleAttacker(" + creep.name + ")");
 }
@@ -686,43 +686,76 @@ function handleAttacker(creep: Creep) {
 function handleInfantry(creep: Creep) {
   logCpu("handleInfantry(" + creep.name + ")");
   const flag = Game.flags.attack;
-  let bestTarget;
-  if (flag) {
-    move(creep, flag);
-    if (flag.room) bestTarget = getTargetAt(flag.pos);
+  const bestTarget = getTarget(creep);
+  if (!flag && !bestTarget) {
+    recycleCreep(creep);
+    return;
   }
-  if (!bestTarget) bestTarget = getTarget(creep);
-  if (!flag && !bestTarget) recycleCreep(creep);
   if (bestTarget) {
-    if (creep.rangedAttack(bestTarget) === ERR_NOT_IN_RANGE) {
+    if (creep.rangedAttack(bestTarget) === ERR_NOT_IN_RANGE || bestTarget instanceof Structure) {
       move(creep, bestTarget);
       creep.rangedAttack(bestTarget);
+    } else {
+      evadeHostiles(creep);
     }
+  } else if (flag) {
+    move(creep, flag);
   }
   logCpu("handleInfantry(" + creep.name + ")");
 }
 
-function getTargetAt(pos: RoomPosition) {
-  const objects = pos.look();
-  for (const obj of objects) {
-    if (obj.type === "structure" && obj.structure instanceof StructureWall) return obj.structure;
-    if (
-      obj.type === "structure" &&
-      obj.structure &&
-      isOwnedStructure(obj.structure) &&
-      obj.structure.my === false
-    )
-      return obj.structure;
+function evadeHostiles(creep: Creep) {
+  logCpu("evadeHostiles(" + creep.name + ")");
+  const hostilePositions = creep.pos
+    .findInRange(FIND_HOSTILE_CREEPS, 4)
+    .map(hostile => hostile.pos)
+    .concat(creep.pos.findInRange(FIND_HOSTILE_POWER_CREEPS, 4).map(hostile => hostile.pos));
+  if (hostilePositions.length < 1) return;
+  const options = getPositionsAround(creep.pos);
+  let bestRange = Number.NEGATIVE_INFINITY;
+  let bestPos;
+  for (const pos of options) {
+    const closest = pos.findClosestByRange(hostilePositions);
+    const range = closest ? pos.getRangeTo(closest) : Number.NEGATIVE_INFINITY;
+    if (bestRange < range) {
+      bestRange = range;
+      bestPos = pos;
+    }
   }
-  return;
+  if (bestPos) move(creep, bestPos);
+  logCpu("evadeHostiles(" + creep.name + ")");
+}
+
+function getPositionsAround(origin: RoomPosition) {
+  logCpu("getPositionsAround(" + origin.toString() + ")");
+  const range = 3;
+  const terrain = new Room.Terrain(origin.roomName);
+  const spots: RoomPosition[] = [];
+
+  for (let x = origin.x - range; x <= origin.x + range; x++) {
+    for (let y = origin.y - range; y <= origin.y + range; y++) {
+      if (x === origin.x && y === origin.y) continue;
+      if (terrain.get(x, y) === TERRAIN_MASK_WALL) continue;
+      const pos = new RoomPosition(x, y, origin.roomName);
+      if (blockedByStructure(pos)) continue;
+      spots.push(pos);
+    }
+  }
+  logCpu("getPositionsAround(" + origin.toString() + ")");
+  return spots
+    .map(value => ({ value, sort: Math.random() })) /* persist sort values */
+    .sort((a, b) => b.sort - a.sort) /* sort */
+    .map(({ value }) => value); /* remove sort values */
 }
 
 function setUsername() {
+  logCpu("setUsername()");
   // room controllers
   for (const r in Game.rooms) {
     const room = Game.rooms[r];
     if (room.controller && room.controller.my && room.controller.owner) {
       Memory.username = room.controller.owner.username;
+      logCpu("setUsername()");
       return;
     }
   }
@@ -730,11 +763,14 @@ function setUsername() {
   const creeps = Object.values(Game.creeps);
   if (creeps.length) {
     Memory.username = creeps[0].owner.username;
+    logCpu("setUsername()");
     return;
   }
+  logCpu("setUsername()");
 }
 
 function getControllersToReserve() {
+  logCpu("getControllersToReserve()");
   const controllers = [];
   for (const r in Game.rooms) {
     const controller = Game.rooms[r].controller;
@@ -747,6 +783,7 @@ function getControllersToReserve() {
       controllers.push(controller);
     }
   }
+  logCpu("getControllersToReserve()");
   return controllers
     .map(value => ({ value, sort: value?.reservation?.ticksToEnd || 0 }))
     .sort((a, b) => a.sort - b.sort)
@@ -754,14 +791,18 @@ function getControllersToReserve() {
 }
 
 function creepsHaveDestination(structure: Structure) {
+  logCpu("creepsHaveDestination(" + structure.toString() + ")");
   if (!structure) return false;
   if (!structure.id) return false;
   if (
     Object.values(Game.creeps).filter(function (creep) {
       return creep.memory.destination === structure.id;
     }).length
-  )
+  ) {
+    logCpu("creepsHaveDestination(" + structure.toString() + ")");
     return true;
+  }
+  logCpu("creepsHaveDestination(" + structure.toString() + ")");
   return false;
 }
 
@@ -1215,6 +1256,7 @@ function updateLinkMemory(upstreamLink: StructureLink, downstreamLink: Structure
 function canAttack(myUnit: StructureTower | Creep) {
   if (myUnit instanceof StructureTower) return true;
   if (myUnit.getActiveBodyparts(ATTACK) > 0) return true;
+  if (myUnit.getActiveBodyparts(RANGED_ATTACK) > 0) return true;
   return false;
 }
 function canHeal(myUnit: StructureTower | Creep) {
