@@ -212,9 +212,9 @@ function handleExplorer(creep: Creep) {
   logCpu("handleExplorer(" + creep.name + ")");
 }
 
-function getEnergySource(creep: Creep, allowStorage: boolean) {
+function getEnergySource(creep: Creep, allowStorage: boolean, allowAnyLink: boolean) {
   logCpu("getEnergySource(" + creep.name + ")");
-  const destination = getRoomEnergySource(creep.pos, allowStorage);
+  const destination = getRoomEnergySource(creep.pos, allowStorage, allowAnyLink);
   logCpu("getEnergySource(" + creep.name + ")");
   if (destination) return destination;
   const shuffledRoomNames = Object.keys(Game.rooms)
@@ -223,7 +223,7 @@ function getEnergySource(creep: Creep, allowStorage: boolean) {
     .map(({ value }) => value); /* remove sort values */
   for (const roomName of shuffledRoomNames) {
     if (roomName === creep.pos.roomName) continue; // checked this already in the beginning
-    const source = getRoomEnergySource(getRandomPos(roomName), allowStorage);
+    const source = getRoomEnergySource(getRandomPos(roomName), allowStorage, allowAnyLink);
     logCpu("getEnergySource(" + creep.name + ")");
     if (source) return source;
   }
@@ -231,13 +231,16 @@ function getEnergySource(creep: Creep, allowStorage: boolean) {
   return;
 }
 
-function getRoomEnergySource(pos: RoomPosition, allowStorage: boolean) {
+function getRoomEnergySource(pos: RoomPosition, allowStorage: boolean, allowAnyLink: boolean) {
   const sources = [];
   const ids = Memory.rooms[pos.roomName].energySources;
   if (ids) {
     for (const id of ids) {
       const source = Game.getObjectById(id);
-      if (source && (allowStorage || (!(source instanceof StructureStorage) && !isUpstreamLink(source))))
+      if (
+        source &&
+        (allowStorage || (!(source instanceof StructureStorage) && (allowAnyLink || !isUpstreamLink(source))))
+      )
         sources.push(source);
     }
     const closest = pos.findClosestByRange(sources);
@@ -333,7 +336,7 @@ function workerRetrieveEnergy(creep: Creep) {
   const oldDestination = creep.memory.retrieve;
   if (typeof oldDestination === "string") destination = Game.getObjectById(oldDestination);
   if (!destination) {
-    destination = getEnergySource(creep, true);
+    destination = getEnergySource(creep, true, true);
     if (destination) {
       creep.memory.retrieve = destination.id;
       setDestination(creep, destination);
@@ -570,7 +573,7 @@ function getCarrierDestination(creep: Creep) {
   logCpu("getCarrierDestination(" + creep.name + ")");
   let upstream;
   let downstream;
-  if (getFillRatio(creep) < 0.9) upstream = getEnergySource(creep, false);
+  if (getFillRatio(creep) < 0.9) upstream = getEnergySource(creep, false, false);
   if (!isEmpty(creep)) downstream = getEnergyDestination(creep);
   if (upstream && (!downstream || creep.pos.getRangeTo(downstream) >= creep.pos.getRangeTo(upstream))) {
     creep.memory.getEnergy = true;
