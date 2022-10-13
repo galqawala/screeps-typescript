@@ -734,7 +734,7 @@ function evadeHostiles(creep: Creep) {
 
 function getPositionsAround(origin: RoomPosition) {
   logCpu("getPositionsAround(" + origin.toString() + ")");
-  const range = 3;
+  const range = 1; // distance we move in one tick
   const terrain = new Room.Terrain(origin.roomName);
   const spots: RoomPosition[] = [];
 
