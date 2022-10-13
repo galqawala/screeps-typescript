@@ -589,6 +589,10 @@ function getCarrierDestination(creep: Creep) {
 }
 
 function handleReserver(creep: Creep) {
+  if (creep.memory.action === "recycleCreep" || creep.room.memory.hostilesPresent) {
+    recycleCreep(creep);
+    return;
+  }
   let destination;
   const oldDestination = creep.memory.destination;
   if (typeof oldDestination === "string") destination = Game.getObjectById(oldDestination);
@@ -734,6 +738,7 @@ function getPositionsAround(origin: RoomPosition) {
 
   for (let x = origin.x - range; x <= origin.x + range; x++) {
     for (let y = origin.y - range; y <= origin.y + range; y++) {
+      if (x < 0 || x > 49 || y < 0 || y > 49) continue;
       if (x === origin.x && y === origin.y) continue;
       if (terrain.get(x, y) === TERRAIN_MASK_WALL) continue;
       const pos = new RoomPosition(x, y, origin.roomName);
