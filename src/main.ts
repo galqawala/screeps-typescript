@@ -255,12 +255,14 @@ function getRoomEnergySource(pos: RoomPosition, allowStorage: boolean, allowAnyL
 
 function isUpstreamLink(structure: Destination) {
   if (!(structure instanceof StructureLink)) return false;
-  if (structure.room.memory.linkIsUpstream[structure.id] === true) return true;
+  if (structure.room.memory.linkIsUpstream && structure.room.memory.linkIsUpstream[structure.id] === true)
+    return true;
   return false;
 }
 function isDownstreamLink(structure: Destination) {
   if (!(structure instanceof StructureLink)) return false;
-  if (structure.room.memory.linkIsUpstream[structure.id] === false) return true;
+  if (structure.room.memory.linkIsUpstream && structure.room.memory.linkIsUpstream[structure.id] === false)
+    return true;
   return false;
 }
 
@@ -2497,14 +2499,7 @@ function needStructure(room: Room, structureType: BuildableStructureConstant) {
   if (!room.controller) return false; // no controller
   if (!room.controller.my && room.controller.owner) return false; // owned by others
   const targetCount = CONTROLLER_STRUCTURES[structureType][room.controller.level];
-  if (targetCount > getStructureCount(room, structureType, true)) {
-    if (structureType === STRUCTURE_ROAD) {
-      return room.find(FIND_CONSTRUCTION_SITES).length < 3;
-    } else {
-      return true;
-    }
-  }
-  return false;
+  return targetCount > getStructureCount(room, structureType, true);
 }
 
 function getStructureCount(room: Room, structureType: StructureConstant, includeConstructionSites: boolean) {
