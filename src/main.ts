@@ -1107,9 +1107,9 @@ function handleHostilesInRoom(room: Room) {
   if (room.memory.hostilesPresent !== hostilesPresent) {
     if (hostilesPresent) {
       const hostileOwners = getHostileUsernames(hostileCreeps, hostilePowerCreeps);
-      msg(room, totalHostiles.toString() + " hostiles from " + hostileOwners.join() + " detected!", true);
+      msg(room, totalHostiles.toString() + " hostiles from " + hostileOwners.join() + " detected!", false);
     } else {
-      msg(room, "clear of hostiles =)", true);
+      msg(room, "clear of hostiles =)", false);
     }
     room.memory.hostilesPresent = hostilesPresent;
     room.memory.hostileRangedAttackParts = room
