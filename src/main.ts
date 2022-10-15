@@ -37,6 +37,7 @@ declare global {
     cpuLimitExceededStreak: number;
     cpuLog: Record<string, CpuLogEntry>;
     needHarvesters: boolean;
+    reusePath: number;
     username: string;
   }
 
@@ -158,6 +159,7 @@ function isRoomPosition(item: RoomPosition): item is RoomPosition {
 
 // Main loop
 export const loop = ErrorMapper.wrapLoop(() => {
+  Memory.reusePath = (Memory.reusePath || 0) + 1;
   Memory.cpuLog = {};
   logCpu("purge/update memory");
   for (const key in Memory.creeps) {
@@ -179,6 +181,8 @@ export const loop = ErrorMapper.wrapLoop(() => {
   logCpu("updateFlagReserve() handleSpawn");
   logCpu("handle rooms, flags, creeps, spawns");
   cpuInfo();
+  const unusedCpuRatio = (Game.cpu.limit - Game.cpu.getUsed()) / Game.cpu.limit;
+  Memory.reusePath = Math.max(0, (Memory.reusePath || 0) - Math.ceil(unusedCpuRatio * 2));
 });
 
 function handleCreeps() {
@@ -1441,7 +1445,7 @@ function move(creep: Creep, destination: Destination) {
   }
   logCpu("move(" + creep.name + ") moveTo");
   const outcome = creep.moveTo(destination, {
-    reusePath: 50,
+    reusePath: Memory.reusePath,
     visualizePathStyle: { stroke: getHashColor(creep.memory.role), opacity: 0.9 }
   });
   logCpu("move(" + creep.name + ") moveTo");
