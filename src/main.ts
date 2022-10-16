@@ -206,6 +206,7 @@ function handleCreeps() {
 
 function handleExplorer(creep: Creep) {
   logCpu("handleExplorer(" + creep.name + ")");
+  creep.notifyWhenAttacked(false);
   if (!moveTowardMemory(creep)) {
     const destination = getExit(creep.pos, !creep.ticksToLive || creep.ticksToLive > 300, false);
     if (destination) {
