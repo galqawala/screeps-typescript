@@ -890,16 +890,16 @@ function handleHarvester(creep: Creep) {
   logCpu("handleHarvester(" + creep.name + ")");
   if (creep.memory.role !== "harvester") return false;
   if (creep.spawning) return true;
+  const flagName = "creep_" + creep.name;
   if (
     creep.memory.action === "recycleCreep" ||
     creep.room.memory.hostilesPresent ||
-    !("creep_" + creep.name in Game.flags)
+    !(flagName in Game.flags)
   ) {
     recycleCreep(creep);
     return true;
   }
   // move
-  const flagName = "creep_" + creep.name;
   const flag = Game.flags[flagName];
   move(creep, flag);
   if (!isEmpty(creep)) harvesterSpendEnergy(creep);
