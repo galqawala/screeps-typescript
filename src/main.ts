@@ -893,7 +893,7 @@ function handleHarvester(creep: Creep) {
   if (
     creep.memory.action === "recycleCreep" ||
     creep.room.memory.hostilesPresent ||
-    !(creep.name in Game.flags)
+    !("creep_" + creep.name in Game.flags)
   ) {
     recycleCreep(creep);
     return true;
@@ -2089,7 +2089,7 @@ function needWorkers(room: Room) {
     if (
       Game.rooms[i]
         .find(FIND_MY_STRUCTURES)
-        .filter(structure => structure.structureType === STRUCTURE_STORAGE && getEnergy(structure) < 75000)
+        .filter(structure => structure.structureType === STRUCTURE_STORAGE && getEnergy(structure) < 100000)
         .length >= 1
     )
       return false;
@@ -2129,7 +2129,7 @@ function needHarvesters(pos: RoomPosition) {
     if (
       Game.rooms[i]
         .find(FIND_MY_STRUCTURES)
-        .filter(structure => structure.structureType === STRUCTURE_STORAGE && getEnergy(structure) < 150000)
+        .filter(structure => structure.structureType === STRUCTURE_STORAGE && getEnergy(structure) < 200000)
         .length >= 1
     )
       return true;
