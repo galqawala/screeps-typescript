@@ -249,13 +249,24 @@ function getRoomEnergySource(pos: RoomPosition, allowStorage: boolean, allowAnyL
         sources.push(source);
     }
     const closest = pos.findClosestByRange(sources);
-    if (closest && !(closest instanceof StructureStorage)) {
-      const index = Memory.rooms[pos.roomName].energySources.indexOf(closest.id);
-      if (index > -1) Memory.rooms[pos.roomName].energySources.splice(index, 1);
-    }
     return closest;
   }
   return;
+}
+
+function clearEnergySource(
+  source:
+    | Tombstone
+    | Ruin
+    | StructureLink
+    | StructureStorage
+    | StructureContainer
+    | Resource<ResourceConstant>
+) {
+  if (source && !(source instanceof StructureStorage)) {
+    const index = Memory.rooms[source.pos.roomName].energySources.indexOf(source.id);
+    if (index > -1) Memory.rooms[source.pos.roomName].energySources.splice(index, 1);
+  }
 }
 
 function isUpstreamLink(structure: Destination) {
@@ -347,6 +358,7 @@ function workerRetrieveEnergy(creep: Creep) {
     if (destination) {
       creep.memory.retrieve = destination.id;
       setDestination(creep, destination);
+      clearEnergySource(destination);
     }
   }
 
@@ -584,6 +596,7 @@ function getCarrierDestination(creep: Creep) {
   if (!isEmpty(creep)) downstream = getEnergyDestination(creep);
   if (upstream && (!downstream || creep.pos.getRangeTo(downstream) >= creep.pos.getRangeTo(upstream))) {
     creep.memory.getEnergy = true;
+    clearEnergySource(upstream);
     logCpu("getCarrierDestination(" + creep.name + ")");
     return upstream;
   } else if (downstream) {
