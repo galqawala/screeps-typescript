@@ -1103,8 +1103,7 @@ function checkRoomCanOperate(room: Room) {
   if (room.memory && room.memory.canOperate !== value) {
     msg(
       room,
-      "Can operate: " + (room.memory.canOperate || "-").toString() + " ➤ " + (value || "-").toString(),
-      true
+      "Can operate: " + (room.memory.canOperate || "-").toString() + " ➤ " + (value || "-").toString()
     );
     room.memory.canOperate = value;
   }
