@@ -1,6 +1,10 @@
-// ToDo: Carriers should have a queue of two tasks.
-//  If a carrier has an empty task queue, we should add a fetch/delivery near it.
-//  If a carrier has a task queue of 1, we should add a fetch/delivery near the last delivery.
+//  ToDo: Carriers should have a queue of two tasks.
+//    If a carrier has an empty task queue, we should add a fetch/delivery near the carrier.
+//    If a carrier has a task queue of 1, we should add a fetch/delivery near the last position.
+
+//  ToDo: new 'transfer' role for transferring energy from link to storage
+
+//  ToDo: carrier should give energy to a worker next to it
 
 // When compiling TS to JS and bundling with rollup, the line numbers and file names in error messages change
 // This utility uses source maps to get the line numbers and file names of the original, TS source code
@@ -2389,7 +2393,7 @@ function spawnCreep(
   if (!body) {
     if (roleToSpawn === "worker") body = getBodyForWorker(spawn.room.energyCapacityAvailable);
     else if (roleToSpawn === "carrier") body = getBodyForCarrier(energyAvailable);
-    else if (roleToSpawn === "reserver") body = getBodyForReserver(Math.min(4800, energyAvailable));
+    else if (roleToSpawn === "reserver") body = getBodyForReserver(Math.min(3800, energyAvailable));
     else if (roleToSpawn === "attacker") body = getBodyForAttacker(energyAvailable);
     else if (roleToSpawn === "infantry") body = getBodyForInfantry(energyAvailable);
   }
