@@ -597,7 +597,10 @@ function carrierExecutePlan(creep: Creep) {
   if (creep.memory.deliveryTasks.length < 1) return;
   const task = creep.memory.deliveryTasks[0];
   const destination = Game.getObjectById(task.destination);
-  if (!destination) return;
+  if (!destination) {
+    resetDestination(creep);
+    return;
+  }
   move(creep, destination);
   if (
     !task.isDelivery &&
