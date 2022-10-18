@@ -2,6 +2,9 @@
 
 //  ToDo: carrier should give energy to a worker next to it
 
+//  ToDo: unique path styles. Sort creeps by name, first one should get hue 0, last one should get hue 1,
+//    others should get ones between.
+
 // When compiling TS to JS and bundling with rollup, the line numbers and file names in error messages change
 // This utility uses source maps to get the line numbers and file names of the original, TS source code
 import { ErrorMapper } from "utils/ErrorMapper";
@@ -1499,7 +1502,7 @@ function move(creep: Creep, destination: Destination) {
   logCpu("move(" + creep.name + ") moveTo");
   const outcome = creep.moveTo(destination, {
     reusePath: Memory.reusePath,
-    visualizePathStyle: { stroke: getHashColor(creep.memory.role), opacity: 0.9 }
+    visualizePathStyle: { stroke: getHashColor(creep.memory.role), opacity: 0.8 }
   });
   logCpu("move(" + creep.name + ") moveTo");
   logCpu("move(" + creep.name + ")");
@@ -2033,8 +2036,11 @@ function updateFlagAttack() {
     targets = targets.concat(getTargetsInRoom(Game.rooms[r]));
     logCpu("updateFlagAttack() targets");
   }
-  const core = targets[Math.floor(Math.random() * targets.length)];
-  if (core) core.pos.createFlag("attack", COLOR_CYAN, COLOR_BROWN);
+  const target = targets[Math.floor(Math.random() * targets.length)];
+  if (target) {
+    target.pos.createFlag("attack", COLOR_CYAN, COLOR_BROWN);
+    msg(target, "flagging for attack!");
+  }
   logCpu("updateFlagAttack() new");
   logCpu("updateFlagAttack()");
 }
@@ -2499,7 +2505,16 @@ function getBodyForInfantry(energyAvailable: number) {
 }
 
 function msg(
-  context: StructureSpawn | AnyStructure | Room | Creep | RoomPosition | string | Flag,
+  context:
+    | StructureSpawn
+    | Structure
+    | AnyStructure
+    | Room
+    | Creep
+    | PowerCreep
+    | RoomPosition
+    | string
+    | Flag,
   text: string,
   email = false
 ) {
