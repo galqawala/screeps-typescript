@@ -138,6 +138,9 @@ function logCpu(name: string) {
 function isOwnedStructure(structure: Structure): structure is AnyOwnedStructure {
   return (structure as { my?: boolean }).my !== undefined;
 }
+function isStorage(structure: Structure): structure is StructureStorage {
+  return structure.structureType === STRUCTURE_STORAGE;
+}
 function isContainerLinkOrStorage(
   structure: Structure
 ): structure is StructureContainer | StructureLink | StructureStorage {
@@ -349,12 +352,14 @@ function getRoomEnergyDestination(
       if (index > -1) Memory.rooms[pos.roomName].energyDestinations.splice(index, 1);
     }
     return closest;
+  } else {
+    const storages = Game.rooms[pos.roomName].find(FIND_MY_STRUCTURES).filter(isStorage);
+    if (storages.length) return storages[0];
   }
   return;
 }
 
 function handleWorker(creep: Creep) {
-  logCpu("handleWorker(" + creep.name + ")");
   if (isEmpty(creep)) delete creep.memory.build;
   else if (isFull(creep)) delete creep.memory.retrieve;
 
