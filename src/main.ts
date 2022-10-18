@@ -1,7 +1,3 @@
-//  ToDo: Carriers should have a queue of two tasks.
-//    If a carrier has an empty task queue, we should add a fetch/delivery near the carrier.
-//    If a carrier has a task queue of 1, we should add a fetch/delivery near the last position.
-
 //  ToDo: new 'transfer' role for transferring energy from link to storage
 
 //  ToDo: carrier should give energy to a worker next to it
@@ -90,9 +86,15 @@ declare global {
     role: Role;
     roomName: string;
     sourceId?: Id<Source>;
+    deliveryTasks?: DeliveryTask[];
     timeOfLastEnergyReceived: number;
     x: number;
     y: number;
+  }
+
+  interface DeliveryTask {
+    isDelivery: boolean;
+    destination: Id<Structure | Tombstone | Ruin | Resource>;
   }
 
   interface Task {
@@ -225,9 +227,15 @@ function handleExplorer(creep: Creep) {
   logCpu("handleExplorer(" + creep.name + ")");
 }
 
-function getEnergySource(creep: Creep, allowStorage: boolean, allowAnyLink: boolean) {
+function getEnergySource(
+  creep: Creep,
+  allowStorage: boolean,
+  allowAnyLink: boolean,
+  pos: RoomPosition,
+  excludeIds: Id<Structure | Tombstone | Ruin | Resource>[]
+) {
   logCpu("getEnergySource(" + creep.name + ")");
-  const destination = getRoomEnergySource(creep.pos, allowStorage, allowAnyLink);
+  const destination = getRoomEnergySource(pos, allowStorage, allowAnyLink, excludeIds);
   logCpu("getEnergySource(" + creep.name + ")");
   if (destination) return destination;
   const shuffledRoomNames = Object.keys(Game.rooms)
@@ -235,8 +243,8 @@ function getEnergySource(creep: Creep, allowStorage: boolean, allowAnyLink: bool
     .sort((a, b) => a.sort - b.sort) /* sort */
     .map(({ value }) => value); /* remove sort values */
   for (const roomName of shuffledRoomNames) {
-    if (roomName === creep.pos.roomName) continue; // checked this already in the beginning
-    const source = getRoomEnergySource(getRandomPos(roomName), allowStorage, allowAnyLink);
+    if (roomName === pos.roomName) continue; // checked this already in the beginning
+    const source = getRoomEnergySource(getRandomPos(roomName), allowStorage, allowAnyLink, excludeIds);
     logCpu("getEnergySource(" + creep.name + ")");
     if (source) return source;
   }
@@ -244,9 +252,14 @@ function getEnergySource(creep: Creep, allowStorage: boolean, allowAnyLink: bool
   return;
 }
 
-function getRoomEnergySource(pos: RoomPosition, allowStorage: boolean, allowAnyLink: boolean) {
+function getRoomEnergySource(
+  pos: RoomPosition,
+  allowStorage: boolean,
+  allowAnyLink: boolean,
+  excludeIds: Id<Structure | Tombstone | Ruin | Resource>[]
+) {
   const sources = [];
-  const ids = Memory.rooms[pos.roomName].energySources;
+  const ids = Memory.rooms[pos.roomName].energySources.filter(id => !excludeIds.includes(id));
   if (ids) {
     for (const id of ids) {
       const source = Game.getObjectById(id);
@@ -290,9 +303,13 @@ function isDownstreamLink(structure: Destination) {
   return false;
 }
 
-function getEnergyDestination(creep: Creep) {
+function getEnergyDestination(
+  creep: Creep,
+  pos: RoomPosition,
+  excludeIds: Id<Structure | Tombstone | Ruin | Resource>[]
+) {
   logCpu("getEnergyDestination(" + creep.name + ")");
-  const destination = getRoomEnergyDestination(creep.pos);
+  const destination = getRoomEnergyDestination(pos, excludeIds);
   logCpu("getEnergyDestination(" + creep.name + ")");
   if (destination) return destination;
   const shuffledRoomNames = Object.keys(Game.rooms)
@@ -300,8 +317,8 @@ function getEnergyDestination(creep: Creep) {
     .sort((a, b) => a.sort - b.sort) /* sort */
     .map(({ value }) => value); /* remove sort values */
   for (const roomName of shuffledRoomNames) {
-    if (roomName === creep.pos.roomName) continue; // checked this already in the beginning
-    const roomDestination = getRoomEnergyDestination(getRandomPos(roomName));
+    if (roomName === pos.roomName) continue; // checked this already in the beginning
+    const roomDestination = getRoomEnergyDestination(getRandomPos(roomName), excludeIds);
     logCpu("getEnergyDestination(" + creep.name + ")");
     if (roomDestination) return roomDestination;
   }
@@ -309,9 +326,12 @@ function getEnergyDestination(creep: Creep) {
   return;
 }
 
-function getRoomEnergyDestination(pos: RoomPosition) {
+function getRoomEnergyDestination(
+  pos: RoomPosition,
+  excludeIds: Id<Structure | Tombstone | Ruin | Resource>[]
+) {
   const destinations = [];
-  const ids = Memory.rooms[pos.roomName].energyDestinations;
+  const ids = Memory.rooms[pos.roomName].energyDestinations.filter(id => !excludeIds.includes(id));
   if (ids) {
     for (const id of ids) {
       const destination = Game.getObjectById(id);
@@ -362,7 +382,7 @@ function workerRetrieveEnergy(creep: Creep) {
   const oldDestination = creep.memory.retrieve;
   if (typeof oldDestination === "string") destination = Game.getObjectById(oldDestination);
   if (!destination) {
-    destination = getEnergySource(creep, true, true);
+    destination = getEnergySource(creep, true, true, creep.pos, []);
     if (destination) {
       creep.memory.retrieve = destination.id;
       setDestination(creep, destination);
@@ -555,64 +575,66 @@ function moveTowardMemory(creep: Creep) {
 
 function handleCarrier(creep: Creep) {
   logCpu("handleCarrier(" + creep.name + ")");
-  let destination;
-  logCpu("handleCarrier(" + creep.name + ") oldDestination");
-  if ("getEnergy" in creep.memory) {
-    const oldDestination = creep.memory.destination;
-    if (typeof oldDestination === "string") destination = Game.getObjectById(oldDestination);
+  if (!creep.memory.deliveryTasks) creep.memory.deliveryTasks = [];
+  let pos = creep.pos;
+  if ("last_" + creep.name in Game.flags) pos = Game.flags["last_" + creep.name].pos;
+  if (creep.memory.deliveryTasks.length >= 1) {
+    const lastTaskId = creep.memory.deliveryTasks[creep.memory.deliveryTasks.length - 1].destination;
+    if (lastTaskId) {
+      const lastObj = Game.getObjectById(lastTaskId);
+      if (lastObj) pos = lastObj.pos;
+    }
   }
-  logCpu("handleCarrier(" + creep.name + ") oldDestination");
-  logCpu("handleCarrier(" + creep.name + ") plan new destination");
-  if (!destination) {
-    destination = getCarrierDestination(creep);
-    if (destination) setDestination(creep, destination);
-  }
-  logCpu("handleCarrier(" + creep.name + ") plan new destination");
-  logCpu("handleCarrier(" + creep.name + ") carrierExecutePlan");
-  if (destination) carrierExecutePlan(creep, destination);
-  logCpu("handleCarrier(" + creep.name + ") carrierExecutePlan");
+  if (creep.memory.deliveryTasks.length < 2) addCarrierDestination(creep, pos);
+  if (creep.memory.deliveryTasks.length < 1) return;
+  carrierExecutePlan(creep);
   logCpu("handleCarrier(" + creep.name + ")");
 }
 
-function carrierExecutePlan(creep: Creep, destination: Destination) {
-  logCpu("carrierExecutePlan(" + creep.name + "," + destination.toString() + ")");
-  logCpu("carrierExecutePlan(" + creep.name + "," + destination.toString() + ") move");
+function carrierExecutePlan(creep: Creep) {
+  logCpu("carrierExecutePlan(" + creep.name + ")");
+  if (!creep.memory.deliveryTasks) creep.memory.deliveryTasks = [];
+  if (creep.memory.deliveryTasks.length < 1) return;
+  const task = creep.memory.deliveryTasks[0];
+  const destination = Game.getObjectById(task.destination);
+  if (!destination) return;
   move(creep, destination);
-  logCpu("carrierExecutePlan(" + creep.name + "," + destination.toString() + ") move");
   if (
-    creep.memory.getEnergy &&
+    !task.isDelivery &&
     (destination instanceof Structure ||
       destination instanceof Tombstone ||
       destination instanceof Ruin ||
       destination instanceof Resource)
   ) {
     if (retrieveEnergy(creep, destination) !== ERR_NOT_IN_RANGE) resetDestination(creep);
-  } else if (!creep.memory.getEnergy && (destination instanceof Creep || destination instanceof Structure)) {
+  } else if (task.isDelivery && (destination instanceof Creep || destination instanceof Structure)) {
     const outcome = transfer(creep, destination);
-    if (outcome !== ERR_NOT_IN_RANGE) {
-      resetDestination(creep);
-    }
+    if (outcome !== ERR_NOT_IN_RANGE) resetDestination(creep);
   }
-  logCpu("carrierExecutePlan(" + creep.name + "," + destination.toString() + ")");
+  logCpu("carrierExecutePlan(" + creep.name + ")");
 }
 
-function getCarrierDestination(creep: Creep) {
-  logCpu("getCarrierDestination(" + creep.name + ")");
+function addCarrierDestination(creep: Creep, pos: RoomPosition) {
+  logCpu("addCarrierDestination(" + creep.name + ")");
   let upstream;
   let downstream;
-  if (getFillRatio(creep) < 0.9) upstream = getEnergySource(creep, false, false);
-  if (!isEmpty(creep)) downstream = getEnergyDestination(creep);
+  let queuedIds: Id<Structure | Tombstone | Ruin | Resource>[] = [];
+  if (creep?.memory?.deliveryTasks) queuedIds = creep?.memory?.deliveryTasks?.map(task => task.destination);
+  if (getFillRatio(creep) < 0.9) upstream = getEnergySource(creep, false, false, pos, queuedIds);
+  if (!isEmpty(creep)) downstream = getEnergyDestination(creep, pos, queuedIds);
   if (upstream && (!downstream || creep.pos.getRangeTo(downstream) >= creep.pos.getRangeTo(upstream))) {
     creep.memory.getEnergy = true;
     clearEnergySource(upstream);
-    logCpu("getCarrierDestination(" + creep.name + ")");
+    creep.memory.deliveryTasks?.push({ destination: upstream.id, isDelivery: false });
+    logCpu("addCarrierDestination(" + creep.name + ")");
     return upstream;
   } else if (downstream) {
     creep.memory.getEnergy = false;
-    logCpu("getCarrierDestination(" + creep.name + ")");
+    creep.memory.deliveryTasks?.push({ destination: downstream.id, isDelivery: true });
+    logCpu("addCarrierDestination(" + creep.name + ")");
     return downstream;
   }
-  logCpu("getCarrierDestination(" + creep.name + ")");
+  logCpu("addCarrierDestination(" + creep.name + ")");
   return;
 }
 
@@ -2563,6 +2585,8 @@ function resetDestination(creep: Creep) {
   creep.memory.lastDestination = creep.memory.destination;
   creep.memory.lastAction = creep.memory.action;
   // reset properties
+  if (creep?.memory?.deliveryTasks && creep?.memory?.deliveryTasks?.length >= 1)
+    creep?.memory?.deliveryTasks?.shift();
   logCpu("resetDestination(" + creep.name + ")");
   if (!creep.memory.destination) return;
   let destination;
