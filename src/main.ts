@@ -1,12 +1,8 @@
-//  ToDo: unique path styles. Sort creeps by name, first one should get hue 0, last one should get hue 1,
-//    others should get ones between.
-
 //  ToDo: carriers should abandon deliveries to full structures
 
 // When compiling TS to JS and bundling with rollup, the line numbers and file names in error messages change
 // This utility uses source maps to get the line numbers and file names of the original, TS source code
 import { ErrorMapper } from "utils/ErrorMapper";
-import { Md5 } from "ts-md5";
 
 declare global {
   type Role =
@@ -1507,13 +1503,29 @@ function move(creep: Creep, destination: Destination) {
     creep.pos.createFlag(flagName, COLOR_GREEN, COLOR_GREY);
   }
   logCpu("move(" + creep.name + ") moveTo");
+  const hue = (Object.keys(Game.creeps).sort().indexOf(creep.name) / Object.keys(Game.creeps).length) * 360;
   const outcome = creep.moveTo(destination, {
     reusePath: Memory.reusePath,
-    visualizePathStyle: { stroke: getHashColor(creep.memory.role), opacity: 0.8 }
+    visualizePathStyle: { stroke: hslToHex(hue, 100, 50), opacity: 0.7 }
   });
   logCpu("move(" + creep.name + ") moveTo");
   logCpu("move(" + creep.name + ")");
   return outcome;
+}
+
+function hslToHex(h: number /* deg */, s: number /* % */, l: number /* % */) {
+  //  https://stackoverflow.com/a/44134328
+  //  hslToHex(360, 100, 50)  // "#ff0000" -> red
+  l /= 100;
+  const a = (s * Math.min(l, 1 - l)) / 100;
+  const f = (n: number) => {
+    const k = (n + h / 30) % 12;
+    const color = l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1);
+    return Math.round(255 * color)
+      .toString(16)
+      .padStart(2, "0"); // convert to Hex and prefix "0" if needed
+  };
+  return `#${f(0)}${f(8)}${f(4)}`;
 }
 
 function withdraw(creep: Creep, destination: Destination) {
@@ -1595,20 +1607,6 @@ function isUnderRepair(structure: Structure) {
   }).length;
   if (creepsRepairingIt) return true;
   return false;
-}
-
-function getHashColor(seed: string) {
-  const hash = Md5.hashStr(seed);
-  let offset = 0;
-  let hex;
-  let hsl;
-  do {
-    hex = hash.substring(0 + offset, 6 + offset);
-    hsl = hexToHSL(hex);
-    offset++;
-  } while (!hsl || hsl.l < 0.6);
-  // msg('getHashColor',seed+' > '+hex+' > H:'+hsl['h']+', S:'+hsl['s']+', l:'+hsl['l']+' offset:'+offset);
-  return "#" + hex;
 }
 
 function tryResetSpawnsAndExtensionsSorting(room: Room) {
@@ -2666,39 +2664,4 @@ function getFillRatio(object: Structure | Creep) {
   const store = getStore(object);
   if (!store) return 0;
   return store.getUsedCapacity(RESOURCE_ENERGY) / store.getCapacity(RESOURCE_ENERGY);
-}
-
-function hexToHSL(hex: string) {
-  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-  if (!result) return;
-  let r = parseInt(result[1], 16);
-  let g = parseInt(result[2], 16);
-  let b = parseInt(result[3], 16);
-  r /= 255;
-  g /= 255;
-  b /= 255;
-  const max = Math.max(r, g, b);
-  const min = Math.min(r, g, b);
-  let h;
-  let s;
-  const l = (max + min) / 2;
-  if (max === min) {
-    h = s = 0; // achromatic
-  } else {
-    const d = max - min;
-    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-    switch (max) {
-      case r:
-        h = (g - b) / d + (g < b ? 6 : 0);
-        break;
-      case g:
-        h = (b - r) / d + 2;
-        break;
-      case b:
-        h = (r - g) / d + 4;
-        break;
-    }
-    if (h) h /= 6;
-  }
-  return { h, s, l };
 }
