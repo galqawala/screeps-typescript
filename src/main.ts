@@ -1,3 +1,7 @@
+//  ToDo: carriers should find the closest target even accross rooms (remove getRandomPos())
+
+//  ToDo: carriers should track carried energy after each task and not retrieve multiple times unless required
+
 // When compiling TS to JS and bundling with rollup, the line numbers and file names in error messages change
 // This utility uses source maps to get the line numbers and file names of the original, TS source code
 import { ErrorMapper } from "utils/ErrorMapper";
@@ -589,7 +593,8 @@ function carrierExecutePlan(creep: Creep) {
   }
   move(creep, destination);
   if (!task.isDelivery) {
-    if (isEmpty(destination)) {
+    // retrieve
+    if (isFull(creep) || isEmpty(destination)) {
       resetDestination(creep);
     } else if (
       destination instanceof Structure ||
@@ -600,7 +605,8 @@ function carrierExecutePlan(creep: Creep) {
       if (retrieveEnergy(creep, destination) !== ERR_NOT_IN_RANGE) resetDestination(creep);
     }
   } else if (task.isDelivery) {
-    if (isFull(destination)) {
+    // transfer
+    if (isEmpty(creep) || isFull(destination)) {
       resetDestination(creep);
     } else if (destination instanceof Creep || destination instanceof Structure) {
       if (transfer(creep, destination) !== ERR_NOT_IN_RANGE) resetDestination(creep);
