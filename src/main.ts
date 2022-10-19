@@ -2262,7 +2262,7 @@ function spawnTransferer(spawn: StructureSpawn) {
     filter: { structureType: STRUCTURE_LINK }
   });
   if (!link) return;
-  const body: BodyPartConstant[] = [CARRY, MOVE];
+  const body: BodyPartConstant[] = [CARRY, CARRY, MOVE];
   const cost = getBodyCost(body);
   if (cost > spawn.room.energyAvailable) return;
   const name = getNameForCreep(roleToSpawn);
