@@ -1,9 +1,11 @@
-//  ToDo: new 'transfer' role for transferring energy from link to storage
+//  ToDo: carriers never withdraw from links
 
 //  ToDo: carrier should give energy to a worker next to it
 
 //  ToDo: unique path styles. Sort creeps by name, first one should get hue 0, last one should get hue 1,
 //    others should get ones between.
+
+//  ToDo: carriers should abandon deliveries to full structures
 
 // When compiling TS to JS and bundling with rollup, the line numbers and file names in error messages change
 // This utility uses source maps to get the line numbers and file names of the original, TS source code
@@ -11,7 +13,16 @@ import { ErrorMapper } from "utils/ErrorMapper";
 import { Md5 } from "ts-md5";
 
 declare global {
-  type Role = "attacker" | "carrier" | "explorer" | "harvester" | "infantry" | "reserver" | "worker";
+  type Role =
+    | "attacker"
+    | "carrier"
+    | "explorer"
+    | "harvester"
+    | "infantry"
+    | "reserver"
+    | "transferer"
+    | "worker";
+
   type Action =
     | "build"
     | "harvest"
@@ -23,6 +34,7 @@ declare global {
     | "transfer"
     | "upgradeController"
     | "withdraw";
+
   type Destination =
     | AnyStructure
     | ConstructionSite
@@ -35,9 +47,11 @@ declare global {
     | Source
     | Structure
     | Tombstone;
+
   type DestinationId = Id<
     AnyStructure | Structure | ConstructionSite | Source | Creep | Resource | Tombstone | Ruin | PowerCreep
   >;
+
   type EnergySource = Resource | Ruin | StructureContainer | StructureLink | StructureStorage | Tombstone;
 
   interface Memory {
@@ -71,28 +85,13 @@ declare global {
 
   interface CreepMemory {
     action?: Action;
-    awaitingDeliveryFrom?: string; // Creep name
     build?: Id<ConstructionSite>;
     destination?: DestinationId | RoomPosition;
-    destinationSetTime: number;
-    empty: boolean;
-    full: boolean;
-    getEnergy: boolean;
-    lastAction?: Action;
-    lastActionOutcome: ScreepsReturnCode;
-    lastBlockedIds: DestinationId[];
-    lastDestination?: DestinationId | RoomPosition;
-    lastMoveTime: number;
-    lastOkActionTime: number;
-    posRevisits: number;
     retrieve?: Id<Structure | Tombstone | Ruin | Resource>;
+    transfer?: Id<Structure>;
     role: Role;
-    roomName: string;
     sourceId?: Id<Source>;
     deliveryTasks?: DeliveryTask[];
-    timeOfLastEnergyReceived: number;
-    x: number;
-    y: number;
   }
 
   interface DeliveryTask {
@@ -213,6 +212,7 @@ function handleCreeps() {
     else if (role === "harvester") handleHarvester(Game.creeps[c]);
     else if (role === "infantry") handleInfantry(Game.creeps[c]);
     else if (role === "reserver") handleReserver(Game.creeps[c]);
+    else if (role === "transferer") handleTransferer(Game.creeps[c]);
     else if (role === "worker") handleWorker(Game.creeps[c]);
 
     logCpu("creep: " + c);
@@ -368,8 +368,6 @@ function handleWorker(creep: Creep) {
 
   if (creep.memory.build) {
     build(creep);
-  } else if (creep.memory.awaitingDeliveryFrom && isEdge(creep.pos)) {
-    move(creep, getRandomPos(creep.pos.roomName)); // move once towards a random position
   } else if (isEmpty(creep)) {
     workerRetrieveEnergy(creep);
   } else if (!isEmpty(creep)) {
@@ -425,7 +423,7 @@ function build(creep: Creep) {
     if (!destination) delete creep.memory.build;
   }
   if (!destination || !(destination instanceof ConstructionSite)) {
-    const destinations = getConstructionSites(creep);
+    const destinations = getConstructionSites();
     if (!destination) destination = creep.pos.findClosestByRange(destinations); // same room
     if (!destination) destination = destinations[Math.floor(Math.random() * destinations.length)]; // another room
   }
@@ -634,13 +632,11 @@ function addCarrierDestination(creep: Creep, pos: RoomPosition) {
   if (getFillRatio(creep) < 0.9) upstream = getEnergySource(creep, false, false, pos, queuedIds);
   if (!isEmpty(creep)) downstream = getEnergyDestination(creep, pos, queuedIds);
   if (upstream && (!downstream || creep.pos.getRangeTo(downstream) >= creep.pos.getRangeTo(upstream))) {
-    creep.memory.getEnergy = true;
     clearEnergySource(upstream);
     creep.memory.deliveryTasks?.push({ destination: upstream.id, isDelivery: false });
     logCpu("addCarrierDestination(" + creep.name + ")");
     return upstream;
   } else if (downstream) {
-    creep.memory.getEnergy = false;
     creep.memory.deliveryTasks?.push({ destination: downstream.id, isDelivery: true });
     logCpu("addCarrierDestination(" + creep.name + ")");
     return downstream;
@@ -672,11 +668,37 @@ function handleReserver(creep: Creep) {
   }
 }
 
+function handleTransferer(creep: Creep) {
+  // upstream
+  const upstreamId = creep.memory.retrieve;
+  if (!upstreamId) {
+    recycleCreep(creep);
+    return;
+  }
+  const upstream = Game.getObjectById(upstreamId);
+  if (!upstream) {
+    recycleCreep(creep);
+    return;
+  }
+  if (retrieveEnergy(creep, upstream, true) === ERR_NOT_IN_RANGE) move(creep, upstream);
+  // downstream
+  const downstreamId = creep.memory.transfer;
+  if (!downstreamId) {
+    recycleCreep(creep);
+    return;
+  }
+  const downstream = Game.getObjectById(downstreamId);
+  if (!downstream) {
+    recycleCreep(creep);
+    return;
+  }
+  if (creep.transfer(downstream, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) move(creep, downstream);
+}
+
 function transfer(creep: Creep, destination: Creep | Structure<StructureConstant>) {
   const actionOutcome = creep.transfer(destination, RESOURCE_ENERGY);
   if (actionOutcome === OK && destination) {
     if ("memory" in destination) {
-      destination.memory.timeOfLastEnergyReceived = Game.time;
       resetDestination(creep);
     }
     if (destination instanceof StructureSpawn || destination instanceof StructureExtension) {
@@ -694,8 +716,8 @@ function transfer(creep: Creep, destination: Creep | Structure<StructureConstant
   return actionOutcome;
 }
 
-function retrieveEnergy(creep: Creep, destination: Structure | Tombstone | Ruin | Resource) {
-  if (getEnergy(destination) <= 0) delete creep.memory.retrieve;
+function retrieveEnergy(creep: Creep, destination: Structure | Tombstone | Ruin | Resource, persist = false) {
+  if (getEnergy(destination) <= 0 && !persist) delete creep.memory.retrieve;
   if (destination instanceof Structure || destination instanceof Tombstone || destination instanceof Ruin) {
     return withdraw(creep, destination);
   } else if (destination instanceof Resource) {
@@ -1262,7 +1284,7 @@ function getLinkDownstreamPos(room: Room) {
   if (!(flagName in Game.flags)) return;
   const flag = Game.flags[flagName];
   const destination = flag.pos;
-  if (getCreepCountByRole("worker", false, 0) < 1) {
+  if (getCreepCountByRole("worker", 0) < 1) {
     // move energy toward storage when we have no workers
     const storages = room
       .find(FIND_STRUCTURES)
@@ -1471,10 +1493,8 @@ function setDestination(creep: Creep, destination: Destination) {
   if (destination && creep.memory.destination !== ("id" in destination ? destination.id : destination)) {
     if ("id" in destination) {
       creep.memory.destination = destination.id;
-      creep.memory.destinationSetTime = Game.time;
     } else if (destination instanceof RoomPosition) {
       creep.memory.destination = destination;
-      creep.memory.destinationSetTime = Game.time;
     }
   }
   logCpu("setDestination(" + creep.name + ") update memory");
@@ -1566,7 +1586,7 @@ function flagEnergyConsumer(pos: RoomPosition) {
   logCpu("flagEnergyConsumer(" + pos.toString() + ")");
 }
 
-function getConstructionSites(creep: Creep) {
+function getConstructionSites() {
   let sites: ConstructionSite[] = [];
   for (const i in Game.rooms) {
     const room = Game.rooms[i];
@@ -1574,11 +1594,7 @@ function getConstructionSites(creep: Creep) {
     sites = sites.concat(
       room
         .find(FIND_MY_CONSTRUCTION_SITES)
-        .filter(
-          target =>
-            target.structureType !== STRUCTURE_CONTAINER /* leave for harvesters */ &&
-            !isBlocked(creep, target)
-        )
+        .filter(target => target.structureType !== STRUCTURE_CONTAINER /* leave for harvesters */)
     );
   }
   return sites;
@@ -1606,12 +1622,6 @@ function getHashColor(seed: string) {
   } while (!hsl || hsl.l < 0.6);
   // msg('getHashColor',seed+' > '+hex+' > H:'+hsl['h']+', S:'+hsl['s']+', l:'+hsl['l']+' offset:'+offset);
   return "#" + hex;
-}
-
-function isBlocked(creep: Creep, target: ConstructionSite | Structure) {
-  if (!creep.memory.lastBlockedIds) return false;
-  if (creep.memory.lastBlockedIds.includes(target.id)) return true;
-  return false;
 }
 
 function tryResetSpawnsAndExtensionsSorting(room: Room) {
@@ -1950,37 +1960,37 @@ function getStore(object: Creep | AnyStructure | Resource | Ruin | Tombstone | S
 
 function handleSpawn(spawn: StructureSpawn) {
   if (!spawn.spawning) {
-    let roleToSpawn: Role;
-    let body;
-    let minBudget = 0;
     const controllersToReserve = getControllersToReserve();
 
     if (needCarriers()) {
-      roleToSpawn = "carrier";
+      spawnRole("carrier", spawn);
+    } else if (needTransferers()) {
+      spawnTransferer(spawn);
     } else if (needHarvesters(spawn.pos)) {
       spawnHarvester(spawn);
-      return;
     } else if (controllersToReserve.length > 0) {
       spawnReserver(spawn, controllersToReserve[0]);
-      return;
     } else if (needInfantry()) {
-      roleToSpawn = "infantry";
+      spawnRole("infantry", spawn);
     } else if (needAttackers(spawn.room)) {
-      roleToSpawn = "attacker";
+      spawnRole("attacker", spawn);
     } else if (getCreepCountByRole("explorer") <= 0) {
-      roleToSpawn = "explorer";
-      body = [MOVE];
+      spawnRole("explorer", spawn, 0, [MOVE]);
     } else if (needWorkers(spawn.room)) {
-      roleToSpawn = "worker";
-      minBudget = Math.min(450, spawn.room.energyCapacityAvailable);
-    } else {
-      return;
+      spawnRole("worker", spawn, Math.min(450, spawn.room.energyCapacityAvailable));
     }
+  }
+}
 
-    const budget = getSpawnBudget(roleToSpawn, minBudget, spawn.room.energyCapacityAvailable);
-    if (spawn.room.energyAvailable >= budget) {
-      spawnCreep(spawn, roleToSpawn, budget, body, undefined);
-    }
+function spawnRole(
+  roleToSpawn: Role,
+  spawn: StructureSpawn,
+  minBudget = 0,
+  body: undefined | BodyPartConstant[] = undefined
+) {
+  const budget = getSpawnBudget(roleToSpawn, minBudget, spawn.room.energyCapacityAvailable);
+  if (spawn.room.energyAvailable >= budget) {
+    spawnCreep(spawn, roleToSpawn, budget, body, undefined);
   }
 }
 
@@ -2235,6 +2245,36 @@ function spawnHarvester(spawn: StructureSpawn) {
   return true;
 }
 
+function spawnTransferer(spawn: StructureSpawn) {
+  const roleToSpawn: Role = "transferer";
+  const storages = Object.values(Game.structures)
+    .filter(isStorage)
+    .filter(
+      storage =>
+        hasStructureInRange(storage.pos, STRUCTURE_LINK, 1, false) &&
+        Object.values(Game.creeps).filter(
+          creep => creep.memory.role === roleToSpawn && creep.memory.transfer === storage.id
+        ).length <= 0
+    );
+  if (storages.length < 1) return;
+  const tgtStorage = storages[0];
+  const link = tgtStorage.pos.findClosestByRange(FIND_MY_STRUCTURES, {
+    filter: { structureType: STRUCTURE_LINK }
+  });
+  if (!link) return;
+  const body: BodyPartConstant[] = [CARRY, MOVE];
+  const cost = getBodyCost(body);
+  if (cost > spawn.room.energyAvailable) return;
+  const name = getNameForCreep(roleToSpawn);
+  const energyStructures: (StructureSpawn | StructureExtension)[] = getSpawnsAndExtensionsSorted(spawn.room);
+  const memory = { role: roleToSpawn, retrieve: link.id, transfer: tgtStorage.id };
+  if (spawn.spawnCreep(body, name, { memory, energyStructures }) === OK) {
+    Memory.needHarvesters = false;
+    spawnMsg(spawn, roleToSpawn, name, body, tgtStorage.toString());
+  }
+  return true;
+}
+
 function getBodyForHarvester(source: Source) {
   const workParts = source.energyCapacity / ENERGY_REGEN_TIME / HARVEST_POWER;
   const body: BodyPartConstant[] = [CARRY];
@@ -2393,6 +2433,12 @@ function getCreepCost(creep: Creep) {
 
 function needCarriers() {
   return getTotalCreepCapacity("carrier") < getTotalEnergyToHaul();
+}
+function needTransferers() {
+  const storages = Object.values(Game.structures)
+    .filter(isStorage)
+    .filter(storage => hasStructureInRange(storage.pos, STRUCTURE_LINK, 1, false));
+  return getTotalCreepCapacity("transferer") < storages.length;
 }
 
 function getTotalEnergyToHaul() {
@@ -2586,13 +2632,9 @@ function getStructureCount(room: Room, structureType: StructureConstant, include
   return count;
 }
 
-function getCreepCountByRole(role: Role, inactiveOnly = false, minTicksToLive = 120) {
+function getCreepCountByRole(role: Role, minTicksToLive = 120) {
   return Object.values(Game.creeps).filter(function (creep) {
-    return (
-      creep.memory.role === role &&
-      (!inactiveOnly || creep.memory.lastActionOutcome !== OK) &&
-      (!creep.ticksToLive || creep.ticksToLive >= minTicksToLive)
-    );
+    return creep.memory.role === role && (!creep.ticksToLive || creep.ticksToLive >= minTicksToLive);
   }).length;
 }
 
@@ -2604,24 +2646,10 @@ function getBodyCost(body: BodyPartConstant[]) {
 
 function resetDestination(creep: Creep) {
   logCpu("resetDestination(" + creep.name + ")");
-  // save last values
-  creep.memory.lastDestination = creep.memory.destination;
-  creep.memory.lastAction = creep.memory.action;
-  // reset properties
   if (creep?.memory?.deliveryTasks && creep?.memory?.deliveryTasks?.length >= 1)
     creep?.memory?.deliveryTasks?.shift();
-  logCpu("resetDestination(" + creep.name + ")");
-  if (!creep.memory.destination) return;
-  let destination;
-  if (!(creep.memory.destination instanceof RoomPosition))
-    destination = Game.getObjectById(creep.memory.destination);
   creep.memory.destination = undefined;
-  creep.memory.destinationSetTime = Game.time;
   creep.memory.action = undefined;
-  creep.memory.posRevisits = 0;
-  if (destination && "memory" in destination && "awaitingDeliveryFrom" in destination.memory) {
-    destination.memory.awaitingDeliveryFrom = undefined;
-  }
   const flag = Game.flags["creep_" + creep.name];
   if (flag) flag.remove();
   logCpu("resetDestination(" + creep.name + ")");
