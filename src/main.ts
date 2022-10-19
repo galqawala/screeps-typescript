@@ -1,6 +1,11 @@
 //  ToDo: carriers should find the closest target even accross rooms (remove getRandomPos())
+//    PathFinder.search(Game.getObjectById('6345a9d62f3c170b0a263611').pos, Game.getObjectById('6345ab374a5ed31efa88f251').pos).cost
 
-//  ToDo: carriers should track carried energy after each task and not retrieve multiple times unless required
+//  ToDo: carriers should track carried energy after each task and not retrieve from multiple sources unless required
+
+//  ToDo: only clearEnergySource(), when it's actually going to be empty
+
+//  ToDo: carriers should retrieve energy from rooms we currently don't have visibility in
 
 // When compiling TS to JS and bundling with rollup, the line numbers and file names in error messages change
 // This utility uses source maps to get the line numbers and file names of the original, TS source code
@@ -946,7 +951,7 @@ function handleHarvester(creep: Creep) {
     creep.memory.action === "recycleCreep" ||
     creep.room.memory.hostilesPresent ||
     !(flagName in Game.flags) ||
-    Game.flags[flagName].pos.findInRange(FIND_SOURCES, 1).length < 1
+    (Game.flags[flagName].room && Game.flags[flagName].pos.findInRange(FIND_SOURCES, 1).length < 1)
   ) {
     recycleCreep(creep);
     return true;
