@@ -1,5 +1,3 @@
-//  ToDo: carriers never withdraw from links and could transfer to any link (unless we need energy at spawns)
-
 //  ToDo: carrier should give energy to a worker next to it
 
 //  ToDo: unique path styles. Sort creeps by name, first one should get hue 0, last one should get hue 1,
@@ -155,7 +153,8 @@ function isContainerLinkOrStorage(
 function isDestructibleWall(structure: Structure): structure is StructureWall {
   return structure.structureType === STRUCTURE_WALL && "hits" in structure;
 }
-function isLink(structure: Structure): structure is StructureLink {
+function isLink(structure: Structure | Ruin | Tombstone | Resource): structure is StructureLink {
+  if (!("structureType" in structure)) return false;
   return structure.structureType === STRUCTURE_LINK;
 }
 function isTower(structure: Structure): structure is StructureTower {
@@ -236,12 +235,12 @@ function handleExplorer(creep: Creep) {
 function getEnergySource(
   creep: Creep,
   allowStorage: boolean,
-  allowAnyLink: boolean,
+  allowLink: boolean,
   pos: RoomPosition,
   excludeIds: Id<Structure | Tombstone | Ruin | Resource>[]
 ) {
   logCpu("getEnergySource(" + creep.name + ")");
-  const destination = getRoomEnergySource(pos, allowStorage, allowAnyLink, excludeIds);
+  const destination = getRoomEnergySource(pos, allowStorage, allowLink, excludeIds);
   logCpu("getEnergySource(" + creep.name + ")");
   if (destination) return destination;
   const shuffledRoomNames = Object.keys(Game.rooms)
@@ -250,7 +249,7 @@ function getEnergySource(
     .map(({ value }) => value); /* remove sort values */
   for (const roomName of shuffledRoomNames) {
     if (roomName === pos.roomName) continue; // checked this already in the beginning
-    const source = getRoomEnergySource(getRandomPos(roomName), allowStorage, allowAnyLink, excludeIds);
+    const source = getRoomEnergySource(getRandomPos(roomName), allowStorage, allowLink, excludeIds);
     logCpu("getEnergySource(" + creep.name + ")");
     if (source) return source;
   }
@@ -261,7 +260,7 @@ function getEnergySource(
 function getRoomEnergySource(
   pos: RoomPosition,
   allowStorage: boolean,
-  allowAnyLink: boolean,
+  allowLink: boolean,
   excludeIds: Id<Structure | Tombstone | Ruin | Resource>[]
 ) {
   const sources = [];
@@ -271,7 +270,7 @@ function getRoomEnergySource(
       const source = Game.getObjectById(id);
       if (
         source &&
-        (allowStorage || (!(source instanceof StructureStorage) && (allowAnyLink || !isUpstreamLink(source))))
+        (allowStorage || (!(source instanceof StructureStorage) && (allowLink || !isLink(source))))
       )
         sources.push(source);
     }
@@ -294,19 +293,6 @@ function clearEnergySource(
     const index = Memory.rooms[source.pos.roomName].energySources.indexOf(source.id);
     if (index > -1) Memory.rooms[source.pos.roomName].energySources.splice(index, 1);
   }
-}
-
-function isUpstreamLink(structure: Destination) {
-  if (!(structure instanceof StructureLink)) return false;
-  if (structure.room.memory.linkIsUpstream && structure.room.memory.linkIsUpstream[structure.id] === true)
-    return true;
-  return false;
-}
-function isDownstreamLink(structure: Destination) {
-  if (!(structure instanceof StructureLink)) return false;
-  if (structure.room.memory.linkIsUpstream && structure.room.memory.linkIsUpstream[structure.id] === false)
-    return true;
-  return false;
 }
 
 function getEnergyDestination(
@@ -341,13 +327,7 @@ function getRoomEnergyDestination(
   if (ids) {
     for (const id of ids) {
       const destination = Game.getObjectById(id);
-      if (
-        destination &&
-        !isDownstreamLink(destination) &&
-        !(destination instanceof StructureContainer) &&
-        (!(destination instanceof StructureLink) || pos.getRangeTo(destination) <= 6)
-      )
-        destinations.push(destination);
+      if (destination && !(destination instanceof StructureContainer)) destinations.push(destination);
     }
     const closest = pos.findClosestByRange(destinations);
     if (closest && !(closest instanceof StructureStorage)) {
@@ -2049,7 +2029,7 @@ function updateFlagAttack() {
   const target = targets[Math.floor(Math.random() * targets.length)];
   if (target) {
     target.pos.createFlag("attack", COLOR_CYAN, COLOR_BROWN);
-    msg(target, "flagging for attack!");
+    msg(target, "attack: " + target.pos.toString());
   }
   logCpu("updateFlagAttack() new");
   logCpu("updateFlagAttack()");
