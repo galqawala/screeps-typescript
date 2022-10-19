@@ -1,5 +1,3 @@
-//  ToDo: carrier should give energy to a worker next to it
-
 //  ToDo: unique path styles. Sort creeps by name, first one should get hue 0, last one should get hue 1,
 //    others should get ones between.
 
@@ -561,6 +559,14 @@ function moveTowardMemory(creep: Creep) {
 
 function handleCarrier(creep: Creep) {
   logCpu("handleCarrier(" + creep.name + ")");
+  if (!isEmpty(creep)) {
+    const workers = creep.pos
+      .findInRange(FIND_MY_CREEPS, 1)
+      .filter(c => c.memory.role === "worker" && !isFull(c));
+    for (const worker of workers) {
+      creep.transfer(worker, RESOURCE_ENERGY);
+    }
+  }
   if (!creep.memory.deliveryTasks) creep.memory.deliveryTasks = [];
   let pos = creep.pos;
   if ("last_" + creep.name in Game.flags) pos = Game.flags["last_" + creep.name].pos;
@@ -2242,7 +2248,7 @@ function spawnTransferer(spawn: StructureSpawn) {
     filter: { structureType: STRUCTURE_LINK }
   });
   if (!link) return;
-  const body: BodyPartConstant[] = [CARRY, CARRY, MOVE];
+  const body: BodyPartConstant[] = [CARRY, CARRY, CARRY, MOVE];
   const cost = getBodyCost(body);
   if (cost > spawn.room.energyAvailable) return;
   const name = getNameForCreep(roleToSpawn);
