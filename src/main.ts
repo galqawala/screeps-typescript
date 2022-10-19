@@ -1,5 +1,3 @@
-//  ToDo: carriers should abandon deliveries to full structures
-
 // When compiling TS to JS and bundling with rollup, the line numbers and file names in error messages change
 // This utility uses source maps to get the line numbers and file names of the original, TS source code
 import { ErrorMapper } from "utils/ErrorMapper";
@@ -590,17 +588,23 @@ function carrierExecutePlan(creep: Creep) {
     return;
   }
   move(creep, destination);
-  if (
-    !task.isDelivery &&
-    (destination instanceof Structure ||
+  if (!task.isDelivery) {
+    if (isEmpty(destination)) {
+      resetDestination(creep);
+    } else if (
+      destination instanceof Structure ||
       destination instanceof Tombstone ||
       destination instanceof Ruin ||
-      destination instanceof Resource)
-  ) {
-    if (retrieveEnergy(creep, destination) !== ERR_NOT_IN_RANGE) resetDestination(creep);
-  } else if (task.isDelivery && (destination instanceof Creep || destination instanceof Structure)) {
-    const outcome = transfer(creep, destination);
-    if (outcome !== ERR_NOT_IN_RANGE) resetDestination(creep);
+      destination instanceof Resource
+    ) {
+      if (retrieveEnergy(creep, destination) !== ERR_NOT_IN_RANGE) resetDestination(creep);
+    }
+  } else if (task.isDelivery) {
+    if (isFull(destination)) {
+      resetDestination(creep);
+    } else if (destination instanceof Creep || destination instanceof Structure) {
+      if (transfer(creep, destination) !== ERR_NOT_IN_RANGE) resetDestination(creep);
+    }
   }
   logCpu("carrierExecutePlan(" + creep.name + ")");
 }
@@ -1506,7 +1510,7 @@ function move(creep: Creep, destination: Destination) {
   const hue = (Object.keys(Game.creeps).sort().indexOf(creep.name) / Object.keys(Game.creeps).length) * 360;
   const outcome = creep.moveTo(destination, {
     reusePath: Memory.reusePath,
-    visualizePathStyle: { stroke: hslToHex(hue, 100, 50), opacity: 0.7 }
+    visualizePathStyle: { stroke: hslToHex(hue, 100, 50), opacity: 0.7, lineStyle: "dotted" }
   });
   logCpu("move(" + creep.name + ") moveTo");
   logCpu("move(" + creep.name + ")");
@@ -2641,7 +2645,7 @@ function resetDestination(creep: Creep) {
   return;
 }
 
-function isEmpty(object: Structure | Creep) {
+function isEmpty(object: Structure | Creep | Ruin | Resource | Tombstone) {
   if (!object) return false;
   const store = getStore(object);
   if (!store) return false;
@@ -2653,7 +2657,7 @@ function hasSpace(object: Structure | Creep) {
   if (!store) return false;
   return store.getFreeCapacity(RESOURCE_ENERGY) > 0;
 }
-function isFull(object: Structure | Creep) {
+function isFull(object: Structure | Creep | Ruin | Resource | Tombstone) {
   if (!object) return false;
   const store = getStore(object);
   if (!store) return false;
