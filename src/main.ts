@@ -1,4 +1,4 @@
-//  ToDo: carriers never withdraw from links
+//  ToDo: carriers never withdraw from links and could transfer to any link (unless we need energy at spawns)
 
 //  ToDo: carrier should give energy to a worker next to it
 
@@ -1964,8 +1964,6 @@ function handleSpawn(spawn: StructureSpawn) {
 
     if (needCarriers()) {
       spawnRole("carrier", spawn);
-    } else if (needTransferers()) {
-      spawnTransferer(spawn);
     } else if (needHarvesters(spawn.pos)) {
       spawnHarvester(spawn);
     } else if (controllersToReserve.length > 0) {
@@ -1976,6 +1974,8 @@ function handleSpawn(spawn: StructureSpawn) {
       spawnRole("attacker", spawn);
     } else if (getCreepCountByRole("explorer") <= 0) {
       spawnRole("explorer", spawn, 0, [MOVE]);
+    } else if (needTransferers()) {
+      spawnTransferer(spawn);
     } else if (needWorkers(spawn.room)) {
       spawnRole("worker", spawn, Math.min(450, spawn.room.energyCapacityAvailable));
     }
