@@ -1,4 +1,4 @@
-//  ToDo: carriers should find the closest target even accross rooms (remove getRandomPos())
+//  ToDo: carriers should find the closest target even accross rooms (try to remove all instances of 'random')
 //    PathFinder.search(Game.getObjectById('6345a9d62f3c170b0a263611').pos, Game.getObjectById('6345ab374a5ed31efa88f251').pos).cost
 
 //  ToDo: carriers should track carried energy after each task and not retrieve from multiple sources unless required
@@ -57,8 +57,15 @@ declare global {
     cpuLimitExceededStreak: number;
     cpuLog: Record<string, CpuLogEntry>;
     needHarvesters: boolean;
+    plan: Plan;
     reusePath: number;
     username: string;
+  }
+
+  interface Plan {
+    fillStorage: boolean;
+    spawnRemoteHarvesters: boolean;
+    spawnWorkers: boolean;
   }
 
   interface FlagMemory {
@@ -139,7 +146,8 @@ function logCpu(name: string) {
 function isOwnedStructure(structure: Structure): structure is AnyOwnedStructure {
   return (structure as { my?: boolean }).my !== undefined;
 }
-function isStorage(structure: Structure): structure is StructureStorage {
+function isStorage(structure: Structure | Ruin | Tombstone | Resource): structure is StructureStorage {
+  if (!("structureType" in structure)) return false;
   return structure.structureType === STRUCTURE_STORAGE;
 }
 function isContainerLinkOrStorage(
@@ -186,6 +194,7 @@ export const loop = ErrorMapper.wrapLoop(() => {
   logCpu("purge/update memory");
 
   logCpu("handle rooms, flags, creeps, spawns");
+  updatePlan();
   for (const r in Game.rooms) handleRoom(Game.rooms[r]);
   updateFlagAttack();
   updateFlagReserve();
@@ -199,6 +208,19 @@ export const loop = ErrorMapper.wrapLoop(() => {
   const unusedCpuRatio = (Game.cpu.limit - Game.cpu.getUsed()) / Game.cpu.limit;
   Memory.reusePath = Math.max(0, (Memory.reusePath || 0) - Math.ceil(unusedCpuRatio * 2));
 });
+
+function updatePlan() {
+  let storageMin = Number.POSITIVE_INFINITY;
+  const storages = Object.values(Game.structures).filter(isStorage);
+  for (const storage of storages) {
+    storageMin = Math.min(storageMin, storage.store.getUsedCapacity(RESOURCE_ENERGY));
+  }
+  Memory.plan = {
+    spawnWorkers: storageMin >= 100000,
+    fillStorage: storageMin < 150000,
+    spawnRemoteHarvesters: storageMin < 200000
+  };
+}
 
 function handleCreeps() {
   logCpu("handleCreeps()");
@@ -235,13 +257,12 @@ function handleExplorer(creep: Creep) {
 
 function getEnergySource(
   creep: Creep,
-  allowStorage: boolean,
-  allowLink: boolean,
+  allowStorageAndLink: boolean,
   pos: RoomPosition,
   excludeIds: Id<Structure | Tombstone | Ruin | Resource>[]
 ) {
   logCpu("getEnergySource(" + creep.name + ")");
-  const destination = getRoomEnergySource(pos, allowStorage, allowLink, excludeIds);
+  const destination = getRoomEnergySource(pos, allowStorageAndLink, excludeIds);
   logCpu("getEnergySource(" + creep.name + ")");
   if (destination) return destination;
   const shuffledRoomNames = Object.keys(Game.rooms)
@@ -250,7 +271,7 @@ function getEnergySource(
     .map(({ value }) => value); /* remove sort values */
   for (const roomName of shuffledRoomNames) {
     if (roomName === pos.roomName) continue; // checked this already in the beginning
-    const source = getRoomEnergySource(getRandomPos(roomName), allowStorage, allowLink, excludeIds);
+    const source = getRoomEnergySource(getRandomPos(roomName), allowStorageAndLink, excludeIds);
     logCpu("getEnergySource(" + creep.name + ")");
     if (source) return source;
   }
@@ -258,10 +279,33 @@ function getEnergySource(
   return;
 }
 
+function getEnergyDestination(
+  creep: Creep,
+  allowStorageAndLink: boolean,
+  pos: RoomPosition,
+  excludeIds: Id<Structure | Tombstone | Ruin | Resource>[]
+) {
+  logCpu("getEnergyDestination(" + creep.name + ")");
+  const destination = getRoomEnergyDestination(pos, allowStorageAndLink, excludeIds);
+  logCpu("getEnergyDestination(" + creep.name + ")");
+  if (destination) return destination;
+  const shuffledRoomNames = Object.keys(Game.rooms)
+    .map(value => ({ value, sort: Math.random() })) /* persist sort values */
+    .sort((a, b) => a.sort - b.sort) /* sort */
+    .map(({ value }) => value); /* remove sort values */
+  for (const roomName of shuffledRoomNames) {
+    if (roomName === pos.roomName) continue; // checked this already in the beginning
+    const roomDestination = getRoomEnergyDestination(getRandomPos(roomName), allowStorageAndLink, excludeIds);
+    logCpu("getEnergyDestination(" + creep.name + ")");
+    if (roomDestination) return roomDestination;
+  }
+  logCpu("getEnergyDestination(" + creep.name + ")");
+  return;
+}
+
 function getRoomEnergySource(
   pos: RoomPosition,
-  allowStorage: boolean,
-  allowLink: boolean,
+  allowStorageAndLink: boolean,
   excludeIds: Id<Structure | Tombstone | Ruin | Resource>[]
 ) {
   const sources = [];
@@ -269,14 +313,40 @@ function getRoomEnergySource(
   if (ids) {
     for (const id of ids) {
       const source = Game.getObjectById(id);
-      if (
-        source &&
-        (allowStorage || (!(source instanceof StructureStorage) && (allowLink || !isLink(source))))
-      )
-        sources.push(source);
+      if (source && (allowStorageAndLink || (!isStorage(source) && !isLink(source)))) sources.push(source);
     }
     const closest = pos.findClosestByRange(sources);
     return closest;
+  }
+  return;
+}
+
+function getRoomEnergyDestination(
+  pos: RoomPosition,
+  allowStorageAndLink: boolean,
+  excludeIds: Id<Structure | Tombstone | Ruin | Resource>[]
+) {
+  const destinations = [];
+  const ids = Memory.rooms[pos.roomName].energyDestinations.filter(id => !excludeIds.includes(id));
+  if (ids) {
+    for (const id of ids) {
+      const destination = Game.getObjectById(id);
+      if (
+        destination &&
+        !(destination instanceof StructureContainer) &&
+        (allowStorageAndLink || (!isStorage(destination) && !isLink(destination)))
+      )
+        destinations.push(destination);
+    }
+    const closest = pos.findClosestByRange(destinations);
+    if (closest && !(closest instanceof StructureStorage)) {
+      const index = Memory.rooms[pos.roomName].energyDestinations.indexOf(closest.id);
+      if (index > -1) Memory.rooms[pos.roomName].energyDestinations.splice(index, 1);
+    }
+    return closest;
+  } else {
+    const storages = Game.rooms[pos.roomName].find(FIND_MY_STRUCTURES).filter(isStorage);
+    if (storages.length) return storages[0];
   }
   return;
 }
@@ -294,53 +364,6 @@ function clearEnergySource(
     const index = Memory.rooms[source.pos.roomName].energySources.indexOf(source.id);
     if (index > -1) Memory.rooms[source.pos.roomName].energySources.splice(index, 1);
   }
-}
-
-function getEnergyDestination(
-  creep: Creep,
-  pos: RoomPosition,
-  excludeIds: Id<Structure | Tombstone | Ruin | Resource>[]
-) {
-  logCpu("getEnergyDestination(" + creep.name + ")");
-  const destination = getRoomEnergyDestination(pos, excludeIds);
-  logCpu("getEnergyDestination(" + creep.name + ")");
-  if (destination) return destination;
-  const shuffledRoomNames = Object.keys(Game.rooms)
-    .map(value => ({ value, sort: Math.random() })) /* persist sort values */
-    .sort((a, b) => a.sort - b.sort) /* sort */
-    .map(({ value }) => value); /* remove sort values */
-  for (const roomName of shuffledRoomNames) {
-    if (roomName === pos.roomName) continue; // checked this already in the beginning
-    const roomDestination = getRoomEnergyDestination(getRandomPos(roomName), excludeIds);
-    logCpu("getEnergyDestination(" + creep.name + ")");
-    if (roomDestination) return roomDestination;
-  }
-  logCpu("getEnergyDestination(" + creep.name + ")");
-  return;
-}
-
-function getRoomEnergyDestination(
-  pos: RoomPosition,
-  excludeIds: Id<Structure | Tombstone | Ruin | Resource>[]
-) {
-  const destinations = [];
-  const ids = Memory.rooms[pos.roomName].energyDestinations.filter(id => !excludeIds.includes(id));
-  if (ids) {
-    for (const id of ids) {
-      const destination = Game.getObjectById(id);
-      if (destination && !(destination instanceof StructureContainer)) destinations.push(destination);
-    }
-    const closest = pos.findClosestByRange(destinations);
-    if (closest && !(closest instanceof StructureStorage)) {
-      const index = Memory.rooms[pos.roomName].energyDestinations.indexOf(closest.id);
-      if (index > -1) Memory.rooms[pos.roomName].energyDestinations.splice(index, 1);
-    }
-    return closest;
-  } else {
-    const storages = Game.rooms[pos.roomName].find(FIND_MY_STRUCTURES).filter(isStorage);
-    if (storages.length) return storages[0];
-  }
-  return;
 }
 
 function handleWorker(creep: Creep) {
@@ -369,7 +392,7 @@ function workerRetrieveEnergy(creep: Creep) {
   const oldDestination = creep.memory.retrieve;
   if (typeof oldDestination === "string") destination = Game.getObjectById(oldDestination);
   if (!destination) {
-    destination = getEnergySource(creep, true, true, creep.pos, []);
+    destination = getEnergySource(creep, true, creep.pos, []);
     if (destination) {
       creep.memory.retrieve = destination.id;
       setDestination(creep, destination);
@@ -626,8 +649,8 @@ function addCarrierDestination(creep: Creep, pos: RoomPosition) {
   let downstream;
   let queuedIds: Id<Structure | Tombstone | Ruin | Resource>[] = [];
   if (creep?.memory?.deliveryTasks) queuedIds = creep?.memory?.deliveryTasks?.map(task => task.destination);
-  if (getFillRatio(creep) < 0.9) upstream = getEnergySource(creep, false, false, pos, queuedIds);
-  if (!isEmpty(creep)) downstream = getEnergyDestination(creep, pos, queuedIds);
+  if (getFillRatio(creep) < 0.9) upstream = getEnergySource(creep, !Memory.plan.fillStorage, pos, queuedIds);
+  if (!isEmpty(creep)) downstream = getEnergyDestination(creep, Memory.plan.fillStorage, pos, queuedIds);
   if (upstream && (!downstream || creep.pos.getRangeTo(downstream) >= creep.pos.getRangeTo(upstream))) {
     clearEnergySource(upstream);
     creep.memory.deliveryTasks?.push({ destination: upstream.id, isDelivery: false });
@@ -2135,16 +2158,7 @@ function updateFlagReserve() {
 }
 
 function needWorkers(room: Room) {
-  for (const i in Game.rooms) {
-    if (
-      Game.rooms[i]
-        .find(FIND_MY_STRUCTURES)
-        .filter(structure => structure.structureType === STRUCTURE_STORAGE && getEnergy(structure) < 100000)
-        .length >= 1
-    )
-      return false;
-  }
-  return room.energyAvailable >= room.energyCapacityAvailable;
+  return Memory.plan.spawnWorkers && room.energyAvailable >= room.energyCapacityAvailable;
 }
 
 function getSpawnBudget(roleToSpawn: Role, minBudget: number, energyCapacityAvailable: number) {
@@ -2172,20 +2186,11 @@ function needHarvesters(pos: RoomPosition) {
   if (
     source.pos.findInRange(FIND_MY_STRUCTURES, 1).filter(target => target.structureType === STRUCTURE_LINK)
       .length > 0
-  )
+  ) {
     return true; // always keep sources with link manned;
-
-  for (const i in Game.rooms) {
-    if (
-      Game.rooms[i]
-        .find(FIND_MY_STRUCTURES)
-        .filter(structure => structure.structureType === STRUCTURE_STORAGE && getEnergy(structure) < 200000)
-        .length >= 1
-    )
-      return true;
   }
 
-  return false;
+  return Memory.plan.spawnRemoteHarvesters;
 }
 
 function getSourceToHarvest(pos: RoomPosition) {
