@@ -1,8 +1,6 @@
 //  ToDo: carriers should find the closest target even accross rooms (try to remove all instances of 'random')
 //    PathFinder.search(Game.getObjectById('6345a9d62f3c170b0a263611').pos, Game.getObjectById('6345ab374a5ed31efa88f251').pos).cost
 
-//  ToDo: carriers should track carried energy after each task and not retrieve from multiple sources unless required
-
 //  ToDo: only clearEnergySource(), when it's actually going to be empty
 
 //  ToDo: carriers should retrieve energy from rooms we currently don't have visibility in
@@ -75,8 +73,8 @@ declare global {
 
   interface RoomMemory {
     canOperate: boolean;
-    energyDestinations: Id<Structure>[];
-    energySources: Id<EnergySource>[];
+    energyDestinations: Id<AnyStoreStructure>[];
+    energySources: Id<EnergySource | AnyStoreStructure>[];
     harvestSpots: RoomPosition[];
     hostileRangedAttackParts: number;
     hostilesPresent: boolean;
@@ -103,6 +101,7 @@ declare global {
   interface DeliveryTask {
     isDelivery: boolean;
     destination: Id<Structure | Tombstone | Ruin | Resource>;
+    energyAfter: number;
   }
 
   interface Task {
@@ -178,6 +177,9 @@ function isSpawnOrExtension(
 }
 function isRoomPosition(item: RoomPosition): item is RoomPosition {
   return item instanceof RoomPosition;
+}
+function isStoreStructure(item: Structure): item is AnyStoreStructure {
+  return "store" in item;
 }
 
 // Main loop
@@ -339,10 +341,6 @@ function getRoomEnergyDestination(
         destinations.push(destination);
     }
     const closest = pos.findClosestByRange(destinations);
-    if (closest && !(closest instanceof StructureStorage)) {
-      const index = Memory.rooms[pos.roomName].energyDestinations.indexOf(closest.id);
-      if (index > -1) Memory.rooms[pos.roomName].energyDestinations.splice(index, 1);
-    }
     return closest;
   } else {
     const storages = Game.rooms[pos.roomName].find(FIND_MY_STRUCTURES).filter(isStorage);
@@ -351,18 +349,17 @@ function getRoomEnergyDestination(
   return;
 }
 
-function clearEnergySource(
-  source:
-    | Tombstone
-    | Ruin
-    | StructureLink
-    | StructureStorage
-    | StructureContainer
-    | Resource<ResourceConstant>
-) {
+function clearEnergySource(source: Tombstone | Ruin | AnyStoreStructure | Resource<ResourceConstant>) {
   if (source && !(source instanceof StructureStorage)) {
     const index = Memory.rooms[source.pos.roomName].energySources.indexOf(source.id);
     if (index > -1) Memory.rooms[source.pos.roomName].energySources.splice(index, 1);
+  }
+}
+
+function clearEnergyDestination(destination: AnyStoreStructure) {
+  if (destination && !(destination instanceof StructureStorage)) {
+    const index = Memory.rooms[destination.pos.roomName].energyDestinations.indexOf(destination.id);
+    if (index > -1) Memory.rooms[destination.pos.roomName].energyDestinations.splice(index, 1);
   }
 }
 
@@ -649,15 +646,25 @@ function addCarrierDestination(creep: Creep, pos: RoomPosition) {
   let downstream;
   let queuedIds: Id<Structure | Tombstone | Ruin | Resource>[] = [];
   if (creep?.memory?.deliveryTasks) queuedIds = creep?.memory?.deliveryTasks?.map(task => task.destination);
-  if (getFillRatio(creep) < 0.9) upstream = getEnergySource(creep, !Memory.plan.fillStorage, pos, queuedIds);
-  if (!isEmpty(creep)) downstream = getEnergyDestination(creep, Memory.plan.fillStorage, pos, queuedIds);
+  let energy = creep.store.getUsedCapacity(RESOURCE_ENERGY);
+  if (creep.memory.deliveryTasks?.length) {
+    const lastTask = creep.memory.deliveryTasks[creep.memory.deliveryTasks.length - 1];
+    const energyAfter = lastTask.energyAfter;
+    if (!isNaN(energyAfter)) energy = energyAfter;
+  }
+  const cap = creep.store.getCapacity(RESOURCE_ENERGY);
+  if (energy / cap < 0.9) upstream = getEnergySource(creep, !Memory.plan.fillStorage, pos, queuedIds);
+  if (energy > 0) downstream = getEnergyDestination(creep, Memory.plan.fillStorage, pos, queuedIds);
   if (upstream && (!downstream || creep.pos.getRangeTo(downstream) >= creep.pos.getRangeTo(upstream))) {
     clearEnergySource(upstream);
-    creep.memory.deliveryTasks?.push({ destination: upstream.id, isDelivery: false });
+    energy = Math.min(cap, energy + getEnergy(upstream));
+    creep.memory.deliveryTasks?.push({ destination: upstream.id, isDelivery: false, energyAfter: energy });
     logCpu("addCarrierDestination(" + creep.name + ")");
     return upstream;
   } else if (downstream) {
-    creep.memory.deliveryTasks?.push({ destination: downstream.id, isDelivery: true });
+    clearEnergyDestination(downstream);
+    energy = Math.max(0, energy - downstream.store.getFreeCapacity(RESOURCE_ENERGY));
+    creep.memory.deliveryTasks?.push({ destination: downstream.id, isDelivery: true, energyAfter: energy });
     logCpu("addCarrierDestination(" + creep.name + ")");
     return downstream;
   }
@@ -1128,6 +1135,7 @@ function updateRoomEnergyDestinations(room: Room) {
   logCpu("updateRoomEnergyDestinations(" + room.name + ")");
   room.memory.energyDestinations = room
     .find(FIND_STRUCTURES)
+    .filter(isStoreStructure)
     .filter(hasSpace)
     .filter(structure => !(structure instanceof StructureStorage) || shouldFillStorage(room))
     .map(structure => structure.id);
@@ -1975,12 +1983,6 @@ function getEnergy(object: Creep | AnyStructure | Resource | Ruin | Tombstone | 
   return 0;
 }
 
-function getStore(object: Creep | AnyStructure | Resource | Ruin | Tombstone | Structure) {
-  if ("store" in object) return object.store;
-  if ("getUsedCapacity" in object) return object;
-  return;
-}
-
 function handleSpawn(spawn: StructureSpawn) {
   if (!spawn.spawning) {
     const controllersToReserve = getControllersToReserve();
@@ -2071,7 +2073,7 @@ function updateFlagAttack() {
   }
   const target = targets[Math.floor(Math.random() * targets.length)];
   if (target) {
-    target.pos.createFlag("attack", COLOR_CYAN, COLOR_BROWN);
+    target.pos.createFlag("attack", COLOR_RED, COLOR_BROWN);
     msg(target, "attack: " + target.pos.toString());
   }
   logCpu("updateFlagAttack() new");
@@ -2667,6 +2669,12 @@ function isEmpty(object: Structure | Creep | Ruin | Resource | Tombstone) {
   if (!store) return false;
   return store.getUsedCapacity(RESOURCE_ENERGY) <= 0;
 }
+function getStore(object: Creep | AnyStructure | Resource | Ruin | Tombstone | Structure) {
+  if ("store" in object) return object.store;
+  if ("getUsedCapacity" in object) return object;
+  return;
+}
+
 function hasSpace(object: Structure | Creep) {
   if (!object) return false;
   const store = getStore(object);
