@@ -1,9 +1,10 @@
-//  ToDo: carriers should find the closest target even accross rooms (try to remove all instances of 'random')
-//    PathFinder.search(Game.getObjectById('6345a9d62f3c170b0a263611').pos, Game.getObjectById('6345ab374a5ed31efa88f251').pos).cost
-
 //  ToDo: only clearEnergySource(), when it's actually going to be empty
 
 //  ToDo: carriers should retrieve energy from rooms we currently don't have visibility in
+
+//  ToDo: carriers (atleast) should only use links that are closeby
+
+//  ToDo: split into multiple files/modules
 
 // When compiling TS to JS and bundling with rollup, the line numbers and file names in error messages change
 // This utility uses source maps to get the line numbers and file names of the original, TS source code
@@ -257,6 +258,34 @@ function handleExplorer(creep: Creep) {
   logCpu("handleExplorer(" + creep.name + ")");
 }
 
+function getPos(obj: RoomPosition | RoomObject) {
+  if (obj instanceof RoomPosition) return obj;
+  return obj.pos;
+}
+
+function getGlobalCoords(pos: RoomPosition) {
+  const roomCoords = /([WE])(\d+)([NS])(\d+)/g.exec(pos.roomName);
+  if (!roomCoords || roomCoords.length < 5) return { x: 0, y: 0 };
+
+  let xOffset = 0;
+  if (roomCoords[1] === "E") xOffset = Number(roomCoords[2]) * 50;
+  else if (roomCoords[1] === "W") xOffset = (Number(roomCoords[2]) + 1) * -50;
+  const x = pos.x + xOffset;
+
+  let yOffset = 0;
+  if (roomCoords[3] === "S") yOffset = Number(roomCoords[4]) * 50;
+  else if (roomCoords[3] === "N") yOffset = (Number(roomCoords[4]) + 1) * -50;
+  const y = pos.y + yOffset;
+
+  return { x, y };
+}
+
+function getGlobalRange(from: RoomPosition, to: RoomPosition) {
+  const fromGlobal = getGlobalCoords(from);
+  const toGlobal = getGlobalCoords(to);
+  return Math.max(Math.abs(fromGlobal.x - toGlobal.x), Math.abs(fromGlobal.y - toGlobal.y));
+}
+
 function getEnergySource(
   creep: Creep,
   allowStorageAndLink: boolean,
@@ -264,21 +293,21 @@ function getEnergySource(
   excludeIds: Id<Structure | Tombstone | Ruin | Resource>[]
 ) {
   logCpu("getEnergySource(" + creep.name + ")");
-  const destination = getRoomEnergySource(pos, allowStorageAndLink, excludeIds);
+  const destination = getRoomEnergySource(pos, allowStorageAndLink, excludeIds, pos.roomName);
   logCpu("getEnergySource(" + creep.name + ")");
   if (destination) return destination;
-  const shuffledRoomNames = Object.keys(Game.rooms)
-    .map(value => ({ value, sort: Math.random() })) /* persist sort values */
-    .sort((a, b) => a.sort - b.sort) /* sort */
-    .map(({ value }) => value); /* remove sort values */
-  for (const roomName of shuffledRoomNames) {
+  const sources = [];
+  for (const roomName of Object.keys(Game.rooms)) {
     if (roomName === pos.roomName) continue; // checked this already in the beginning
-    const source = getRoomEnergySource(getRandomPos(roomName), allowStorageAndLink, excludeIds);
-    logCpu("getEnergySource(" + creep.name + ")");
-    if (source) return source;
+    const source = getRoomEnergySource(pos, allowStorageAndLink, excludeIds, roomName);
+    if (source) sources.push(source);
   }
+  const closest = sources
+    .map(value => ({ value, sort: getGlobalRange(pos, getPos(value)) })) /* persist sort values */
+    .sort((a, b) => a.sort - b.sort) /* sort */
+    .map(({ value }) => value) /* remove sort values */[0];
   logCpu("getEnergySource(" + creep.name + ")");
-  return;
+  return closest;
 }
 
 function getEnergyDestination(
@@ -288,36 +317,41 @@ function getEnergyDestination(
   excludeIds: Id<Structure | Tombstone | Ruin | Resource>[]
 ) {
   logCpu("getEnergyDestination(" + creep.name + ")");
-  const destination = getRoomEnergyDestination(pos, allowStorageAndLink, excludeIds);
+  const destination = getRoomEnergyDestination(pos, allowStorageAndLink, excludeIds, pos.roomName);
   logCpu("getEnergyDestination(" + creep.name + ")");
   if (destination) return destination;
-  const shuffledRoomNames = Object.keys(Game.rooms)
-    .map(value => ({ value, sort: Math.random() })) /* persist sort values */
-    .sort((a, b) => a.sort - b.sort) /* sort */
-    .map(({ value }) => value); /* remove sort values */
-  for (const roomName of shuffledRoomNames) {
+  const destinations = [];
+  for (const roomName of Object.keys(Game.rooms)) {
     if (roomName === pos.roomName) continue; // checked this already in the beginning
-    const roomDestination = getRoomEnergyDestination(getRandomPos(roomName), allowStorageAndLink, excludeIds);
-    logCpu("getEnergyDestination(" + creep.name + ")");
-    if (roomDestination) return roomDestination;
+    const roomDestination = getRoomEnergyDestination(pos, allowStorageAndLink, excludeIds, roomName);
+    if (roomDestination) destinations.push(roomDestination);
   }
+  const closest = destinations
+    .map(value => ({ value, sort: getGlobalRange(pos, getPos(value)) })) /* persist sort values */
+    .sort((a, b) => a.sort - b.sort) /* sort */
+    .map(({ value }) => value) /* remove sort values */[0];
   logCpu("getEnergyDestination(" + creep.name + ")");
-  return;
+  return closest;
 }
 
 function getRoomEnergySource(
   pos: RoomPosition,
   allowStorageAndLink: boolean,
-  excludeIds: Id<Structure | Tombstone | Ruin | Resource>[]
+  excludeIds: Id<Structure | Tombstone | Ruin | Resource>[],
+  roomName: string
 ) {
   const sources = [];
-  const ids = Memory.rooms[pos.roomName].energySources.filter(id => !excludeIds.includes(id));
+  const ids = Memory.rooms[roomName].energySources.filter(id => !excludeIds.includes(id));
   if (ids) {
     for (const id of ids) {
       const source = Game.getObjectById(id);
       if (source && (allowStorageAndLink || (!isStorage(source) && !isLink(source)))) sources.push(source);
     }
-    const closest = pos.findClosestByRange(sources);
+    const closest = sources
+      .map(value => ({ value, sort: getGlobalRange(pos, getPos(value)) })) /* persist sort values */
+      .sort((a, b) => a.sort - b.sort) /* sort */
+      .map(({ value }) => value) /* remove sort values */[0];
+
     return closest;
   }
   return;
@@ -326,10 +360,11 @@ function getRoomEnergySource(
 function getRoomEnergyDestination(
   pos: RoomPosition,
   allowStorageAndLink: boolean,
-  excludeIds: Id<Structure | Tombstone | Ruin | Resource>[]
+  excludeIds: Id<Structure | Tombstone | Ruin | Resource>[],
+  roomName: string
 ) {
   const destinations = [];
-  const ids = Memory.rooms[pos.roomName].energyDestinations.filter(id => !excludeIds.includes(id));
+  const ids = Memory.rooms[roomName].energyDestinations.filter(id => !excludeIds.includes(id));
   if (ids) {
     for (const id of ids) {
       const destination = Game.getObjectById(id);
@@ -340,10 +375,14 @@ function getRoomEnergyDestination(
       )
         destinations.push(destination);
     }
-    const closest = pos.findClosestByRange(destinations);
+    const closest = destinations
+      .map(value => ({ value, sort: getGlobalRange(pos, getPos(value)) })) /* persist sort values */
+      .sort((a, b) => a.sort - b.sort) /* sort */
+      .map(({ value }) => value) /* remove sort values */[0];
+
     return closest;
   } else {
-    const storages = Game.rooms[pos.roomName].find(FIND_MY_STRUCTURES).filter(isStorage);
+    const storages = Game.rooms[roomName].find(FIND_MY_STRUCTURES).filter(isStorage);
     if (storages.length) return storages[0];
   }
   return;
@@ -390,7 +429,7 @@ function workerRetrieveEnergy(creep: Creep) {
   if (typeof oldDestination === "string") destination = Game.getObjectById(oldDestination);
   if (!destination) {
     destination = getEnergySource(creep, true, creep.pos, []);
-    if (destination) {
+    if (destination && "id" in destination) {
       creep.memory.retrieve = destination.id;
       setDestination(creep, destination);
       clearEnergySource(destination);
@@ -424,9 +463,10 @@ function build(creep: Creep) {
     if (!destination) delete creep.memory.build;
   }
   if (!destination || !(destination instanceof ConstructionSite)) {
-    const destinations = getConstructionSites();
-    if (!destination) destination = creep.pos.findClosestByRange(destinations); // same room
-    if (!destination) destination = destinations[Math.floor(Math.random() * destinations.length)]; // another room
+    destination = getConstructionSites()
+      .map(value => ({ value, sort: getGlobalRange(creep.pos, getPos(value)) })) /* persist sort values */
+      .sort((a, b) => a.sort - b.sort) /* sort */
+      .map(({ value }) => value) /* remove sort values */[0];
   }
   logCpu("build(" + creep.name + ") find");
   logCpu("build(" + creep.name + ") build");
@@ -503,7 +543,11 @@ function getRepairTarget(pos: RoomPosition) {
       const source = Game.getObjectById(id);
       if (source) sources.push(source);
     }
-    const closest = pos.findClosestByRange(sources);
+    const closest = sources
+      .map(value => ({ value, sort: getGlobalRange(pos, getPos(value)) })) /* persist sort values */
+      .sort((a, b) => a.sort - b.sort) /* sort */
+      .map(({ value }) => value) /* remove sort values */[0];
+
     if (closest) {
       const index = Memory.rooms[pos.roomName].repairTargets.indexOf(closest.id);
       if (index > -1) Memory.rooms[pos.roomName].repairTargets.splice(index, 1);
@@ -524,8 +568,11 @@ function getControllerToUpgrade(pos: RoomPosition, urgentOnly: boolean) {
     if (urgentOnly && room.controller.ticksToDowngrade > 2000) continue;
     targets.push(room.controller);
   }
-  let destination = pos.findClosestByRange(targets); // same room
-  if (!destination) destination = targets[Math.floor(Math.random() * targets.length)]; // another room
+  const destination = targets
+    .map(value => ({ value, sort: getGlobalRange(pos, getPos(value)) })) /* persist sort values */
+    .sort((a, b) => a.sort - b.sort) /* sort */
+    .map(({ value }) => value) /* remove sort values */[0];
+
   logCpu("getControllerToUpgrade(" + pos.toString() + "," + urgentOnly.toString() + ")");
   return destination;
 }
@@ -829,7 +876,11 @@ function evadeHostiles(creep: Creep) {
   let bestRange = Number.NEGATIVE_INFINITY;
   let bestPos;
   for (const pos of options) {
-    const closest = pos.findClosestByRange(hostilePositions);
+    const closest = hostilePositions
+      .map(value => ({ value, sort: getGlobalRange(pos, getPos(value)) })) /* persist sort values */
+      .sort((a, b) => a.sort - b.sort) /* sort */
+      .map(({ value }) => value) /* remove sort values */[0];
+
     const range = closest ? pos.getRangeTo(closest) : Number.NEGATIVE_INFINITY;
     if (bestRange < range) {
       bestRange = range;
@@ -956,8 +1007,12 @@ function recycleCreep(creep: Creep) {
 
   if (!destination || !(destination instanceof StructureSpawn)) {
     const spawns = Object.values(Game.spawns);
-    destination = creep.pos.findClosestByRange(spawns); // same room
-    if (!destination) destination = spawns[Math.floor(Math.random() * spawns.length)]; // another room
+
+    destination = spawns
+      .map(value => ({ value, sort: getGlobalRange(creep.pos, getPos(value)) })) /* persist sort values */
+      .sort((a, b) => a.sort - b.sort) /* sort */
+      .map(({ value }) => value) /* remove sort values */[0];
+
     if (destination) {
       setDestination(creep, destination);
     }
@@ -1006,10 +1061,10 @@ function handleHarvester(creep: Creep) {
 
 function harvesterSpendEnergy(creep: Creep) {
   logCpu("harvesterSpendEnergy(" + creep.name + ")");
-  const target = creep.pos.findClosestByRange(creep.pos.findInRange(FIND_STRUCTURES, 3).filter(needRepair));
+  const target = creep.pos.findInRange(FIND_STRUCTURES, 3).filter(needRepair)[0];
   if (target) creep.repair(target);
   // build
-  const site = creep.pos.findClosestByRange(creep.pos.findInRange(FIND_MY_CONSTRUCTION_SITES, 3));
+  const site = creep.pos.findInRange(FIND_MY_CONSTRUCTION_SITES, 3)[0];
   if (site) creep.build(site);
   // upgrade controller
   if (creep.room.controller) creep.upgradeController(creep.room.controller);
@@ -1022,34 +1077,28 @@ function harvesterSpendEnergy(creep: Creep) {
 
 function unloadCreep(creep: Creep) {
   const pos = creep.pos;
-  const destination = pos.findClosestByRange(
-    // link
-    pos.findInRange(FIND_MY_STRUCTURES, 1).filter(target => !isFull(target) && isLink(target))
-  );
+  const destination = pos
+    .findInRange(FIND_MY_STRUCTURES, 1)
+    .filter(target => !isFull(target) && isLink(target))[0];
   if (destination) {
     creep.transfer(destination, RESOURCE_ENERGY);
     return;
   }
-  const targetCreep = pos.findClosestByRange(
-    // carrier
-    pos.findInRange(FIND_CREEPS, 1).filter(wantsEnergy)
-  );
+  const targetCreep = pos.findInRange(FIND_CREEPS, 1).filter(wantsEnergy)[0];
   if (targetCreep) {
     creep.transfer(targetCreep, RESOURCE_ENERGY);
     return;
   }
-  const myStructure = pos.findClosestByRange(
-    // my structure
-    pos.findInRange(FIND_MY_STRUCTURES, 1).filter(target => !isFull(target) && target.my !== false)
-  );
+  const myStructure = pos
+    .findInRange(FIND_MY_STRUCTURES, 1)
+    .filter(target => !isFull(target) && target.my !== false)[0];
   if (myStructure) {
     creep.transfer(myStructure, RESOURCE_ENERGY);
     return;
   }
-  const structure = pos.findClosestByRange(
-    // unowned structure
-    pos.findInRange(FIND_STRUCTURES, 1).filter(target => !isFull(target) && !isOwnedStructure(target))
-  );
+  const structure = pos
+    .findInRange(FIND_STRUCTURES, 1)
+    .filter(target => !isFull(target) && !isOwnedStructure(target))[0];
   if (structure) {
     creep.transfer(structure, RESOURCE_ENERGY);
     return;
@@ -1609,12 +1658,6 @@ function needRepair(structure: Structure) {
   if (structure.hits >= structure.hitsMax) return false;
   if (structure instanceof StructureRoad && getTrafficRateAt(structure.pos) < minRoadTraffic) return false;
   return true;
-}
-
-function getRandomPos(roomName: string) {
-  const x = Math.floor(Math.random() * 50);
-  const y = Math.floor(Math.random() * 50);
-  return new RoomPosition(x, y, roomName);
 }
 
 function flagEnergyConsumer(pos: RoomPosition) {
@@ -2207,9 +2250,10 @@ function getSourceToHarvest(pos: RoomPosition) {
     );
   }
   if (sources.length < 1) return;
-  let source = pos.findClosestByRange(sources); // same room
-  if (source) return source;
-  source = sources[Math.floor(Math.random() * sources.length)]; // another room
+  const source = sources
+    .map(value => ({ value, sort: getGlobalRange(pos, getPos(value)) })) /* persist sort values */
+    .sort((a, b) => a.sort - b.sort) /* sort */
+    .map(({ value }) => value) /* remove sort values */[0];
   return source;
 }
 
