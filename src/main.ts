@@ -89,12 +89,13 @@ declare global {
   interface CreepMemory {
     action?: Action;
     build?: Id<ConstructionSite>;
+    deliveryTasks?: DeliveryTask[];
     destination?: DestinationId | RoomPosition;
+    pos?: RoomPosition;
     retrieve?: Id<Structure | Tombstone | Ruin | Resource>;
-    transfer?: Id<Structure>;
     role: Role;
     sourceId?: Id<Source>;
-    deliveryTasks?: DeliveryTask[];
+    transfer?: Id<Structure>;
   }
 
   interface DeliveryTask {
@@ -194,13 +195,14 @@ function handleCreeps() {
 function handleExplorer(creep: Creep) {
   utils.logCpu("handleExplorer(" + creep.name + ")");
   creep.notifyWhenAttacked(false);
-  if (!moveTowardMemory(creep)) {
+  if (creep.pos.roomName !== creep.memory.pos?.roomName || !moveTowardMemory(creep)) {
     const destination = utils.getExit(creep.pos, !creep.ticksToLive || creep.ticksToLive > 300, false);
     if (destination) {
       move(creep, destination);
       utils.setDestination(creep, destination);
     }
   }
+  creep.memory.pos = creep.pos;
   utils.logCpu("handleExplorer(" + creep.name + ")");
 }
 
