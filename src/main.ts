@@ -817,6 +817,7 @@ function handleHarvester(creep: Creep) {
   if (creep.spawning) return true;
   const flagName = "creep_" + creep.name;
   if (
+    !creep.memory.sourceId ||
     creep.memory.action === "recycleCreep" ||
     creep.room.memory.hostilesPresent ||
     !(flagName in Game.flags) ||
@@ -1239,7 +1240,7 @@ function spawnHarvester(spawn: StructureSpawn) {
   const harvestPos = utils.getHarvestSpotForSource(source);
   if (!harvestPos) return;
   utils.constructContainerIfNeed(harvestPos);
-  const memory = { role: roleToSpawn, source: source.id };
+  const memory = { role: roleToSpawn, sourceId: source.id };
   if (spawn.spawnCreep(body, name, { memory, energyStructures }) === OK) {
     Memory.needHarvesters = false;
     utils.setDestinationFlag(name, harvestPos);
