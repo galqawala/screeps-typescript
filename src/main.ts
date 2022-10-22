@@ -1,12 +1,12 @@
-//  ToDo: only clearEnergySource(), when it's actually going to be empty (even for storage)
-
 //  ToDo: carriers should retrieve energy from rooms we currently don't have visibility in
 
 //  ToDo: carriers (atleast) should only use links that are closeby
 
 //  ToDo: split into multiple files/modules (eslint max file length)
 
-//  ToDo: have only one worker build one structure to optimize
+//  ToDo: have only one worker build one structure to optimize. Filter getConstructionSites() in build().
+
+//  ToDo: transferrer should primarely transfer to nearby workers
 
 //  ToDo: claim more rooms, to have workers upgrade multiple controllers and prevent traffic jams around the single one
 
@@ -78,8 +78,7 @@ declare global {
 
   interface RoomMemory {
     canOperate: boolean;
-    energyDestinations: Id<AnyStoreStructure>[];
-    energySources: Id<EnergySource | AnyStoreStructure>[];
+    energyStores: EnergyStore[];
     harvestSpots: RoomPosition[];
     hostileRangedAttackParts: number;
     hostilesPresent: boolean;
@@ -90,6 +89,12 @@ declare global {
     sortedSpawnStructureIds: Id<Structure>[];
     status: "normal" | "closed" | "novice" | "respawn";
     upgradeSpots: RoomPosition[];
+  }
+
+  interface EnergyStore {
+    id: Id<EnergySource | AnyStoreStructure>;
+    energy: number;
+    freeCap: number;
   }
 
   interface CreepMemory {
@@ -154,15 +159,6 @@ function isStorage(structure: Structure | Ruin | Tombstone | Resource): structur
   if (!("structureType" in structure)) return false;
   return structure.structureType === STRUCTURE_STORAGE;
 }
-function isContainerLinkOrStorage(
-  structure: Structure
-): structure is StructureContainer | StructureLink | StructureStorage {
-  return (
-    structure.structureType === STRUCTURE_CONTAINER ||
-    structure.structureType === STRUCTURE_STORAGE ||
-    structure.structureType === STRUCTURE_LINK
-  );
-}
 function isDestructibleWall(structure: Structure): structure is StructureWall {
   return structure.structureType === STRUCTURE_WALL && "hits" in structure;
 }
@@ -183,7 +179,10 @@ function isSpawnOrExtension(
 function isRoomPosition(item: RoomPosition): item is RoomPosition {
   return item instanceof RoomPosition;
 }
-function isStoreStructure(item: Structure): item is AnyStoreStructure {
+function isStoreStructure(
+  item: Structure | undefined | Ruin | Tombstone | Resource
+): item is AnyStoreStructure {
+  if (!item) return false;
   return "store" in item;
 }
 
@@ -345,11 +344,21 @@ function getRoomEnergySource(
   roomName: string
 ) {
   const sources = [];
-  const ids = Memory.rooms[roomName].energySources.filter(id => !excludeIds.includes(id));
+  if (!Memory.rooms[roomName].energyStores) Memory.rooms[roomName].energyStores = [];
+  const ids = Memory.rooms[roomName].energyStores
+    .filter(source => !excludeIds.includes(source.id) && source.energy > 0)
+    .map(source => source.id);
   if (ids) {
     for (const id of ids) {
       const source = Game.getObjectById(id);
-      if (source && (allowStorageAndLink || (!isStorage(source) && !isLink(source)))) sources.push(source);
+      if (
+        source &&
+        !(source instanceof StructureExtension) &&
+        !(source instanceof StructureSpawn) &&
+        !(source instanceof StructureTower) &&
+        (allowStorageAndLink || (!isStorage(source) && !isLink(source)))
+      )
+        sources.push(source);
     }
     const closest = sources
       .map(value => ({ value, sort: getGlobalRange(pos, getPos(value)) })) /* persist sort values */
@@ -368,7 +377,9 @@ function getRoomEnergyDestination(
   roomName: string
 ) {
   const destinations = [];
-  const ids = Memory.rooms[roomName].energyDestinations.filter(id => !excludeIds.includes(id));
+  const ids = Memory.rooms[roomName].energyStores
+    .filter(store => !excludeIds.includes(store.id) && store.freeCap > 0)
+    .map(store => store.id);
   if (ids) {
     for (const id of ids) {
       const destination = Game.getObjectById(id);
@@ -390,20 +401,6 @@ function getRoomEnergyDestination(
     if (storages.length) return storages[0];
   }
   return;
-}
-
-function clearEnergySource(source: Tombstone | Ruin | AnyStoreStructure | Resource<ResourceConstant>) {
-  if (source && !(source instanceof StructureStorage)) {
-    const index = Memory.rooms[source.pos.roomName].energySources.indexOf(source.id);
-    if (index > -1) Memory.rooms[source.pos.roomName].energySources.splice(index, 1);
-  }
-}
-
-function clearEnergyDestination(destination: AnyStoreStructure) {
-  if (destination && !(destination instanceof StructureStorage)) {
-    const index = Memory.rooms[destination.pos.roomName].energyDestinations.indexOf(destination.id);
-    if (index > -1) Memory.rooms[destination.pos.roomName].energyDestinations.splice(index, 1);
-  }
 }
 
 function handleWorker(creep: Creep) {
@@ -436,7 +433,11 @@ function workerRetrieveEnergy(creep: Creep) {
     if (destination && "id" in destination) {
       creep.memory.retrieve = destination.id;
       setDestination(creep, destination);
-      clearEnergySource(destination);
+      updateStoreEnergy(
+        destination.pos.roomName,
+        destination.id,
+        -creep.store.getFreeCapacity(RESOURCE_ENERGY)
+      );
     }
   }
 
@@ -625,7 +626,7 @@ function moveTowardMemory(creep: Creep) {
   }
   if (destination) {
     move(creep, destination);
-    if (creep.pos.getRangeTo(destination) <= 1) resetDestination(creep);
+    if (getGlobalRange(creep.pos, destination.pos) <= 1) resetDestination(creep);
     return true;
   }
   return false;
@@ -706,14 +707,17 @@ function addCarrierDestination(creep: Creep, pos: RoomPosition) {
   const cap = creep.store.getCapacity(RESOURCE_ENERGY);
   if (energy / cap < 0.9) upstream = getEnergySource(creep, !Memory.plan.fillStorage, pos, queuedIds);
   if (energy > 0) downstream = getEnergyDestination(creep, Memory.plan.fillStorage, pos, queuedIds);
-  if (upstream && (!downstream || creep.pos.getRangeTo(downstream) >= creep.pos.getRangeTo(upstream))) {
-    clearEnergySource(upstream);
+  if (
+    upstream &&
+    (!downstream || getGlobalRange(creep.pos, downstream.pos) >= getGlobalRange(creep.pos, upstream.pos))
+  ) {
     energy = Math.min(cap, energy + getEnergy(upstream));
     creep.memory.deliveryTasks?.push({ destination: upstream.id, isDelivery: false, energyAfter: energy });
+    updateStoreEnergy(upstream.pos.roomName, upstream.id, -creep.store.getFreeCapacity(RESOURCE_ENERGY));
     logCpu("addCarrierDestination(" + creep.name + ")");
     return upstream;
-  } else if (downstream) {
-    clearEnergyDestination(downstream);
+  } else if (isStoreStructure(downstream)) {
+    updateStoreEnergy(downstream.pos.roomName, downstream.id, energy);
     energy = Math.max(0, energy - downstream.store.getFreeCapacity(RESOURCE_ENERGY));
     creep.memory.deliveryTasks?.push({ destination: downstream.id, isDelivery: true, energyAfter: energy });
     logCpu("addCarrierDestination(" + creep.name + ")");
@@ -721,6 +725,14 @@ function addCarrierDestination(creep: Creep, pos: RoomPosition) {
   }
   logCpu("addCarrierDestination(" + creep.name + ")");
   return;
+}
+
+function updateStoreEnergy(roomName: string, id: Id<EnergySource | AnyStoreStructure>, amount: number) {
+  const store = Memory.rooms[roomName].energyStores.filter(source => source.id === id)[0];
+  if (amount > store.freeCap) amount = store.freeCap;
+  if (amount < -store.energy) amount = -store.energy;
+  store.energy += amount;
+  store.freeCap -= amount;
 }
 
 function handleReserver(creep: Creep) {
@@ -885,7 +897,7 @@ function evadeHostiles(creep: Creep) {
       .sort((a, b) => a.sort - b.sort) /* sort */
       .map(({ value }) => value) /* remove sort values */[0];
 
-    const range = closest ? pos.getRangeTo(closest) : Number.NEGATIVE_INFINITY;
+    const range = closest ? getGlobalRange(pos, closest) : Number.NEGATIVE_INFINITY;
     if (bestRange < range) {
       bestRange = range;
       bestPos = pos;
@@ -1023,7 +1035,7 @@ function recycleCreep(creep: Creep) {
   }
 
   if (destination) {
-    if (creep.pos.getRangeTo(destination) <= 1 && destination instanceof StructureSpawn) {
+    if (getGlobalRange(creep.pos, destination.pos) <= 1 && destination instanceof StructureSpawn) {
       if (destination.recycleCreep(creep) === OK) msg(creep, "recycled!");
     } else {
       move(creep, destination);
@@ -1137,8 +1149,7 @@ function handleRoom(room: Room) {
   logCpu("handleRoom(" + room.name + ") updates");
   if (!room.memory.upgradeSpots) updateUpgradeSpots(room);
   if (!room.memory.harvestSpots) updateHarvestSpots(room);
-  if (Math.random() < 0.1) updateRoomEnergySources(room);
-  if (Math.random() < 0.1) updateRoomEnergyDestinations(room);
+  if (Math.random() < 0.1) updateRoomEnergyStores(room);
   if (Math.random() < 0.1) updateRoomRepairTargets(room);
   logCpu("handleRoom(" + room.name + ") updates");
 
@@ -1165,57 +1176,24 @@ function getHpRatio(obj: Structure) {
   return;
 }
 
-function updateRoomEnergySources(room: Room) {
-  logCpu("updateRoomEnergySources(" + room.name + ")");
+function updateRoomEnergyStores(room: Room) {
+  logCpu("updateRoomEnergyStores(" + room.name + ")");
   if (room.memory.hostilesPresent) {
-    room.memory.energySources = [];
+    room.memory.energyStores = [];
     return;
   }
-  let sources: EnergySource[] = room.find(FIND_DROPPED_RESOURCES);
-  sources = sources.concat(room.find(FIND_TOMBSTONES).filter(tomb => getEnergy(tomb) > 0));
-  sources = sources.concat(room.find(FIND_RUINS).filter(ruin => getEnergy(ruin) > 0));
-  sources = sources.concat(
-    room
-      .find(FIND_STRUCTURES)
-      .filter(isContainerLinkOrStorage)
-      .filter(structure => getEnergy(structure) > 0)
-  );
-  room.memory.energySources = sources.map(source => source.id);
-  logCpu("updateRoomEnergySources(" + room.name + ")");
-}
-
-function updateRoomEnergyDestinations(room: Room) {
-  logCpu("updateRoomEnergyDestinations(" + room.name + ")");
-  room.memory.energyDestinations = room
-    .find(FIND_STRUCTURES)
-    .filter(isStoreStructure)
-    .filter(hasSpace)
-    .filter(structure => !(structure instanceof StructureStorage) || shouldFillStorage(room))
-    .map(structure => structure.id);
-  logCpu("updateRoomEnergyDestinations(" + room.name + ")");
-}
-
-function shouldFillStorage(room: Room) {
-  // should we fill storage (instead of spawns/extensions)
-  if (areSpawnsFull()) return true;
-  if (getCreepsMaxTicksToLive() < 850) return false; // haven't spawned creeps lately
-  if (getCreepCountByRole("explorer") < 1) return false;
-  if (room.memory.lastTimeSpawnsFull || 0 < Game.time - 1500) return false;
-  return true;
-}
-
-function getCreepsMaxTicksToLive() {
-  return Object.values(Game.creeps).reduce(
-    (aggregated, item) => Math.max(aggregated, item.ticksToLive || 0),
-    0 /* initial*/
-  );
-}
-
-function areSpawnsFull() {
-  for (const room of Object.values(Game.rooms)) {
-    if (room.energyAvailable < room.energyCapacityAvailable) return false;
-  }
-  return true;
+  let stores: (EnergySource | AnyStoreStructure)[] = room.find(FIND_DROPPED_RESOURCES);
+  stores = stores.concat(room.find(FIND_TOMBSTONES));
+  stores = stores.concat(room.find(FIND_RUINS));
+  stores = stores.concat(room.find(FIND_STRUCTURES).filter(isStoreStructure));
+  room.memory.energyStores = stores.map(store => {
+    return {
+      id: store.id,
+      energy: getEnergy(store),
+      freeCap: getFreeCap(store)
+    } as EnergyStore;
+  });
+  logCpu("updateRoomEnergyStores(" + room.name + ")");
 }
 
 function constructInRoom(room: Room) {
@@ -1890,18 +1868,18 @@ function adjustConstructionSiteScoreForLink(score: number, pos: RoomPosition) {
   // distance to exit decreases the score
   const penalty = pos.findClosestByRange(FIND_EXIT);
   if (penalty) {
-    score /= pos.getRangeTo(penalty);
-    score /= pos.getRangeTo(penalty);
+    score /= getGlobalRange(pos, penalty);
+    score /= getGlobalRange(pos, penalty);
   }
   // distance to other links increases the score
   let shortestRange;
   const link = pos.findClosestByRange(FIND_MY_STRUCTURES, { filter: { structureType: STRUCTURE_LINK } });
-  if (link) shortestRange = pos.getRangeTo(link);
+  if (link) shortestRange = getGlobalRange(pos, link.pos);
   const linkSite = pos.findClosestByRange(FIND_MY_CONSTRUCTION_SITES, {
     filter: { structureType: STRUCTURE_LINK }
   });
   if (linkSite) {
-    const range = pos.getRangeTo(linkSite);
+    const range = getGlobalRange(pos, linkSite.pos);
     if (!shortestRange || shortestRange > range) shortestRange = range;
   }
   if (shortestRange) {
@@ -1930,7 +1908,7 @@ function getPosForConstruction(room: Room, structureType: StructureConstant) {
       // distance to source decreases the score
       const extensionPenalty = pos.findClosestByRange(FIND_SOURCES);
       if (extensionPenalty) {
-        finalScore /= pos.getRangeTo(extensionPenalty);
+        finalScore /= getGlobalRange(pos, extensionPenalty.pos);
       }
     }
 
@@ -1939,7 +1917,7 @@ function getPosForConstruction(room: Room, structureType: StructureConstant) {
       bestPos = pos;
     }
   }
-
+  msg(room, "best score: " + (bestScore || "-").toString() + ", best pos: " + (bestPos || "-").toString());
   return bestPos;
 }
 
@@ -2020,14 +1998,6 @@ function isWorkerSpot(pos: RoomPosition) {
     if (pos.x === spot.x && pos.y === spot.y) return true;
   }
   return false;
-}
-
-function getEnergy(object: Creep | AnyStructure | Resource | Ruin | Tombstone | Structure) {
-  if (!object) return 0;
-  const store = getStore(object);
-  if (store) return store.getUsedCapacity(RESOURCE_ENERGY);
-  if ("energy" in object) return object.energy;
-  return 0;
 }
 
 function handleSpawn(spawn: StructureSpawn) {
@@ -2723,12 +2693,6 @@ function getStore(object: Creep | AnyStructure | Resource | Ruin | Tombstone | S
   return;
 }
 
-function hasSpace(object: Structure | Creep) {
-  if (!object) return false;
-  const store = getStore(object);
-  if (!store) return false;
-  return store.getFreeCapacity(RESOURCE_ENERGY) > 0;
-}
 function isFull(object: Structure | Creep | Ruin | Resource | Tombstone) {
   if (!object) return false;
   const store = getStore(object);
@@ -2740,4 +2704,17 @@ function getFillRatio(object: Structure | Creep) {
   const store = getStore(object);
   if (!store) return 0;
   return store.getUsedCapacity(RESOURCE_ENERGY) / store.getCapacity(RESOURCE_ENERGY);
+}
+function getEnergy(object: Creep | AnyStructure | Resource | Ruin | Tombstone | Structure) {
+  if (!object) return 0;
+  const store = getStore(object);
+  if (store) return store.getUsedCapacity(RESOURCE_ENERGY);
+  if ("energy" in object) return object.energy;
+  return 0;
+}
+function getFreeCap(object: Creep | AnyStructure | Resource | Ruin | Tombstone | Structure) {
+  if (!object) return 0;
+  const store = getStore(object);
+  if (store) return store.getFreeCapacity(RESOURCE_ENERGY);
+  return 0;
 }
