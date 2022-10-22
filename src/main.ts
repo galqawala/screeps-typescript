@@ -1300,8 +1300,9 @@ function spawnCreep(
 
   if (!body || utils.getBodyCost(body) > spawn.room.energyAvailable) return;
 
+  const destination = task?.destination && "id" in task?.destination ? task?.destination?.id : undefined;
   const outcome = spawn.spawnCreep(body, name, {
-    memory: { role: roleToSpawn, action: task?.action },
+    memory: { role: roleToSpawn, action: task?.action, destination },
     energyStructures
   });
 
