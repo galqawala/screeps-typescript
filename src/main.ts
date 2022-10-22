@@ -1,10 +1,14 @@
-//  ToDo: only clearEnergySource(), when it's actually going to be empty
+//  ToDo: only clearEnergySource(), when it's actually going to be empty (even for storage)
 
 //  ToDo: carriers should retrieve energy from rooms we currently don't have visibility in
 
 //  ToDo: carriers (atleast) should only use links that are closeby
 
-//  ToDo: split into multiple files/modules
+//  ToDo: split into multiple files/modules (eslint max file length)
+
+//  ToDo: have only one worker build one structure to optimize
+
+//  ToDo: claim more rooms, to have workers upgrade multiple controllers and prevent traffic jams around the single one
 
 // When compiling TS to JS and bundling with rollup, the line numbers and file names in error messages change
 // This utility uses source maps to get the line numbers and file names of the original, TS source code
@@ -219,7 +223,7 @@ function updatePlan() {
     storageMin = Math.min(storageMin, storage.store.getUsedCapacity(RESOURCE_ENERGY));
   }
   Memory.plan = {
-    spawnWorkers: storageMin >= 100000,
+    spawnWorkers: storageMin >= 100000 && getCreepCountByRole("worker") < 5,
     fillStorage: storageMin < 150000,
     spawnRemoteHarvesters: storageMin < 200000
   };
