@@ -606,7 +606,7 @@ function addCarrierDestination(creep: Creep, pos: RoomPosition) {
     if (!isNaN(energyAfter)) energy = energyAfter;
   }
   const cap = creep.store.getCapacity(RESOURCE_ENERGY);
-  if (energy / cap < 0.9) upstream = getEnergySource(creep, !Memory.plan.fillStorage, pos, queuedIds);
+  if (energy / cap < 0.9) upstream = getEnergySource(creep, false, pos, queuedIds);
   if (energy > 0) downstream = getEnergyDestination(creep, Memory.plan.fillStorage, pos, queuedIds);
   if (
     upstream &&
