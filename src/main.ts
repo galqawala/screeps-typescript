@@ -677,9 +677,9 @@ function handleTransferer(creep: Creep) {
     return;
   }
   if (retrieveEnergy(creep, upstream, true) === ERR_NOT_IN_RANGE) move(creep, upstream);
-  const workers = Object.values(Game.creeps).filter(
-    worker => worker.memory.role === "worker" && utils.getFillRatio(worker) < 0.5
-  );
+  const workers = creep.pos
+    .findInRange(FIND_MY_CREEPS, 1)
+    .filter(worker => worker.memory.role === "worker" && utils.getFillRatio(worker) < 0.5);
   for (const worker of workers) creep.transfer(worker, RESOURCE_ENERGY);
   if (creep.transfer(downstream, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) move(creep, downstream);
 }
