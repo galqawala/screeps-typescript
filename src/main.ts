@@ -779,7 +779,7 @@ function evadeHostiles(creep: Creep) {
 }
 
 function recycleCreep(creep: Creep) {
-  creep.say("💀");
+  creep.say("♻️");
   creep.memory.action = "recycleCreep";
   let destination;
   const oldDestination = creep.memory.destination;
