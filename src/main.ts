@@ -921,7 +921,7 @@ function handleRoom(room: Room) {
   utils.handleLinks(room);
 
   utils.logCpu("handleRoom(" + room.name + ") updates");
-  if (!room.memory.upgradeSpots) utils.updateHarvestSpots(room);
+  if (!room.memory.upgradeSpots) utils.updateUpgradeSpots(room);
   if (!room.memory.harvestSpots) utils.updateHarvestSpots(room);
   if (Math.random() < 0.1) utils.updateRoomEnergyStores(room);
   if (Math.random() < 0.1) utils.updateRoomRepairTargets(room);
