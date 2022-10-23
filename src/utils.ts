@@ -1344,3 +1344,21 @@ export function resetDestination(creep: Creep): void {
 export function getOwnedRoomsCount(): number {
   return Object.values(Game.rooms).filter(room => room.controller?.my).length;
 }
+
+export function updateRemoteHarvestCost(room: Room): void {
+  let cost = 0;
+  if (room.controller?.my) {
+    cost = 1;
+  } else {
+    const sources = room.find(FIND_SOURCES);
+    for (const source of sources) {
+      const storages = Object.values(Game.structures).filter(isStorage);
+      cost += PathFinder.search(
+        source.pos,
+        storages.map(storage => storage.pos)
+      ).cost;
+    }
+    if (sources.length > 0) cost /= sources.length;
+  }
+  room.memory.remoteHarvestCost = cost;
+}

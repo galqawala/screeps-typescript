@@ -72,6 +72,7 @@ declare global {
     hostileRangedAttackParts: number;
     hostilesPresent: boolean;
     lastTimeFlagEnergyConsumerSet: number;
+    remoteHarvestCost: number;
     repairTargets: Id<Structure>[];
     sortedSpawnStructureIds: Id<Structure>[];
     status: "normal" | "closed" | "novice" | "respawn";
@@ -920,6 +921,7 @@ function handleRoom(room: Room) {
   utils.logCpu("handleRoom(" + room.name + ") updates");
   if (!room.memory.upgradeSpots) utils.updateUpgradeSpots(room);
   if (!room.memory.harvestSpots) utils.updateHarvestSpots(room);
+  if (!room.memory.remoteHarvestCost) utils.updateRemoteHarvestCost(room);
   if (Math.random() < 0.1) utils.updateRoomEnergyStores(room);
   if (Math.random() < 0.1) utils.updateRoomRepairTargets(room);
   utils.logCpu("handleRoom(" + room.name + ") updates");
