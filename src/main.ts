@@ -392,14 +392,7 @@ function build(creep: Creep) {
     if (!destination) delete creep.memory.build;
   }
   if (!destination || !(destination instanceof ConstructionSite)) {
-    destination = utils
-      .getConstructionSites()
-      .map(value => ({
-        value,
-        sort: utils.getGlobalRange(creep.pos, utils.getPos(value))
-      })) /* persist sort values */
-      .sort((a, b) => a.sort - b.sort) /* sort */
-      .map(({ value }) => value) /* remove sort values */[0];
+    destination = getBuildSite(creep);
   }
   utils.logCpu("build(" + creep.name + ") find");
   utils.logCpu("build(" + creep.name + ") build");
@@ -417,6 +410,18 @@ function build(creep: Creep) {
   utils.logCpu("build(" + creep.name + ") build");
   utils.logCpu("build(" + creep.name + ")");
   return false;
+}
+
+function getBuildSite(creep: Creep) {
+  return utils
+    .getConstructionSites()
+    .filter(site => Object.values(Game.creeps).filter(builder => builder.memory.build === site.id).length < 1)
+    .map(value => ({
+      value,
+      sort: utils.getGlobalRange(creep.pos, utils.getPos(value))
+    })) /* persist sort values */
+    .sort((a, b) => a.sort - b.sort) /* sort */
+    .map(({ value }) => value) /* remove sort values */[0];
 }
 
 function repair(creep: Creep) {
