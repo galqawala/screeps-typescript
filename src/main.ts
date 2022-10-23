@@ -168,7 +168,7 @@ function updatePlan() {
   Memory.plan = {
     spawnWorkers:
       storageMin >= 100000 && utils.getCreepCountByRole("worker") < 4 * utils.getOwnedRoomsCount(),
-    fillStorage: storageMin < 150000,
+    fillStorage: storageMin < 150000 && !needHarvesters(),
     spawnRemoteHarvesters: storageMin < 200000
   };
 }
@@ -999,7 +999,7 @@ function handleSpawn(spawn: StructureSpawn) {
 
     if (needCarriers()) {
       spawnRole("carrier", spawn);
-    } else if (needHarvesters(spawn.pos)) {
+    } else if (needHarvesters()) {
       spawnHarvester(spawn);
     } else if (controllersToReserve.length > 0) {
       spawnReserver(spawn, controllersToReserve[0]);
@@ -1184,8 +1184,8 @@ function needWorkers(room: Room) {
   return Memory.plan.spawnWorkers && room.energyAvailable >= room.energyCapacityAvailable;
 }
 
-function needHarvesters(pos: RoomPosition) {
-  const source = getSourceToHarvest(pos);
+function needHarvesters() {
+  const source = getSourceToHarvest(Object.values(Game.spawns)[0].pos);
 
   if (!source) return false; // nothing to harvest
 
