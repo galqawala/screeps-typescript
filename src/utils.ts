@@ -930,7 +930,14 @@ export function updateRoomRepairTargets(room: Room): void {
   const targets: Structure[] = room
     .find(FIND_STRUCTURES)
     .filter(target => needRepair(target) && (getHpRatio(target) || 1) < 0.9 && !isUnderRepair(target));
-  room.memory.repairTargets = targets.map(target => target.id);
+  room.memory.repairTargets = targets
+    .map(target => target.id)
+    .filter(
+      id =>
+        Object.values(Game.creeps).filter(
+          creep => creep.memory.role === "worker" && creep.memory.destination === id
+        ).length < 1
+    );
   logCpu("updateRoomRepairTargets(" + room.name + ")");
 }
 
