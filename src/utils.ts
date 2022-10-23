@@ -1348,3 +1348,7 @@ export function resetDestination(creep: Creep): void {
   logCpu("resetDestination(" + creep.name + ")");
   return;
 }
+
+export function getOwnedRoomsCount(): number {
+  return Object.values(Game.rooms).filter(room => room.controller?.my).length;
+}

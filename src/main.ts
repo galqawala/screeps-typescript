@@ -166,7 +166,8 @@ function updatePlan() {
     storageMin = Math.min(storageMin, storage.store.getUsedCapacity(RESOURCE_ENERGY));
   }
   Memory.plan = {
-    spawnWorkers: storageMin >= 100000 && utils.getCreepCountByRole("worker") < 5,
+    spawnWorkers:
+      storageMin >= 100000 && utils.getCreepCountByRole("worker") < 4 * utils.getOwnedRoomsCount(),
     fillStorage: storageMin < 150000,
     spawnRemoteHarvesters: storageMin < 200000
   };
