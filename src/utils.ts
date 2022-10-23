@@ -993,14 +993,6 @@ export function checkRoomCanOperate(room: Room): void {
   }
 }
 
-export function checkRoomEnergy(room: Room): void {
-  if (room.energyAvailable < 50) {
-    tryResetSpawnsAndExtensionsSorting(room);
-  } else if (room.energyAvailable >= room.energyCapacityAvailable) {
-    room.memory.lastTimeSpawnsFull = Game.time;
-  }
-}
-
 export function handleHostilesInRoom(room: Room): void {
   logCpu("handleHostilesInRoom(" + room.name + ")");
   // check for presence of hostiles
@@ -1131,7 +1123,6 @@ export function handleLinks(room: Room): void {
       upstreamIndex++;
       resetSpecificDestinationFromCreeps(upstreamLink);
       resetSpecificDestinationFromCreeps(downstreamLink);
-      updateLinkMemory(upstreamLink, downstreamLink);
     }
   }
   logCpu("handleLinks(" + room.name + ") loop");
@@ -1148,12 +1139,6 @@ export function getSortedLinks(room: Room, downstreamPos: RoomPosition): Structu
     .map(({ value }) => value); /* remove sort values */
   logCpu("getSortedLinks(" + room.name + ")");
   return links;
-}
-
-export function updateLinkMemory(upstreamLink: StructureLink, downstreamLink: StructureLink): void {
-  if (!upstreamLink.room.memory.linkIsUpstream) upstreamLink.room.memory.linkIsUpstream = {};
-  upstreamLink.room.memory.linkIsUpstream[upstreamLink.id] = true;
-  downstreamLink.room.memory.linkIsUpstream[downstreamLink.id] = false;
 }
 
 export function canAttack(myUnit: StructureTower | Creep): boolean {

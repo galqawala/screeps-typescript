@@ -72,8 +72,6 @@ declare global {
     hostileRangedAttackParts: number;
     hostilesPresent: boolean;
     lastTimeFlagEnergyConsumerSet: number;
-    lastTimeSpawnsFull: number;
-    linkIsUpstream: Record<Id<StructureLink>, boolean>;
     repairTargets: Id<Structure>[];
     sortedSpawnStructureIds: Id<Structure>[];
     status: "normal" | "closed" | "novice" | "respawn";
@@ -930,7 +928,7 @@ function handleRoom(room: Room) {
   utils.logCpu("handleRoom(" + room.name + ") details");
   utils.checkRoomStatus(room);
   utils.checkRoomCanOperate(room);
-  utils.checkRoomEnergy(room);
+  utils.tryResetSpawnsAndExtensionsSorting(room);
   utils.logCpu("handleRoom(" + room.name + ") details");
   utils.logCpu("handleRoom(" + room.name + ")");
 }
