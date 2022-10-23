@@ -1005,7 +1005,7 @@ function handleSpawn(spawn: StructureSpawn) {
       spawnRole("infantry", spawn);
     } else if (needAttackers(spawn.room)) {
       spawnRole("attacker", spawn);
-    } else if (utils.getCreepCountByRole("explorer") <= 0) {
+    } else if (utils.getCreepCountByRole("explorer") < 2) {
       spawnRole("explorer", spawn, 0, [MOVE]);
     } else if (needTransferers()) {
       spawnTransferer(spawn);
