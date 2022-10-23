@@ -950,10 +950,16 @@ function move(creep: Creep, destination: Destination) {
     creep.pos.createFlag(flagName, COLOR_GREEN, COLOR_GREY);
   }
   utils.logCpu("move(" + creep.name + ") moveTo");
-  const hue = (Object.keys(Game.creeps).sort().indexOf(creep.name) / Object.keys(Game.creeps).length) * 360;
+  const index = Object.keys(Game.creeps).sort().indexOf(creep.name);
+  const hue = (index / Object.keys(Game.creeps).length) * 360;
   const outcome = creep.moveTo(destination, {
     reusePath: Memory.reusePath,
-    visualizePathStyle: { stroke: hslToHex(hue, 100, 50), opacity: 0.7, lineStyle: "dotted" }
+    visualizePathStyle: {
+      stroke: hslToHex(hue, 100, 50),
+      opacity: 0.6,
+      lineStyle: "dotted",
+      strokeWidth: 0.1 + 0.1 * (index % 4)
+    }
   });
   utils.logCpu("move(" + creep.name + ") moveTo");
   utils.logCpu("move(" + creep.name + ")");
