@@ -150,7 +150,6 @@ export const loop = ErrorMapper.wrapLoop(() => {
   updateFlagDismantle();
   handleCreeps();
   utils.logCpu("updateFlagReserve() handleSpawn");
-  for (const s in Game.spawns) handleSpawn(Game.spawns[s]);
   utils.logCpu("updateFlagReserve() handleSpawn");
   utils.logCpu("handle rooms, flags, creeps, spawns");
   utils.cpuInfo();
@@ -925,7 +924,8 @@ function handleRoom(room: Room) {
   if (Math.random() < 0.1) utils.updateRoomEnergyStores(room);
   if (Math.random() < 0.1) utils.updateRoomRepairTargets(room);
   utils.logCpu("handleRoom(" + room.name + ") updates");
-
+  // spawn creeps
+  handleSpawns(room);
   // check the room details
   utils.logCpu("handleRoom(" + room.name + ") details");
   utils.checkRoomStatus(room);
@@ -993,8 +993,9 @@ function pickup(creep: Creep, destination: Destination) {
   return ERR_INVALID_TARGET;
 }
 
-function handleSpawn(spawn: StructureSpawn) {
-  if (!spawn.spawning) {
+function handleSpawns(room: Room) {
+  const spawn = room.find(FIND_MY_SPAWNS).filter(s => !s.spawning)[0];
+  if (spawn) {
     const controllersToReserve = utils.getControllersToReserve();
 
     if (needCarriers()) {
