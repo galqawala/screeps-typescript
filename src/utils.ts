@@ -321,16 +321,6 @@ export function isReservedByOthers(controller: StructureController): boolean {
   return false;
 }
 
-export function getSpawnBudget(
-  roleToSpawn: Role,
-  minBudget: number,
-  energyCapacityAvailable: number
-): number {
-  return Math.floor(
-    Math.min(Math.max(getCostOfCurrentCreepsInTheRole(roleToSpawn), minBudget), energyCapacityAvailable)
-  );
-}
-
 export function getCostOfCurrentCreepsInTheRole(role: Role): number {
   return (
     Object.values(Game.creeps).reduce(
@@ -1353,12 +1343,20 @@ export function updateRemoteHarvestCost(room: Room): void {
     const sources = room.find(FIND_SOURCES);
     for (const source of sources) {
       const storages = Object.values(Game.structures).filter(isStorage);
-      cost += PathFinder.search(
+      const path = PathFinder.search(
         source.pos,
         storages.map(storage => storage.pos)
-      ).cost;
+      );
+      cost += path.incomplete ? 1000 : path.cost;
     }
     if (sources.length > 0) cost /= sources.length;
   }
   room.memory.remoteHarvestCost = cost;
+}
+
+export function getTotalRepairTargetCount(): number {
+  return Object.values(Game.rooms).reduce(
+    (aggregated, item) => aggregated + (item.memory.repairTargets?.length || 0),
+    0 /* initial*/
+  );
 }

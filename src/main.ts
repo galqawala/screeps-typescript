@@ -12,6 +12,7 @@ declare global {
     | "infantry"
     | "reserver"
     | "transferer"
+    | "upgrader"
     | "worker";
 
   type Action =
@@ -57,7 +58,7 @@ declare global {
   interface Plan {
     fillStorage: boolean;
     spawnRemoteHarvesters: boolean;
-    spawnWorkers: boolean;
+    spawnUpgraders: boolean;
   }
 
   interface FlagMemory {
@@ -164,11 +165,18 @@ function updatePlan() {
     storageMin = Math.min(storageMin, storage.store.getUsedCapacity(RESOURCE_ENERGY));
   }
   Memory.plan = {
-    spawnWorkers:
-      storageMin >= 100000 && utils.getCreepCountByRole("worker") < 4 * utils.getOwnedRoomsCount(),
-    fillStorage: storageMin < 150000 && !needHarvesters(),
+    spawnUpgraders:
+      storageMin >= 100000 && utils.getCreepCountByRole("upgrader") < 4 * utils.getOwnedRoomsCount(),
+    fillStorage: (storageMin < 150000 && !needHarvesters()) || allSpawnsFull(),
     spawnRemoteHarvesters: storageMin < 200000
   };
+}
+
+function allSpawnsFull() {
+  for (const room of Object.values(Game.rooms)) {
+    if (room.energyAvailable < room.energyCapacityAvailable) return false;
+  }
+  return true;
 }
 
 function handleCreeps() {
@@ -184,6 +192,7 @@ function handleCreeps() {
     else if (role === "infantry") handleInfantry(Game.creeps[c]);
     else if (role === "reserver") handleReserver(Game.creeps[c]);
     else if (role === "transferer") handleTransferer(Game.creeps[c]);
+    else if (role === "upgrader") handleUpgrader(Game.creeps[c]);
     else if (role === "worker") handleWorker(Game.creeps[c]);
 
     utils.logCpu("creep: " + c);
@@ -325,7 +334,22 @@ function getRoomEnergyDestination(
   return;
 }
 
+function handleUpgrader(creep: Creep) {
+  utils.logCpu("handleUpgrader(" + creep.name + ")");
+
+  if (utils.isFull(creep)) delete creep.memory.retrieve;
+
+  if (utils.isEmpty(creep)) {
+    workerRetrieveEnergy(creep);
+  } else {
+    upgrade(creep, false);
+  }
+
+  utils.logCpu("handleUpgrader(" + creep.name + ")");
+}
+
 function handleWorker(creep: Creep) {
+  utils.logCpu("handleWorker(" + creep.name + ")");
   if (utils.isEmpty(creep)) delete creep.memory.build;
   else if (utils.isFull(creep)) delete creep.memory.retrieve;
 
@@ -333,10 +357,10 @@ function handleWorker(creep: Creep) {
     build(creep);
   } else if (utils.isEmpty(creep)) {
     workerRetrieveEnergy(creep);
-  } else if (!utils.isEmpty(creep)) {
+  } else {
     utils.logCpu("handleWorker(" + creep.name + ") work");
     const result =
-      upgrade(creep, true) || repair(creep) || dismantle(creep) || build(creep) || upgrade(creep, false);
+      upgrade(creep, true) || repair(creep) || dismantle(creep) || build(creep) || recycleCreep(creep);
     utils.logCpu("handleWorker(" + creep.name + ") work");
     utils.logCpu("handleWorker(" + creep.name + ")");
     return result;
@@ -473,7 +497,10 @@ function dismantle(creep: Creep) {
 
 function getRepairTarget(pos: RoomPosition) {
   const sources = [];
-  const ids = Memory.rooms[pos.roomName].repairTargets;
+  let ids: Id<Structure<StructureConstant>>[] = [];
+  for (const room of Object.values(Game.rooms)) {
+    ids = ids.concat(room.memory.repairTargets);
+  }
   if (ids) {
     for (const id of ids) {
       const source = Game.getObjectById(id);
@@ -488,8 +515,8 @@ function getRepairTarget(pos: RoomPosition) {
       .map(({ value }) => value) /* remove sort values */[0];
 
     if (closest) {
-      const index = Memory.rooms[pos.roomName].repairTargets.indexOf(closest.id);
-      if (index > -1) Memory.rooms[pos.roomName].repairTargets.splice(index, 1);
+      const index = Memory.rooms[closest.pos.roomName].repairTargets.indexOf(closest.id);
+      if (index > -1) Memory.rooms[closest.pos.roomName].repairTargets.splice(index, 1);
     }
     return closest;
   }
@@ -538,7 +565,7 @@ function handleCarrier(creep: Creep) {
   if (!utils.isEmpty(creep)) {
     const workers = creep.pos
       .findInRange(FIND_MY_CREEPS, 1)
-      .filter(c => c.memory.role === "worker" && !utils.isFull(c));
+      .filter(c => (c.memory.role === "worker" || c.memory.role === "upgrader") && !utils.isFull(c));
     for (const worker of workers) {
       creep.transfer(worker, RESOURCE_ENERGY);
     }
@@ -677,7 +704,11 @@ function handleTransferer(creep: Creep) {
   if (retrieveEnergy(creep, upstream, true) === ERR_NOT_IN_RANGE) move(creep, upstream);
   const workers = creep.pos
     .findInRange(FIND_MY_CREEPS, 1)
-    .filter(worker => worker.memory.role === "worker" && utils.getFillRatio(worker) < 0.5);
+    .filter(
+      worker =>
+        (worker.memory.role === "worker" || worker.memory.role === "upgrader") &&
+        utils.getFillRatio(worker) < 0.5
+    );
   for (const worker of workers) creep.transfer(worker, RESOURCE_ENERGY);
   if (creep.transfer(downstream, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) move(creep, downstream);
 }
@@ -894,7 +925,7 @@ function wantsEnergy(target: Creep) {
   return (
     !utils.isFull(target) &&
     target.my !== false &&
-    ["carrier", "spawner", "worker"].includes(target.memory.role)
+    ["carrier", "upgrader", "worker"].includes(target.memory.role)
   );
 }
 
@@ -921,7 +952,7 @@ function handleRoom(room: Room) {
   if (!room.memory.upgradeSpots) utils.updateUpgradeSpots(room);
   if (!room.memory.harvestSpots) utils.updateHarvestSpots(room);
   if (!room.memory.remoteHarvestCost) utils.updateRemoteHarvestCost(room);
-  if (Math.random() < 0.1) utils.updateRoomEnergyStores(room);
+  if (Math.random() < 0.2) utils.updateRoomEnergyStores(room);
   if (Math.random() < 0.1) utils.updateRoomRepairTargets(room);
   utils.logCpu("handleRoom(" + room.name + ") updates");
   // spawn creeps
@@ -1018,8 +1049,14 @@ function handleSpawns(room: Room) {
       spawnRole("explorer", spawn, 0, [MOVE]);
     } else if (needTransferers()) {
       spawnTransferer(spawn);
-    } else if (needWorkers(spawn.room)) {
-      spawnRole("worker", spawn, Math.min(450, spawn.room.energyCapacityAvailable));
+    } else if (needWorkers()) {
+      spawnRole(
+        "worker",
+        spawn,
+        Math.min(getWorkerBodyPartsNeeded() * 150, spawn.room.energyCapacityAvailable)
+      );
+    } else if (needUpgraders(spawn.room)) {
+      spawnRole("upgrader", spawn, Math.min(450, spawn.room.energyCapacityAvailable));
     }
   }
 }
@@ -1041,7 +1078,13 @@ function spawnRole(
   minBudget = 0,
   body: undefined | BodyPartConstant[] = undefined
 ) {
-  const budget = utils.getSpawnBudget(roleToSpawn, minBudget, spawn.room.energyCapacityAvailable);
+  const budget = Math.floor(
+    Math.min(
+      Math.max(utils.getCostOfCurrentCreepsInTheRole(roleToSpawn), minBudget),
+      spawn.room.energyCapacityAvailable
+    )
+  );
+
   if (spawn.room.energyAvailable >= budget) {
     spawnCreep(spawn, roleToSpawn, budget, body, undefined);
   }
@@ -1187,8 +1230,26 @@ function updateFlagReserve() {
   utils.logCpu("updateFlagReserve()");
 }
 
-function needWorkers(room: Room) {
-  return Memory.plan.spawnWorkers && room.energyAvailable >= room.energyCapacityAvailable;
+function needWorkers() {
+  const workParts = Object.values(Game.creeps)
+    .filter(creep => creep.memory.role === "worker")
+    .reduce((aggregated, item) => aggregated + item.getActiveBodyparts(WORK), 0 /* initial*/);
+  return getWorkerBodyPartsNeeded() > workParts;
+}
+
+function getWorkerBodyPartsNeeded() {
+  return Math.ceil(getTotalConstructionWork() / 1000 + utils.getTotalRepairTargetCount() / 2);
+}
+
+function getTotalConstructionWork() {
+  return Object.values(Game.constructionSites).reduce(
+    (aggregated, item) => aggregated + item.progressTotal - item.progress,
+    0 /* initial*/
+  );
+}
+
+function needUpgraders(room: Room) {
+  return Memory.plan.spawnUpgraders && room.energyAvailable >= room.energyCapacityAvailable;
 }
 
 function needHarvesters() {
@@ -1228,7 +1289,7 @@ function getSourceToHarvest(pos: RoomPosition) {
 }
 
 function spawnHarvester(spawn: StructureSpawn) {
-  const roleToSpawn: Role = "harvester"; // no energy for workers
+  const roleToSpawn: Role = "harvester";
   const source = getSourceToHarvest(spawn.pos);
   if (!source || !(source instanceof Source)) return;
   let body: BodyPartConstant[] = utils.getBodyForHarvester(source);
@@ -1297,13 +1358,7 @@ function spawnCreep(
   body: undefined | BodyPartConstant[],
   task: Task | undefined
 ) {
-  if (!body) {
-    if (roleToSpawn === "worker") body = getBodyForWorker(spawn.room.energyCapacityAvailable);
-    else if (roleToSpawn === "carrier") body = getBodyForCarrier(energyAvailable);
-    else if (roleToSpawn === "reserver") body = getBodyForReserver(Math.min(3800, energyAvailable));
-    else if (roleToSpawn === "attacker") body = getBodyForAttacker(energyAvailable);
-    else if (roleToSpawn === "infantry") body = getBodyForInfantry(energyAvailable);
-  }
+  if (!body) body = getBody(roleToSpawn, energyAvailable, spawn.room.energyCapacityAvailable);
   const energyStructures = utils.getSpawnsAndExtensionsSorted(spawn.room);
   const name = utils.getNameForCreep(roleToSpawn);
 
@@ -1327,6 +1382,28 @@ function spawnCreep(
   }
 }
 
+function getBody(roleToSpawn: Role, energyAvailable: number, energyCap: number) {
+  if (roleToSpawn === "attacker") return getBodyForAttacker(energyAvailable);
+  else if (roleToSpawn === "carrier") return getBodyForCarrier(energyAvailable);
+  else if (roleToSpawn === "infantry") return getBodyForInfantry(energyAvailable);
+  else if (roleToSpawn === "reserver") return getBodyForReserver(Math.min(3800, energyAvailable));
+  else if (roleToSpawn === "upgrader") return getBodyForUpgrader(energyAvailable);
+  else if (roleToSpawn === "worker") return getBodyForWorker(energyCap);
+  return;
+}
+
+function getBodyForUpgrader(energyAvailable: number) {
+  const body: BodyPartConstant[] = [WORK, CARRY, MOVE];
+  for (;;) {
+    let nextPart: BodyPartConstant = WORK;
+    if (utils.getBodyPartRatio(body, MOVE) <= 0.2) nextPart = MOVE;
+    else if (utils.getBodyPartRatio(body, CARRY) <= 0.1) nextPart = CARRY;
+
+    if (utils.getBodyCost(body) + BODYPART_COST[nextPart] > energyAvailable) return body;
+    body.push(nextPart);
+    if (body.length >= 50) return body;
+  }
+}
 function getBodyForWorker(energyAvailable: number) {
   const body: BodyPartConstant[] = [WORK, CARRY, MOVE];
   for (;;) {
