@@ -1,4 +1,4 @@
-const minRoadTraffic = 0.015;
+const minRoadTraffic = 0.016;
 
 // Type guards
 export function isOwnedStructure(structure: Structure): structure is AnyOwnedStructure {
