@@ -168,7 +168,7 @@ function updatePlan() {
     spawnUpgraders:
       storageMin >= 100000 && utils.getCreepCountByRole("upgrader") < 4 * utils.getOwnedRoomsCount(),
     fillStorage: (storageMin < 150000 && !needHarvesters()) || allSpawnsFull(),
-    spawnRemoteHarvesters: storageMin < 200000
+    spawnRemoteHarvesters: storageMin < 300000
   };
 }
 
