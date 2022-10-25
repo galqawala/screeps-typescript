@@ -164,6 +164,7 @@ function updatePlan() {
   for (const storage of storages) {
     storageMin = Math.min(storageMin, storage.store.getUsedCapacity(RESOURCE_ENERGY));
   }
+
   Memory.plan = {
     spawnUpgraders:
       storageMin >= 100000 && utils.getCreepCountByRole("upgrader") < 4 * utils.getOwnedRoomsCount(),
