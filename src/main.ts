@@ -790,8 +790,9 @@ function evadeHostiles(creep: Creep) {
     .concat(creep.pos.findInRange(FIND_HOSTILE_POWER_CREEPS, 4).map(hostile => hostile.pos));
   if (hostilePositions.length < 1) return;
   const options = utils.getPositionsAround(creep.pos);
-  let bestRange = Number.NEGATIVE_INFINITY;
+  let bestScore = Number.NEGATIVE_INFINITY;
   let bestPos;
+  const terrain = new Room.Terrain(creep.pos.roomName);
   for (const pos of options) {
     const closest = hostilePositions
       .map(value => ({
@@ -801,9 +802,10 @@ function evadeHostiles(creep: Creep) {
       .sort((a, b) => a.sort - b.sort) /* sort */
       .map(({ value }) => value) /* remove sort values */[0];
 
-    const range = closest ? utils.getGlobalRange(pos, closest) : Number.NEGATIVE_INFINITY;
-    if (bestRange < range) {
-      bestRange = range;
+    const penalty = terrain.get(pos.x, pos.y) === TERRAIN_MASK_SWAMP ? 0.5 : 0;
+    const score = closest ? utils.getGlobalRange(pos, closest) + penalty : Number.NEGATIVE_INFINITY;
+    if (bestScore < score) {
+      bestScore = score;
       bestPos = pos;
     }
   }
