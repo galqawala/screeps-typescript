@@ -1387,8 +1387,8 @@ function getBody(roleToSpawn: Role, energyAvailable: number, energyCap: number) 
   else if (roleToSpawn === "carrier") return getBodyForCarrier(energyAvailable);
   else if (roleToSpawn === "infantry") return getBodyForInfantry(energyAvailable);
   else if (roleToSpawn === "reserver") return getBodyForReserver(Math.min(3800, energyAvailable));
-  else if (roleToSpawn === "upgrader") return getBodyForUpgrader(energyAvailable);
-  else if (roleToSpawn === "worker") return getBodyForWorker(energyCap);
+  else if (roleToSpawn === "upgrader") return getBodyForUpgrader(energyCap);
+  else if (roleToSpawn === "worker") return getBodyForWorker(energyAvailable);
   return;
 }
 
