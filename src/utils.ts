@@ -1335,6 +1335,12 @@ export function getOwnedRoomsCount(): number {
   return Object.values(Game.rooms).filter(room => room.controller?.my).length;
 }
 
+export function getUpgradeableControllerCount(): number {
+  return Object.values(Game.rooms).filter(
+    room => room.controller?.my && (room.controller?.level < 8 || room.controller?.ticksToDowngrade < 100000)
+  ).length;
+}
+
 export function updateRemoteHarvestCost(room: Room): void {
   let cost = 0;
   if (room.controller?.my) {

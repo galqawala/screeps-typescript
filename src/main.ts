@@ -167,7 +167,8 @@ function updatePlan() {
 
   Memory.plan = {
     spawnUpgraders:
-      storageMin >= 100000 && utils.getCreepCountByRole("upgrader") < 4 * utils.getOwnedRoomsCount(),
+      storageMin >= 100000 &&
+      utils.getCreepCountByRole("upgrader") < 4 * utils.getUpgradeableControllerCount(),
     fillStorage: (storageMin < 150000 && !needHarvesters()) || allSpawnsFull(),
     spawnRemoteHarvesters: storageMin < 300000
   };
@@ -1410,7 +1411,7 @@ function getBodyForWorker(energyAvailable: number) {
   for (;;) {
     let nextPart: BodyPartConstant = WORK;
     if (utils.getBodyPartRatio(body, MOVE) <= 0.34) nextPart = MOVE;
-    else if (utils.getBodyPartRatio(body, CARRY) <= 0.14) nextPart = CARRY;
+    else if (utils.getBodyPartRatio(body, CARRY) <= 0.2) nextPart = CARRY;
 
     if (utils.getBodyCost(body) + BODYPART_COST[nextPart] > energyAvailable) return body;
     body.push(nextPart);
