@@ -1240,7 +1240,7 @@ function needWorkers() {
 }
 
 function getWorkerBodyPartsNeeded() {
-  return Math.ceil(getTotalConstructionWork() / 1000 + utils.getTotalRepairTargetCount() / 2);
+  return Math.ceil(getTotalConstructionWork() / 500 + utils.getTotalRepairTargetCount() / 2);
 }
 
 function getTotalConstructionWork() {
