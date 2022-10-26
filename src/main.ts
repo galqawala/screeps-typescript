@@ -170,7 +170,7 @@ function updatePlan() {
       storageMin >= 100000 &&
       utils.getCreepCountByRole("upgrader") < 4 * utils.getUpgradeableControllerCount(),
     fillStorage: (storageMin < 150000 && !needHarvesters()) || allSpawnsFull(),
-    spawnRemoteHarvesters: storageMin < 300000
+    spawnRemoteHarvesters: storageMin < 900000
   };
 }
 
