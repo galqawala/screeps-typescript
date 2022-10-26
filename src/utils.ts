@@ -963,7 +963,7 @@ function getStorePlannedEnergyChange(id: Id<EnergySource | AnyStoreStructure>) {
       aggregated +
       (item.memory.deliveryTasks
         ? item.memory.deliveryTasks.reduce(
-            (total, task) => total + (task.destination === id ? task.energy : 0),
+            (total, task) => total + (task.destination === id ? -task.energy : 0),
             0 /* initial*/
           )
         : 0),
