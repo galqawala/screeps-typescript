@@ -71,10 +71,10 @@ export function getEnergy(object: Creep | AnyStructure | Resource | Ruin | Tombs
 }
 
 export function getFreeCap(object: Creep | AnyStructure | Resource | Ruin | Tombstone | Structure): number {
-  if (!object) return 0;
+  if (!object) return Number.NEGATIVE_INFINITY;
   const store = getStore(object);
   if (store) return store.getFreeCapacity(RESOURCE_ENERGY);
-  return 0;
+  return Number.NEGATIVE_INFINITY;
 }
 
 export function getPos(obj: RoomPosition | RoomObject): RoomPosition {
