@@ -101,7 +101,7 @@ declare global {
   interface DeliveryTask {
     isDelivery: boolean;
     destination: Id<Structure | Tombstone | Ruin | Resource>;
-    energyAfter: number;
+    energy: number;
   }
 
   interface Task {
@@ -233,7 +233,10 @@ function getEnergySource(
     if (source) sources.push(source);
   }
   const closest = sources
-    .map(value => ({ value, sort: utils.getGlobalRange(pos, utils.getPos(value)) })) /* persist sort values */
+    .map(value => ({
+      value,
+      sort: utils.getGlobalRange(pos, utils.getPos(value.store))
+    })) /* persist sort values */
     .sort((a, b) => a.sort - b.sort) /* sort */
     .map(({ value }) => value) /* remove sort values */[0];
   utils.logCpu("getEnergySource(" + creep.name + ")");
@@ -257,7 +260,10 @@ function getEnergyDestination(
     if (roomDestination) destinations.push(roomDestination);
   }
   const closest = destinations
-    .map(value => ({ value, sort: utils.getGlobalRange(pos, utils.getPos(value)) })) /* persist sort values */
+    .map(value => ({
+      value,
+      sort: utils.getGlobalRange(pos, utils.getPos(value.store))
+    })) /* persist sort values */
     .sort((a, b) => a.sort - b.sort) /* sort */
     .map(({ value }) => value) /* remove sort values */[0];
   utils.logCpu("getEnergyDestination(" + creep.name + ")");
@@ -272,12 +278,12 @@ function getRoomEnergySource(
 ) {
   const sources = [];
   if (!Memory.rooms[roomName].energyStores) Memory.rooms[roomName].energyStores = [];
-  const ids = Memory.rooms[roomName].energyStores
-    .filter(source => !excludeIds.includes(source.id) && source.energy > 0)
-    .map(source => source.id);
-  if (ids) {
-    for (const id of ids) {
-      const source = Game.getObjectById(id);
+  const stores = Memory.rooms[roomName].energyStores.filter(
+    source => !excludeIds.includes(source.id) && source.energy > 0
+  );
+  if (stores) {
+    for (const store of stores) {
+      const source = Game.getObjectById(store.id);
       if (
         source &&
         !(source instanceof StructureExtension) &&
@@ -295,7 +301,7 @@ function getRoomEnergySource(
       .sort((a, b) => a.sort - b.sort) /* sort */
       .map(({ value }) => value) /* remove sort values */[0];
 
-    return closest;
+    if (closest) return { store: closest, info: stores.filter(store => store.id === closest.id)[0] };
   }
   return;
 }
@@ -307,12 +313,12 @@ function getRoomEnergyDestination(
   roomName: string
 ) {
   const destinations = [];
-  const ids = Memory.rooms[roomName].energyStores
-    .filter(store => !excludeIds.includes(store.id) && store.freeCap > 0)
-    .map(store => store.id);
-  if (ids) {
-    for (const id of ids) {
-      const destination = Game.getObjectById(id);
+  const stores = Memory.rooms[roomName].energyStores.filter(
+    store => !excludeIds.includes(store.id) && store.freeCap > 0
+  );
+  if (stores) {
+    for (const store of stores) {
+      const destination = Game.getObjectById(store.id);
       if (
         destination &&
         !(destination instanceof StructureContainer) &&
@@ -328,10 +334,7 @@ function getRoomEnergyDestination(
       .sort((a, b) => a.sort - b.sort) /* sort */
       .map(({ value }) => value) /* remove sort values */[0];
 
-    return closest;
-  } else {
-    const storages = Game.rooms[roomName].find(FIND_MY_STRUCTURES).filter(utils.isStorage);
-    if (storages.length) return storages[0];
+    return { store: closest, info: stores.filter(store => store.id === closest.id)[0] };
   }
   return;
 }
@@ -378,13 +381,13 @@ function workerRetrieveEnergy(creep: Creep) {
   if (typeof oldDestination === "string") destination = Game.getObjectById(oldDestination);
   if (!destination) {
     destination = getEnergySource(creep, true, creep.pos, []);
-    if (destination && "id" in destination) {
-      creep.memory.retrieve = destination.id;
-      utils.setDestination(creep, destination);
+    if (destination && destination.store && "id" in destination.store) {
+      creep.memory.retrieve = destination.store.id;
+      utils.setDestination(creep, destination.store);
       utils.updateStoreEnergy(
-        destination.pos.roomName,
-        destination.id,
-        -creep.store.getFreeCapacity(RESOURCE_ENERGY)
+        destination.store.pos.roomName,
+        destination.store.id,
+        -Math.min(creep.store.getFreeCapacity(RESOURCE_ENERGY), destination.info.energy)
       );
     }
   }
@@ -630,25 +633,23 @@ function addCarrierDestination(creep: Creep, pos: RoomPosition) {
   if (creep?.memory?.deliveryTasks) queuedIds = creep?.memory?.deliveryTasks?.map(task => task.destination);
   let energy = creep.store.getUsedCapacity(RESOURCE_ENERGY);
   if (creep.memory.deliveryTasks?.length) {
-    const lastTask = creep.memory.deliveryTasks[creep.memory.deliveryTasks.length - 1];
-    const energyAfter = lastTask.energyAfter;
-    if (!isNaN(energyAfter)) energy = energyAfter;
+    for (const task of creep.memory.deliveryTasks) energy += task.energy;
   }
   const cap = creep.store.getCapacity(RESOURCE_ENERGY);
   if (energy / cap < 0.9) upstream = getEnergySource(creep, false, pos, queuedIds);
   if (energy > 0) downstream = getEnergyDestination(creep, Memory.plan.fillStorage, pos, queuedIds);
   if (
     upstream &&
+    upstream.store &&
     (!downstream ||
-      utils.getGlobalRange(creep.pos, downstream.pos) >= utils.getGlobalRange(creep.pos, upstream.pos))
+      utils.getGlobalRange(creep.pos, downstream.store.pos) >=
+        utils.getGlobalRange(creep.pos, upstream.store.pos))
   ) {
     addCarrierDestinationUpstream(cap, energy, upstream, creep);
     utils.logCpu("addCarrierDestination(" + creep.name + ")");
     return upstream;
-  } else if (utils.isStoreStructure(downstream)) {
-    utils.updateStoreEnergy(downstream.pos.roomName, downstream.id, energy);
-    energy = Math.max(0, energy - downstream.store.getFreeCapacity(RESOURCE_ENERGY));
-    creep.memory.deliveryTasks?.push({ destination: downstream.id, isDelivery: true, energyAfter: energy });
+  } else if (downstream && utils.isStoreStructure(downstream.store)) {
+    addCarrierDestinationDownstream(energy, downstream, creep);
     utils.logCpu("addCarrierDestination(" + creep.name + ")");
     return downstream;
   }
@@ -659,12 +660,26 @@ function addCarrierDestination(creep: Creep, pos: RoomPosition) {
 function addCarrierDestinationUpstream(
   cap: number,
   energy: number,
-  upstream: EnergySource | AnyStoreStructure,
+  upstream: { store: EnergySource | AnyStoreStructure; info: EnergyStore },
   creep: Creep
 ) {
-  energy = Math.min(cap, energy + utils.getEnergy(upstream));
-  creep.memory.deliveryTasks?.push({ destination: upstream.id, isDelivery: false, energyAfter: energy });
-  utils.updateStoreEnergy(upstream.pos.roomName, upstream.id, -creep.store.getFreeCapacity(RESOURCE_ENERGY));
+  energy = Math.min(cap - energy, upstream.info.energy);
+  creep.memory.deliveryTasks?.push({ destination: upstream.store.id, isDelivery: false, energy });
+  utils.updateStoreEnergy(upstream.store.pos.roomName, upstream.store.id, -energy);
+}
+
+function addCarrierDestinationDownstream(
+  energy: number,
+  downstream: { store: EnergySource | AnyStoreStructure; info: EnergyStore },
+  creep: Creep
+) {
+  const taskEnergy = Math.min(energy, downstream.info.freeCap);
+  utils.updateStoreEnergy(downstream.store.pos.roomName, downstream.store.id, taskEnergy);
+  creep.memory.deliveryTasks?.push({
+    destination: downstream.store.id,
+    isDelivery: true,
+    energy: -taskEnergy
+  });
 }
 
 function handleReserver(creep: Creep) {

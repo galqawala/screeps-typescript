@@ -950,11 +950,25 @@ export function updateRoomEnergyStores(room: Room): void {
   room.memory.energyStores = stores.map(store => {
     return {
       id: store.id,
-      energy: getEnergy(store),
-      freeCap: getFreeCap(store)
+      energy: getEnergy(store) + getStorePlannedEnergyChange(store.id),
+      freeCap: getFreeCap(store) - getStorePlannedEnergyChange(store.id)
     } as EnergyStore;
   });
   logCpu("updateRoomEnergyStores(" + room.name + ")");
+}
+
+function getStorePlannedEnergyChange(id: Id<EnergySource | AnyStoreStructure>) {
+  return Object.values(Game.creeps).reduce(
+    (aggregated, item) =>
+      aggregated +
+      (item.memory.deliveryTasks
+        ? item.memory.deliveryTasks.reduce(
+            (total, task) => total + (task.destination === id ? task.energy : 0),
+            0 /* initial*/
+          )
+        : 0),
+    0 /* initial*/
+  );
 }
 
 export function constructInRoom(room: Room): void {
