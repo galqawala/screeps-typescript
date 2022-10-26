@@ -57,7 +57,7 @@ declare global {
 
   interface Plan {
     fillStorage: boolean;
-    spawnRemoteHarvesters: boolean;
+    spawnHarvesters: boolean;
     spawnUpgraders: boolean;
   }
 
@@ -170,7 +170,7 @@ function updatePlan() {
       storageMin >= 100000 &&
       utils.getCreepCountByRole("upgrader") < 4 * utils.getUpgradeableControllerCount(),
     fillStorage: (storageMin < 150000 && !needHarvesters()) || allSpawnsFull(),
-    spawnRemoteHarvesters: storageMin < 900000
+    spawnHarvesters: storageMin < 900000
   };
 }
 
@@ -1258,19 +1258,9 @@ function needUpgraders(room: Room) {
 
 function needHarvesters() {
   const source = getSourceToHarvest(Object.values(Game.spawns)[0].pos);
-
   if (!source) return false; // nothing to harvest
-
   if (Memory.needHarvesters) return true;
-
-  if (
-    source.pos.findInRange(FIND_MY_STRUCTURES, 1).filter(target => target.structureType === STRUCTURE_LINK)
-      .length > 0
-  ) {
-    return true; // always keep sources with link manned;
-  }
-
-  return Memory.plan.spawnRemoteHarvesters;
+  return Memory.plan.spawnHarvesters;
 }
 
 function getSourceToHarvest(pos: RoomPosition) {
