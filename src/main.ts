@@ -334,7 +334,7 @@ function getRoomEnergyDestination(
       .sort((a, b) => a.sort - b.sort) /* sort */
       .map(({ value }) => value) /* remove sort values */[0];
 
-    return { store: closest, info: stores.filter(store => store.id === closest.id)[0] };
+    if (closest) return { store: closest, info: stores.filter(store => store.id === closest.id)[0] };
   }
   return;
 }
