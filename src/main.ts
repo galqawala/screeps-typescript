@@ -368,12 +368,12 @@ function handleWorker(creep: Creep) {
   else if (utils.isFull(creep)) delete creep.memory.retrieve;
 
   const repairTarget = creep.pos.findInRange(FIND_STRUCTURES, 3).filter(utils.needRepair)[0];
-  if (repairTarget && !utils.isEmpty(creep)) {
+  if (utils.isEmpty(creep)) {
+    workerRetrieveEnergy(creep);
+  } else if (repairTarget) {
     creep.repair(repairTarget);
   } else if (creep.memory.build) {
     build(creep);
-  } else if (utils.isEmpty(creep)) {
-    workerRetrieveEnergy(creep);
   } else {
     utils.logCpu("handleWorker(" + creep.name + ") work");
     const result =
