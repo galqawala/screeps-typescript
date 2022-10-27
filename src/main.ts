@@ -220,16 +220,17 @@ function getEnergySource(
   creep: Creep,
   allowStorageAndLink: boolean,
   pos: RoomPosition,
-  excludeIds: Id<Structure | Tombstone | Ruin | Resource>[]
+  excludeIds: Id<Structure | Tombstone | Ruin | Resource>[],
+  freeCap: number
 ) {
   utils.logCpu("getEnergySource(" + creep.name + ")");
-  const destination = getRoomEnergySource(pos, allowStorageAndLink, excludeIds, pos.roomName);
+  const destination = getRoomEnergySource(pos, allowStorageAndLink, excludeIds, pos.roomName, freeCap);
   utils.logCpu("getEnergySource(" + creep.name + ")");
   if (destination) return destination;
   const sources = [];
   for (const roomName of Object.keys(Game.rooms)) {
     if (roomName === pos.roomName) continue; // checked this already in the beginning
-    const source = getRoomEnergySource(pos, allowStorageAndLink, excludeIds, roomName);
+    const source = getRoomEnergySource(pos, allowStorageAndLink, excludeIds, roomName, freeCap);
     if (source) sources.push(source);
   }
   const closest = sources
@@ -274,35 +275,36 @@ function getRoomEnergySource(
   pos: RoomPosition,
   allowStorageAndLink: boolean,
   excludeIds: Id<Structure | Tombstone | Ruin | Resource>[],
-  roomName: string
+  roomName: string,
+  freeCap: number
 ) {
   const sources = [];
   if (!Memory.rooms[roomName].energyStores) Memory.rooms[roomName].energyStores = [];
+  // sources that are full or could make us full
   const stores = Memory.rooms[roomName].energyStores.filter(
-    source => !excludeIds.includes(source.id) && source.energy > 0
+    source => !excludeIds.includes(source.id) && (source.energy >= freeCap || source.freeCap <= 0)
   );
-  if (stores) {
-    for (const store of stores) {
-      const source = Game.getObjectById(store.id);
-      if (
-        source &&
-        !(source instanceof StructureExtension) &&
-        !(source instanceof StructureSpawn) &&
-        !(source instanceof StructureTower) &&
-        (allowStorageAndLink || (!utils.isStorage(source) && !utils.isLink(source)))
-      )
-        sources.push(source);
-    }
-    const closest = sources
-      .map(value => ({
-        value,
-        sort: utils.getGlobalRange(pos, utils.getPos(value))
-      })) /* persist sort values */
-      .sort((a, b) => a.sort - b.sort) /* sort */
-      .map(({ value }) => value) /* remove sort values */[0];
-
-    if (closest) return { store: closest, info: stores.filter(store => store.id === closest.id)[0] };
+  if (!stores) return;
+  for (const store of stores) {
+    const source = Game.getObjectById(store.id);
+    if (
+      source &&
+      !(source instanceof StructureExtension) &&
+      !(source instanceof StructureSpawn) &&
+      !(source instanceof StructureTower) &&
+      (allowStorageAndLink || (!utils.isStorage(source) && !utils.isLink(source)))
+    )
+      sources.push(source);
   }
+  const closest = sources
+    .map(value => ({
+      value,
+      sort: utils.getGlobalRange(pos, utils.getPos(value))
+    })) /* persist sort values */
+    .sort((a, b) => a.sort - b.sort) /* sort */
+    .map(({ value }) => value) /* remove sort values */[0];
+
+  if (closest) return { store: closest, info: stores.filter(store => store.id === closest.id)[0] };
   return;
 }
 
@@ -380,7 +382,7 @@ function workerRetrieveEnergy(creep: Creep) {
   const oldDestination = creep.memory.retrieve;
   if (typeof oldDestination === "string") destination = Game.getObjectById(oldDestination);
   if (!destination) {
-    destination = getEnergySource(creep, true, creep.pos, []);
+    destination = getEnergySource(creep, true, creep.pos, [], utils.getFreeCap(creep));
     if (destination && destination.store && "id" in destination.store) {
       creep.memory.retrieve = destination.store.id;
       utils.setDestination(creep, destination.store);
@@ -636,7 +638,7 @@ function addCarrierDestination(creep: Creep, pos: RoomPosition) {
     for (const task of creep.memory.deliveryTasks) energy += task.energy;
   }
   const cap = creep.store.getCapacity(RESOURCE_ENERGY);
-  if (energy / cap < 0.9) upstream = getEnergySource(creep, false, pos, queuedIds);
+  if (energy / cap < 0.9) upstream = getEnergySource(creep, false, pos, queuedIds, cap - energy);
   if (energy > 0) downstream = getEnergyDestination(creep, Memory.plan.fillStorage, pos, queuedIds);
   if (
     upstream &&
