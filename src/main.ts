@@ -1109,7 +1109,7 @@ function handleSpawns(room: Room) {
 function needCarriers(): boolean {
   return (
     utils.getTotalCreepCapacity("carrier") < utils.getTotalEnergyToHaul() ||
-    (utils.getTotalCreepCapacity("carrier") < 100 && Memory.plan.fillSpawnsFromStorage)
+    (utils.getTotalCreepCapacity("carrier") < 200 && Memory.plan.fillSpawnsFromStorage)
   );
 }
 
