@@ -468,9 +468,11 @@ export function getTotalEnergyToHaul(): number {
       .find(FIND_STRUCTURES)
       .filter(structure => structure.structureType === STRUCTURE_CONTAINER)
       .reduce((aggregated, item) => aggregated + getEnergy(item), 0 /* initial*/);
-
     energy += Game.rooms[i]
       .find(FIND_DROPPED_RESOURCES)
+      .reduce((aggregated, item) => aggregated + getEnergy(item), 0 /* initial*/);
+    energy += Game.rooms[i]
+      .find(FIND_RUINS)
       .reduce((aggregated, item) => aggregated + getEnergy(item), 0 /* initial*/);
   }
   return energy;
