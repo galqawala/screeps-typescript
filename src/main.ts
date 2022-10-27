@@ -330,6 +330,7 @@ function getRoomEnergyDestination(
       if (
         destination &&
         !(destination instanceof StructureContainer) &&
+        !(destination instanceof Ruin) &&
         (allowStorageAndLink || (!utils.isStorage(destination) && !utils.isLink(destination)))
       )
         destinations.push(destination);
