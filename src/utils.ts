@@ -938,9 +938,13 @@ export function setDestination(creep: Creep, destination: Destination): void {
 
 export function updateRoomRepairTargets(room: Room): void {
   logCpu("updateRoomRepairTargets(" + room.name + ")");
-  const targets: Structure[] = room
-    .find(FIND_STRUCTURES)
-    .filter(target => needRepair(target) && (getHpRatio(target) || 1) < 0.9 && !isUnderRepair(target));
+  const targets: Structure[] = room.find(FIND_STRUCTURES).filter(
+    target =>
+      needRepair(target) &&
+      (getHpRatio(target) || 1) < 0.9 &&
+      !isUnderRepair(target) &&
+      target.structureType !== STRUCTURE_CONTAINER // leave to harvesters
+  );
   room.memory.repairTargets = targets
     .map(target => target.id)
     .filter(
