@@ -824,8 +824,8 @@ export function getTrafficRateAt(pos: RoomPosition): number {
 export function getPotentialConstructionSites(room: Room): ScoredPos[] {
   const sites: ScoredPos[] = [];
 
-  for (let x = 2; x <= 47; x++) {
-    for (let y = 2; y <= 47; y++) {
+  for (let x = 4; x <= 45; x++) {
+    for (let y = 4; y <= 45; y++) {
       if ((x + y) % 2 === 1) continue; // build in a checkered pattern to allow passage
       const pos = room.getPositionAt(x, y);
       if (!pos) continue;
