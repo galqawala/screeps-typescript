@@ -1096,10 +1096,21 @@ function needCarriers(): boolean {
 }
 
 function needTransferers(): boolean {
-  const storages = Object.values(Game.structures)
-    .filter(utils.isStorage)
-    .filter(storage => utils.hasStructureInRange(storage.pos, STRUCTURE_LINK, 1, false));
-  return utils.getTotalCreepCapacity("transferer") < storages.length;
+  // we have storages without transferrer, next to link that has energy
+  return (
+    Object.values(Game.structures)
+      .filter(utils.isStorage)
+      .filter(
+        storage =>
+          Object.values(Game.creeps).filter(
+            creep => creep.memory.role === "transferer" && creep.memory.destination === storage.id
+          ).length <= 0 &&
+          storage.pos
+            .findInRange(FIND_MY_STRUCTURES, 1)
+            .filter(utils.isLink)
+            .filter(link => utils.getEnergy(link) > 0).length > 0
+      ).length > 0
+  );
 }
 
 function spawnRole(
