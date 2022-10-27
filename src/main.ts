@@ -376,8 +376,7 @@ function handleWorker(creep: Creep) {
     build(creep);
   } else {
     utils.logCpu("handleWorker(" + creep.name + ") work");
-    const result =
-      upgrade(creep, true) || repair(creep) || dismantle(creep) || build(creep) || recycleCreep(creep);
+    const result = upgrade(creep, true) || repair(creep) || dismantle(creep) || build(creep);
     utils.logCpu("handleWorker(" + creep.name + ") work");
     utils.logCpu("handleWorker(" + creep.name + ")");
     return result;
