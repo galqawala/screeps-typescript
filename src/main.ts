@@ -56,6 +56,7 @@ declare global {
   }
 
   interface Plan {
+    celebrate: boolean;
     fillStorage: boolean;
     spawnHarvesters: boolean;
     spawnUpgraders: boolean;
@@ -170,7 +171,14 @@ function updatePlan() {
       storageMin >= 100000 &&
       utils.getCreepCountByRole("upgrader") < 4 * utils.getUpgradeableControllerCount(),
     fillStorage: (storageMin < 150000 && !needHarvesters()) || allSpawnsFull(),
-    spawnHarvesters: storageMin < 900000
+    spawnHarvesters: storageMin < 900000,
+    celebrate:
+      Object.values(Game.rooms).filter(
+        room =>
+          room.controller?.my &&
+          !room.controller?.progressTotal /* fully upgraded */ &&
+          room.controller?.ticksToDowngrade >= 140000
+      ).length > 0
   };
 }
 
@@ -197,9 +205,16 @@ function handleCreeps() {
     else if (role === "upgrader") handleUpgrader(Game.creeps[c]);
     else if (role === "worker") handleWorker(Game.creeps[c]);
 
+    if (Memory.plan.celebrate && Math.random() < 0.3) celebrate(Game.creeps[c]);
     utils.logCpu("creep: " + c);
   }
   utils.logCpu("handleCreeps()");
+}
+
+function celebrate(creep: Creep) {
+  const emojis = "☺✨❤🌺🌼🍉🍌🍔🍦🍨🍩🍭🎂🎇🎈🎉🎯🎶🏁🏅🏆👌💕💖💙💚💛💜🔈🗣😂😋😍😎😛🙌";
+  const symbols = [...emojis];
+  creep.say(symbols[Math.floor(Math.random() * symbols.length)], true);
 }
 
 function handleExplorer(creep: Creep) {
