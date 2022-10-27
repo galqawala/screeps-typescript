@@ -57,6 +57,7 @@ declare global {
 
   interface Plan {
     celebrate: boolean;
+    fillSpawnsFromStorage: boolean;
     fillStorage: boolean;
     spawnHarvesters: boolean;
     spawnUpgraders: boolean;
@@ -171,6 +172,7 @@ function updatePlan() {
       storageMin >= 100000 &&
       utils.getCreepCountByRole("upgrader") < 4 * utils.getUpgradeableControllerCount(),
     fillStorage: (storageMin < 150000 && !needHarvesters()) || allSpawnsFull(),
+    fillSpawnsFromStorage: storageMin >= 900000 && !allSpawnsFull(),
     spawnHarvesters: storageMin < 900000,
     celebrate:
       Object.values(Game.rooms).filter(
@@ -662,8 +664,10 @@ function addCarrierDestination(creep: Creep, pos: RoomPosition) {
     for (const task of creep.memory.deliveryTasks) energy += task.energy;
   }
   const cap = creep.store.getCapacity(RESOURCE_ENERGY);
-  if (energy / cap < 0.9) upstream = getEnergySource(creep, false, pos, queuedIds, cap - energy);
-  if (energy > 0) downstream = getEnergyDestination(creep, Memory.plan.fillStorage, pos, queuedIds);
+  const storageToSpawn = Memory.plan.fillSpawnsFromStorage;
+  if (energy / cap < 0.9) upstream = getEnergySource(creep, storageToSpawn, pos, queuedIds, cap - energy);
+  if (energy > 0)
+    downstream = getEnergyDestination(creep, Memory.plan.fillStorage && !storageToSpawn, pos, queuedIds);
   if (
     upstream &&
     upstream.store &&
@@ -1103,7 +1107,10 @@ function handleSpawns(room: Room) {
 }
 
 function needCarriers(): boolean {
-  return utils.getTotalCreepCapacity("carrier") < utils.getTotalEnergyToHaul();
+  return (
+    utils.getTotalCreepCapacity("carrier") < utils.getTotalEnergyToHaul() ||
+    (utils.getTotalCreepCapacity("carrier") < 1 && Memory.plan.fillSpawnsFromStorage)
+  );
 }
 
 function needTransferers(): boolean {
