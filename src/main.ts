@@ -1080,11 +1080,7 @@ function handleSpawns(room: Room) {
     } else if (needTransferers()) {
       spawnTransferer(spawn);
     } else if (needWorkers()) {
-      spawnRole(
-        "worker",
-        spawn,
-        Math.min(getWorkerBodyPartsNeeded() * 150, spawn.room.energyCapacityAvailable)
-      );
+      spawnRole("worker", spawn);
     } else if (needUpgraders(spawn.room)) {
       spawnRole("upgrader", spawn, Math.min(450, spawn.room.energyCapacityAvailable));
     }
