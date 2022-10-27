@@ -280,21 +280,17 @@ function getRoomEnergySource(
 ) {
   const sources = [];
   if (!Memory.rooms[roomName].energyStores) Memory.rooms[roomName].energyStores = [];
-  // sources that are full or could make us full
   const stores = Memory.rooms[roomName].energyStores.filter(
-    source => !excludeIds.includes(source.id) && (source.energy >= freeCap || source.freeCap <= 0)
+    source =>
+      !excludeIds.includes(source.id) &&
+      source.energy > 0 &&
+      // sources that are full or could make us full
+      (source.energy >= freeCap || source.freeCap <= 0)
   );
   if (!stores) return;
   for (const store of stores) {
     const source = Game.getObjectById(store.id);
-    if (
-      source &&
-      !(source instanceof StructureExtension) &&
-      !(source instanceof StructureSpawn) &&
-      !(source instanceof StructureTower) &&
-      (allowStorageAndLink || (!utils.isStorage(source) && !utils.isLink(source)))
-    )
-      sources.push(source);
+    if (isValidEnergySource(source, allowStorageAndLink)) sources.push(source);
   }
   const closest = sources
     .map(value => ({
@@ -306,6 +302,16 @@ function getRoomEnergySource(
 
   if (closest) return { store: closest, info: stores.filter(store => store.id === closest.id)[0] };
   return;
+}
+
+function isValidEnergySource(source: EnergySource | AnyStoreStructure | null, allowStorageAndLink: boolean) {
+  return (
+    source &&
+    !(source instanceof StructureExtension) &&
+    !(source instanceof StructureSpawn) &&
+    !(source instanceof StructureTower) &&
+    (allowStorageAndLink || (!utils.isStorage(source) && !utils.isLink(source)))
+  );
 }
 
 function getRoomEnergyDestination(

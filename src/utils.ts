@@ -4,14 +4,18 @@ const minRoadTraffic = 0.016;
 export function isOwnedStructure(structure: Structure): structure is AnyOwnedStructure {
   return (structure as { my?: boolean }).my !== undefined;
 }
-export function isStorage(structure: Structure | Ruin | Tombstone | Resource): structure is StructureStorage {
+export function isStorage(
+  structure: Structure | Ruin | Tombstone | Resource | EnergyStore
+): structure is StructureStorage {
   if (!("structureType" in structure)) return false;
   return structure.structureType === STRUCTURE_STORAGE;
 }
 export function isDestructibleWall(structure: Structure): structure is StructureWall {
   return structure.structureType === STRUCTURE_WALL && "hits" in structure;
 }
-export function isLink(structure: Structure | Ruin | Tombstone | Resource): structure is StructureLink {
+export function isLink(
+  structure: Structure | Ruin | Tombstone | Resource | EnergyStore
+): structure is StructureLink {
   if (!("structureType" in structure)) return false;
   return structure.structureType === STRUCTURE_LINK;
 }
@@ -77,9 +81,11 @@ export function getFreeCap(object: Creep | AnyStructure | Resource | Ruin | Tomb
   return Number.NEGATIVE_INFINITY;
 }
 
-export function getPos(obj: RoomPosition | RoomObject): RoomPosition {
+export function getPos(obj: RoomPosition | RoomObject | null): RoomPosition | undefined {
+  if (!obj) return;
   if (obj instanceof RoomPosition) return obj;
-  return obj.pos;
+  if ("pos" in obj) return obj.pos;
+  return;
 }
 
 export function getGlobalCoords(pos: RoomPosition): { x: number; y: number } {
@@ -99,7 +105,8 @@ export function getGlobalCoords(pos: RoomPosition): { x: number; y: number } {
   return { x, y };
 }
 
-export function getGlobalRange(from: RoomPosition, to: RoomPosition): number {
+export function getGlobalRange(from: RoomPosition | undefined, to: RoomPosition | undefined): number {
+  if (!from || !to) return Number.POSITIVE_INFINITY;
   const fromGlobal = getGlobalCoords(from);
   const toGlobal = getGlobalCoords(to);
   return Math.max(Math.abs(fromGlobal.x - toGlobal.x), Math.abs(fromGlobal.y - toGlobal.y));
@@ -192,7 +199,7 @@ export function getTrafficFlagName(pos: RoomPosition): string {
 
 export function getPositionsAround(origin: RoomPosition): RoomPosition[] {
   logCpu("getPositionsAround(" + origin.toString() + ")");
-  const range = 1; // distance we move in one tick
+  const range = 1;
   const terrain = new Room.Terrain(origin.roomName);
   const spots: RoomPosition[] = [];
 
@@ -697,7 +704,7 @@ export function hasStructureInRange(
 ): boolean {
   if (
     pos
-      .findInRange(FIND_MY_STRUCTURES, range)
+      .findInRange(FIND_STRUCTURES, range)
       .filter(structure => !structureType || structure.structureType === structureType).length > 0
   )
     return true;
@@ -705,7 +712,7 @@ export function hasStructureInRange(
   if (
     includeConstructionSites &&
     pos
-      .findInRange(FIND_MY_CONSTRUCTION_SITES, range)
+      .findInRange(FIND_CONSTRUCTION_SITES, range)
       .filter(structure => !structureType || structure.structureType === structureType).length > 0
   )
     return true;
@@ -822,12 +829,23 @@ export function getPotentialConstructionSites(room: Room): ScoredPos[] {
       if (!pos) continue;
       if (!isPosSuitableForConstruction(pos)) continue;
       const score =
-        (hasStructureInRange(pos, STRUCTURE_ROAD, 1, true) ? 1 : 0) - pos.lookFor(LOOK_STRUCTURES).length;
+        (hasStructureInRange(pos, STRUCTURE_ROAD, 1, true) ? 10 : 5) -
+        pos.lookFor(LOOK_STRUCTURES).length +
+        getSurroundingPlainsCount(pos);
       sites.push({ score, pos });
     }
   }
-
   return sites;
+}
+
+function getSurroundingPlainsCount(pos: RoomPosition) {
+  let plains = 0;
+  const positions = getPositionsAround(pos);
+  const terrain = new Room.Terrain(pos.roomName);
+  for (const posAround of positions) {
+    if (terrain.get(posAround.x, posAround.y) === 0) plains++;
+  }
+  return plains;
 }
 
 export function isPosSuitableForConstruction(pos: RoomPosition): boolean {
