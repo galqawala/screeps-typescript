@@ -1,5 +1,6 @@
 // When compiling TS to JS and bundling with rollup, the line numbers and file names in error messages change
 // This utility uses source maps to get the line numbers and file names of the original, TS source code
+import { createPrivateKey } from "crypto";
 import * as utils from "utils";
 import { ErrorMapper } from "utils/ErrorMapper";
 
@@ -1017,17 +1018,19 @@ function handleRoom(room: Room) {
 
 function move(creep: Creep, destination: Destination) {
   utils.logCpu("move(" + creep.name + ")");
-  const flagName = utils.getTrafficFlagName(creep.pos);
-  const flag = Game.flags[flagName];
-  if (flag) {
-    if ("steps" in flag.memory) {
-      flag.memory.steps++;
-    } else {
-      flag.memory.steps = 0;
-      flag.memory.initTime = Game.time;
+  if (creep.memory.role !== "explorer") {
+    const flagName = utils.getTrafficFlagName(creep.pos);
+    const flag = Game.flags[flagName];
+    if (flag) {
+      if ("steps" in flag.memory) {
+        flag.memory.steps++;
+      } else {
+        flag.memory.steps = 0;
+        flag.memory.initTime = Game.time;
+      }
+    } else if (utils.shouldMaintainStatsFor(creep.pos)) {
+      creep.pos.createFlag(flagName, COLOR_GREEN, COLOR_GREY);
     }
-  } else if (utils.shouldMaintainStatsFor(creep.pos)) {
-    creep.pos.createFlag(flagName, COLOR_GREEN, COLOR_GREY);
   }
   utils.logCpu("move(" + creep.name + ") moveTo");
   const index = Object.keys(Game.creeps).sort().indexOf(creep.name);
