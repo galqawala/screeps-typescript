@@ -1380,23 +1380,31 @@ export function getUpgradeableControllerCount(): number {
   ).length;
 }
 
-export function updateRemoteHarvestCost(room: Room): void {
-  let cost = 0;
-  if (room.controller?.my) {
-    cost = 1;
-  } else {
-    const sources = room.find(FIND_SOURCES);
-    for (const source of sources) {
-      const storages = Object.values(Game.structures).filter(isStorage);
-      const path = PathFinder.search(
-        source.pos,
-        storages.map(storage => storage.pos)
-      );
-      cost += path.incomplete ? 1000 : path.cost;
-    }
-    if (sources.length > 0) cost /= sources.length;
+export function updateRemoteHarvestScore(room: Room): void {
+  let score = 0;
+  const sources = room.find(FIND_SOURCES);
+  for (const source of sources) {
+    const storages = Object.values(Game.structures).filter(isStorage);
+    const path = PathFinder.search(
+      source.pos,
+      storages.map(storage => storage.pos)
+    );
+    score += 1 / path.cost;
   }
-  room.memory.remoteHarvestCost = cost;
+  room.memory.remoteHarvestScore = score;
+}
+
+export function updateRoomScore(room: Room): void {
+  let score = 0;
+  const sources = room.find(FIND_SOURCES);
+  const controller = room.controller;
+  if (controller) {
+    for (const source of sources) {
+      const path = PathFinder.search(source.pos, controller.pos);
+      score += 1 / path.cost;
+    }
+  }
+  room.memory.score = score;
 }
 
 export function getTotalRepairTargetCount(): number {

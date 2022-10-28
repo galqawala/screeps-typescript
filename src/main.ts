@@ -1,6 +1,5 @@
 // When compiling TS to JS and bundling with rollup, the line numbers and file names in error messages change
 // This utility uses source maps to get the line numbers and file names of the original, TS source code
-import { createPrivateKey } from "crypto";
 import * as utils from "utils";
 import { ErrorMapper } from "utils/ErrorMapper";
 
@@ -76,7 +75,8 @@ declare global {
     hostileRangedAttackParts: number;
     hostilesPresent: boolean;
     lastTimeFlagEnergyConsumerSet: number;
-    remoteHarvestCost: number;
+    remoteHarvestScore: number;
+    score: number;
     repairTargets: Id<Structure>[];
     sortedSpawnStructureIds: Id<Structure>[];
     status: "normal" | "closed" | "novice" | "respawn";
@@ -981,7 +981,7 @@ function wantsEnergy(target: Creep) {
 
 function handleRoom(room: Room) {
   utils.logCpu("handleRoom(" + room.name + ")");
-  // control the towers
+
   utils.logCpu("handleRoom(" + room.name + ") towers");
   const towers = room.find(FIND_MY_STRUCTURES).filter(utils.isTower);
   for (const t of towers) {
@@ -992,28 +992,25 @@ function handleRoom(room: Room) {
   utils.logCpu("handleRoom(" + room.name + ") towers");
 
   utils.handleHostilesInRoom(room);
-
   if (utils.canOperateInRoom(room) && Math.random() < 0.04) utils.constructInRoom(room);
-
-  // handle the links
   utils.handleLinks(room);
-
-  utils.logCpu("handleRoom(" + room.name + ") updates");
-  if (!room.memory.upgradeSpots) utils.updateUpgradeSpots(room);
-  if (!room.memory.harvestSpots) utils.updateHarvestSpots(room);
-  if (!room.memory.remoteHarvestCost) utils.updateRemoteHarvestCost(room);
-  if (Math.random() < 0.2) utils.updateRoomEnergyStores(room);
-  if (Math.random() < 0.1) utils.updateRoomRepairTargets(room);
-  utils.logCpu("handleRoom(" + room.name + ") updates");
-  // spawn creeps
+  roomUpdates(room);
   handleSpawns(room);
-  // check the room details
-  utils.logCpu("handleRoom(" + room.name + ") details");
   utils.checkRoomStatus(room);
   utils.checkRoomCanOperate(room);
   utils.tryResetSpawnsAndExtensionsSorting(room);
-  utils.logCpu("handleRoom(" + room.name + ") details");
   utils.logCpu("handleRoom(" + room.name + ")");
+}
+
+function roomUpdates(room: Room) {
+  utils.logCpu("roomUpdates(" + room.name + ")");
+  if (!room.memory.upgradeSpots) utils.updateUpgradeSpots(room);
+  if (!room.memory.harvestSpots) utils.updateHarvestSpots(room);
+  if (!room.memory.remoteHarvestScore) utils.updateRemoteHarvestScore(room);
+  if (!room.memory.score) utils.updateRoomScore(room);
+  if (Math.random() < 0.2) utils.updateRoomEnergyStores(room);
+  if (Math.random() < 0.1) utils.updateRoomRepairTargets(room);
+  utils.logCpu("roomUpdates(" + room.name + ")");
 }
 
 function move(creep: Creep, destination: Destination) {
