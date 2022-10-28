@@ -1293,11 +1293,9 @@ function needWorkers() {
   const workParts = Object.values(Game.creeps)
     .filter(creep => creep.memory.role === "worker")
     .reduce((aggregated, item) => aggregated + item.getActiveBodyparts(WORK), 0 /* initial*/);
-  return getWorkerBodyPartsNeeded() > workParts;
-}
-
-function getWorkerBodyPartsNeeded() {
-  return Math.ceil(getTotalConstructionWork() / 300 + utils.getTotalRepairTargetCount() / 2);
+  const partsNeeded = Math.ceil(getTotalConstructionWork() / 300 + utils.getTotalRepairTargetCount() / 2);
+  // utils.msg("needWorkers()", "work parts: " + workParts.toString() + ", needed: " + partsNeeded.toString());
+  return partsNeeded > workParts;
 }
 
 function getTotalConstructionWork() {
