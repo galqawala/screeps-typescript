@@ -150,6 +150,7 @@ export const loop = ErrorMapper.wrapLoop(() => {
   updatePlan();
   for (const r in Game.rooms) handleRoom(Game.rooms[r]);
   updateFlagAttack();
+  updateFlagClaim();
   updateFlagReserve();
   updateFlagDismantle();
   handleCreeps();
@@ -1104,6 +1105,55 @@ function handleSpawns(room: Room) {
       spawnRole("upgrader", spawn, Math.min(450, spawn.room.energyCapacityAvailable));
     }
   }
+}
+
+function updateFlagClaim() {
+  if ("claim" in Game.flags) {
+    const room = Game.flags.claim.room;
+    if (room && room.controller && room.controller.my) {
+      utils.msg(Game.flags.claim, "Clearing 'claim' flag from room " + room.name, true);
+      Game.flags.claim.remove();
+    }
+  }
+  if ("claim" in Game.flags) return;
+
+  const controlledRooms = Object.values(Game.rooms).filter(room => room.controller && room.controller.my);
+  if (controlledRooms.length >= Game.gcl.level) return;
+
+  const bestRoomName = getRoomToClaim(controlledRooms);
+
+  if (!bestRoomName) return;
+  if (!(bestRoomName in Game.rooms)) return;
+  const controller = Game.rooms[bestRoomName].controller;
+  if (!controller) return;
+  utils.msg(controller, "Flagging room " + bestRoomName + " to be claimed!", true);
+  controller.pos.createFlag("claim", COLOR_WHITE, COLOR_BLUE);
+}
+
+function getRoomToClaim(controlledRooms: Room[]) {
+  let bestScore = Number.NEGATIVE_INFINITY;
+  let bestRoomName;
+
+  for (const room of controlledRooms) {
+    if (!room.controller) continue;
+    if (!room.controller.my) continue;
+    const exits = Game.map.describeExits(room.name);
+    const accessibleRooms = Object.values(exits).filter(
+      roomName =>
+        utils.isRoomSafe(roomName) &&
+        Memory.rooms[roomName].canOperate &&
+        utils.getRoomStatus(roomName) === utils.getRoomStatus(room.name)
+    );
+    for (const nearRoomName of accessibleRooms) {
+      if (controlledRooms.filter(controlledRoom => controlledRoom.name === nearRoomName).length > 0) continue;
+      const score = Memory.rooms[nearRoomName].score;
+      if (bestScore < score) {
+        bestScore = score;
+        bestRoomName = nearRoomName;
+      }
+    }
+  }
+  return bestRoomName;
 }
 
 function needCarriers(): boolean {
