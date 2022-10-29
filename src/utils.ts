@@ -122,7 +122,7 @@ export function getGlobalRange(from: RoomPosition | undefined, to: RoomPosition 
 export function cpuInfo(): void {
   if (Game.cpu.getUsed() > Game.cpu.limit) {
     Memory.cpuLimitExceededStreak++;
-    if (Memory.cpuLimitExceededStreak >= 2)
+    if (Memory.cpuLimitExceededStreak >= 3)
       msg(
         "cpuInfo()",
         Game.cpu.getUsed().toString() +
@@ -367,7 +367,8 @@ export function spawnMsg(
 ): void {
   msg(
     spawn,
-    "Spawning: " +
+    spawn.room.name +
+      " spawning: " +
       roleToSpawn +
       " (" +
       name +

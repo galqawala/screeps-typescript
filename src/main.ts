@@ -61,6 +61,7 @@ declare global {
     fillStorage: boolean;
     spawnHarvesters: boolean;
     spawnUpgraders: boolean;
+    controllersToReserve: Id<StructureController>[];
   }
 
   interface FlagMemory {
@@ -177,12 +178,9 @@ function updatePlan() {
     fillSpawnsFromStorage: storageMin >= 900000 && !allSpawnsFull(),
     spawnHarvesters: storageMin < 900000,
     celebrate:
-      Object.values(Game.rooms).filter(
-        room =>
-          room.controller?.my &&
-          !room.controller?.progressTotal /* fully upgraded */ &&
-          room.controller?.ticksToDowngrade >= 140000
-      ).length > 0
+      Object.values(Game.rooms).filter(room => room.controller?.my && room.controller?.progressTotal)
+        .length <= 0,
+    controllersToReserve: utils.getControllersToReserve().map(controller => controller.id)
   };
 }
 
@@ -735,17 +733,7 @@ function getReserverForClaiming() {
 
 function handleReserver(creep: Creep) {
   if ("claim" in Game.flags && getReserverForClaiming().name === creep.name) {
-    const flag = Game.flags.claim;
-    if (flag.room) {
-      const controller = flag.pos.lookFor(LOOK_STRUCTURES).filter(utils.isController)[0];
-      if (utils.isReservedByOthers(controller)) {
-        if (creep.attackController(controller) === ERR_NOT_IN_RANGE) move(creep, controller);
-      } else {
-        if (creep.claimController(controller) === ERR_NOT_IN_RANGE) move(creep, controller);
-      }
-    } else {
-      move(creep, flag);
-    }
+    claim(creep);
     return;
   } else if (creep.memory.action === "recycleCreep" || creep.room.memory.hostilesPresent) {
     recycleCreep(creep);
@@ -756,9 +744,14 @@ function handleReserver(creep: Creep) {
   if (typeof oldDestination === "string") destination = Game.getObjectById(oldDestination);
 
   if (destination && destination instanceof StructureController) {
-    if (creep.reserveController(destination) === ERR_NOT_IN_RANGE) move(creep, destination);
+    const outcome = creep.reserveController(destination);
+    if (outcome === ERR_NOT_IN_RANGE) {
+      move(creep, destination);
+    } else if (outcome === ERR_INVALID_TARGET) {
+      recycleCreep(creep);
+    }
   } else {
-    const destinations = utils.getControllersToReserve();
+    const destinations = Memory.plan.controllersToReserve.map(id => Game.getObjectById(id));
     if (destinations.length && destinations[0]) {
       utils.setDestination(creep, destinations[0]);
       move(creep, destinations[0]);
@@ -766,6 +759,20 @@ function handleReserver(creep: Creep) {
       const flag = Game.flags.reserve;
       if (flag) move(creep, flag);
     }
+  }
+}
+
+function claim(creep: Creep) {
+  const flag = Game.flags.claim;
+  if (flag.room) {
+    const controller = flag.pos.lookFor(LOOK_STRUCTURES).filter(utils.isController)[0];
+    if (utils.isReservedByOthers(controller)) {
+      if (creep.attackController(controller) === ERR_NOT_IN_RANGE) move(creep, controller);
+    } else {
+      if (creep.claimController(controller) === ERR_NOT_IN_RANGE) move(creep, controller);
+    }
+  } else {
+    move(creep, flag);
   }
 }
 
@@ -1139,7 +1146,7 @@ function handleSpawns(room: Room) {
 
 function needReservers() {
   return (
-    utils.getControllersToReserve().length > 0 ||
+    Memory.plan.controllersToReserve.length > 0 ||
     ("claim" in Game.flags && utils.getCreepCountByRole("reserver") < 1)
   );
 }
@@ -1252,7 +1259,14 @@ function needAttackers(room: Room) {
 function spawnReserver(spawn: StructureSpawn) {
   const minBudget = Math.min(1300, spawn.room.energyCapacityAvailable);
   if (minBudget > spawn.room.energyAvailable) return;
-  const task: Task = { destination: utils.getControllersToReserve()[0], action: "reserveController" };
+  let task: Task | undefined;
+  const controller = Game.getObjectById(Memory.plan.controllersToReserve[0]);
+  if (controller) {
+    task = {
+      destination: controller,
+      action: "reserveController"
+    };
+  }
   spawnCreep(spawn, "reserver", minBudget, undefined, task);
 }
 
@@ -1369,7 +1383,7 @@ function updateFlagReserve() {
       return; // current flag is still valid
     }
   }
-  const targets = utils.getControllersToReserve();
+  const targets = Memory.plan.controllersToReserve.map(id => Game.getObjectById(id));
   if (targets.length && targets[0]) targets[0].pos.createFlag("reserve", COLOR_ORANGE, COLOR_WHITE);
   utils.logCpu("updateFlagReserve()");
 }
