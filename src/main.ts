@@ -57,11 +57,18 @@ declare global {
 
   interface Plan {
     celebrate: boolean;
+    controllersToReserve: Id<StructureController>[];
     fillSpawnsFromStorage: boolean;
     fillStorage: boolean;
-    spawnHarvesters: boolean;
-    spawnUpgraders: boolean;
-    controllersToReserve: Id<StructureController>[];
+    needAttackers: boolean;
+    needCarriers: boolean;
+    needExplorers: boolean;
+    needHarvesters: boolean;
+    needInfantry: boolean;
+    needReservers: boolean;
+    needTransferers: boolean;
+    needUpgraders: boolean;
+    needWorkers: boolean;
   }
 
   interface FlagMemory {
@@ -171,16 +178,24 @@ function updatePlan() {
   }
 
   Memory.plan = {
-    spawnUpgraders:
-      storageMin >= 100000 &&
-      utils.getCreepCountByRole("upgrader") < 4 * utils.getUpgradeableControllerCount(),
-    fillStorage: (storageMin < 150000 && !needHarvesters()) || allSpawnsFull(),
-    fillSpawnsFromStorage: storageMin >= 900000 && !allSpawnsFull(),
-    spawnHarvesters: storageMin < 900000,
     celebrate:
       Object.values(Game.rooms).filter(room => room.controller?.my && room.controller?.progressTotal)
         .length <= 0,
-    controllersToReserve: utils.getControllersToReserve().map(controller => controller.id)
+    controllersToReserve: utils.getControllersToReserve().map(controller => controller.id),
+    fillSpawnsFromStorage: storageMin >= 900000 && !allSpawnsFull(),
+    fillStorage: (storageMin < 150000 && !needHarvesters()) || allSpawnsFull(),
+    needAttackers: needAttackers(),
+    needCarriers: needCarriers(),
+    needExplorers: utils.getCreepCountByRole("explorer") < 2,
+    needHarvesters: storageMin < 900000 && needHarvesters(),
+    needInfantry: needInfantry(),
+    needReservers: needReservers(),
+    needTransferers: needTransferers(),
+    needUpgraders:
+      storageMin >= 100000 &&
+      utils.getCreepCountByRole("upgrader") < 4 * utils.getUpgradeableControllerCount() &&
+      needUpgraders(),
+    needWorkers: needWorkers()
   };
 }
 
@@ -453,14 +468,16 @@ function build(creep: Creep) {
   if (!destination || !(destination instanceof ConstructionSite)) {
     destination = getBuildSite(creep, false);
     if (!destination) destination = getBuildSite(creep, true);
+    if (destination) utils.setDestination(creep, destination);
   }
   utils.logCpu("build(" + creep.name + ") find");
   utils.logCpu("build(" + creep.name + ") build");
   if (destination instanceof ConstructionSite) {
     creep.memory.build = destination.id;
-    utils.setDestination(creep, destination);
     if (creep.build(destination) === ERR_NOT_IN_RANGE) {
+      utils.logCpu("build(" + creep.name + ") build move");
       move(creep, destination);
+      utils.logCpu("build(" + creep.name + ") build move");
       utils.flagEnergyConsumer(destination.pos);
       utils.logCpu("build(" + creep.name + ") build");
       utils.logCpu("build(" + creep.name + ")");
@@ -976,13 +993,11 @@ function handleHarvester(creep: Creep) {
 
 function harvesterSpendEnergy(creep: Creep) {
   utils.logCpu("harvesterSpendEnergy(" + creep.name + ")");
-  const target = creep.pos.findInRange(FIND_STRUCTURES, 3).filter(utils.needRepair)[0];
+  const target = creep.pos.findInRange(FIND_STRUCTURES, 2).filter(utils.needRepair)[0];
   if (target) creep.repair(target);
   // build
-  const site = creep.pos.findInRange(FIND_MY_CONSTRUCTION_SITES, 3)[0];
+  const site = creep.pos.findInRange(FIND_MY_CONSTRUCTION_SITES, 2)[0];
   if (site) creep.build(site);
-  // upgrade controller
-  if (creep.room.controller) creep.upgradeController(creep.room.controller);
   // transfer
   utils.logCpu("harvesterSpendEnergy(" + creep.name + ") unloadCreep");
   if (utils.isFull(creep)) unloadCreep(creep);
@@ -1040,16 +1055,18 @@ function handleRoom(room: Room) {
   }
   utils.logCpu("handleRoom(" + room.name + ") towers");
 
-  utils.logCpu("handleRoom(" + room.name + ") updates");
+  utils.logCpu("handleRoom(" + room.name + ") updates1");
   utils.handleHostilesInRoom(room);
   if (utils.canOperateInRoom(room) && Math.random() < 0.04) utils.constructInRoom(room);
   utils.handleLinks(room);
   roomUpdates(room);
+  utils.logCpu("handleRoom(" + room.name + ") updates1");
+  utils.logCpu("handleRoom(" + room.name + ") updates2");
   handleSpawns(room);
   utils.checkRoomStatus(room);
   utils.checkRoomCanOperate(room);
   utils.tryResetSpawnsAndExtensionsSorting(room);
-  utils.logCpu("handleRoom(" + room.name + ") updates");
+  utils.logCpu("handleRoom(" + room.name + ") updates2");
   utils.logCpu("handleRoom(" + room.name + ")");
 }
 
@@ -1136,23 +1153,23 @@ function handleSpawns(room: Room) {
   utils.logCpu("handleSpawns(" + room.name + ")");
   const spawn = room.find(FIND_MY_SPAWNS).filter(s => !s.spawning)[0];
   if (spawn) {
-    if (needCarriers()) {
+    if (Memory.plan.needCarriers) {
       spawnRole("carrier", spawn);
-    } else if (needHarvesters()) {
+    } else if (Memory.plan.needHarvesters) {
       spawnHarvester(spawn);
-    } else if (needReservers()) {
+    } else if (Memory.plan.needReservers) {
       spawnReserver(spawn);
-    } else if (needInfantry()) {
+    } else if (Memory.plan.needInfantry) {
       spawnRole("infantry", spawn);
-    } else if (needAttackers(spawn.room)) {
+    } else if (Memory.plan.needAttackers && room.energyAvailable >= room.energyCapacityAvailable) {
       spawnRole("attacker", spawn);
-    } else if (utils.getCreepCountByRole("explorer") < 2) {
+    } else if (Memory.plan.needExplorers) {
       spawnRole("explorer", spawn, 0, [MOVE]);
-    } else if (needTransferers()) {
+    } else if (Memory.plan.needTransferers) {
       spawnTransferer(spawn);
-    } else if (needWorkers()) {
+    } else if (Memory.plan.needWorkers) {
       spawnRole("worker", spawn);
-    } else if (needUpgraders(spawn.room)) {
+    } else if (Memory.plan.needUpgraders && room.energyAvailable >= room.energyCapacityAvailable) {
       spawnRole("upgrader", spawn, Math.min(450, spawn.room.energyCapacityAvailable));
     }
   }
@@ -1265,12 +1282,8 @@ function needInfantry() {
   return Memory.rooms[Game.flags.attack.pos.roomName].hostileRangedAttackParts > 0;
 }
 
-function needAttackers(room: Room) {
-  return (
-    "attack" in Game.flags &&
-    room.energyAvailable >= room.energyCapacityAvailable &&
-    utils.getCreepCountByRole("attacker") < 5
-  );
+function needAttackers() {
+  return "attack" in Game.flags && utils.getCreepCountByRole("attacker") < 5;
 }
 
 function spawnReserver(spawn: StructureSpawn) {
@@ -1421,15 +1434,15 @@ function getTotalConstructionWork() {
   );
 }
 
-function needUpgraders(room: Room) {
-  return Memory.plan.spawnUpgraders && room.energyAvailable >= room.energyCapacityAvailable;
+function needUpgraders() {
+  return Memory.plan.needUpgraders;
 }
 
 function needHarvesters() {
   const source = getSourceToHarvest(Object.values(Game.spawns)[0].pos);
   if (!source) return false; // nothing to harvest
   if (Memory.needHarvesters) return true;
-  return Memory.plan.spawnHarvesters;
+  return Memory.plan.needHarvesters;
 }
 
 function getSourceToHarvest(pos: RoomPosition) {

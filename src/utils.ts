@@ -276,7 +276,7 @@ export function containsPosition(list: RoomPosition[], pos: RoomPosition): boole
 export function getControllersToReserve(): StructureController[] {
   logCpu("getControllersToReserve()");
   const controllers: StructureController[] = [];
-  if (!Memory.plan.spawnHarvesters) return controllers;
+  if (!Memory.plan.needHarvesters) return controllers;
   for (const r in Game.rooms) {
     const controller = Game.rooms[r].controller;
     if (
