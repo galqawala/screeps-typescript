@@ -1050,8 +1050,8 @@ function roomUpdates(room: Room) {
   if (!room.memory.harvestSpots) utils.updateHarvestSpots(room);
   if (!room.memory.remoteHarvestScore) utils.updateRemoteHarvestScore(room);
   if (!room.memory.score) utils.updateRoomScore(room);
-  if (Math.random() < 0.2) utils.updateRoomEnergyStores(room);
-  if (Math.random() < 0.1) utils.updateRoomRepairTargets(room);
+  if (Math.random() < 0.05) utils.updateRoomEnergyStores(room);
+  if (Math.random() < 0.05) utils.updateRoomRepairTargets(room);
   utils.logCpu("roomUpdates(" + room.name + ")");
 }
 
@@ -1122,6 +1122,7 @@ function pickup(creep: Creep, destination: Destination) {
 }
 
 function handleSpawns(room: Room) {
+  utils.logCpu("handleSpawns(" + room.name + ")");
   const spawn = room.find(FIND_MY_SPAWNS).filter(s => !s.spawning)[0];
   if (spawn) {
     if (needCarriers()) {
@@ -1144,6 +1145,7 @@ function handleSpawns(room: Room) {
       spawnRole("upgrader", spawn, Math.min(450, spawn.room.energyCapacityAvailable));
     }
   }
+  utils.logCpu("handleSpawns(" + room.name + ")");
 }
 
 function needReservers() {
