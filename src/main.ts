@@ -634,7 +634,7 @@ function getControllerToUpgrade(pos: RoomPosition, urgentOnly: boolean) {
   const destination = targets
     .map(value => ({
       value,
-      sort: utils.getGlobalRange(pos, utils.getPos(value)) + value.ticksToDowngrade / 8
+      sort: utils.getGlobalRange(pos, utils.getPos(value)) + value.ticksToDowngrade / 15
     })) /* persist sort values */
     .sort((a, b) => a.sort - b.sort) /* sort */
     .map(({ value }) => value) /* remove sort values */[0];
