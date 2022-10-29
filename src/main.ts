@@ -386,7 +386,9 @@ function handleWorker(creep: Creep) {
   if (utils.isEmpty(creep)) delete creep.memory.build;
   else if (utils.isFull(creep)) delete creep.memory.retrieve;
 
+  utils.logCpu("handleWorker(" + creep.name + ") repairTarget");
   const repairTarget = creep.pos.findInRange(FIND_STRUCTURES, 3).filter(utils.needRepair)[0];
+  utils.logCpu("handleWorker(" + creep.name + ") repairTarget");
   if (utils.isEmpty(creep)) {
     workerRetrieveEnergy(creep);
   } else if (repairTarget) {
@@ -1033,6 +1035,7 @@ function handleRoom(room: Room) {
   }
   utils.logCpu("handleRoom(" + room.name + ") towers");
 
+  utils.logCpu("handleRoom(" + room.name + ") updates");
   utils.handleHostilesInRoom(room);
   if (utils.canOperateInRoom(room) && Math.random() < 0.04) utils.constructInRoom(room);
   utils.handleLinks(room);
@@ -1041,6 +1044,7 @@ function handleRoom(room: Room) {
   utils.checkRoomStatus(room);
   utils.checkRoomCanOperate(room);
   utils.tryResetSpawnsAndExtensionsSorting(room);
+  utils.logCpu("handleRoom(" + room.name + ") updates");
   utils.logCpu("handleRoom(" + room.name + ")");
 }
 
@@ -1071,16 +1075,18 @@ function move(creep: Creep, destination: Destination) {
       creep.pos.createFlag(flagName, COLOR_GREEN, COLOR_GREY);
     }
   }
-  utils.logCpu("move(" + creep.name + ") moveTo");
   const index = Object.keys(Game.creeps).sort().indexOf(creep.name);
   const hue = (index / Object.keys(Game.creeps).length) * 360;
+  const stroke = hslToHex(hue, 100, 50);
+  const strokeWidth = 0.1 + 0.1 * (index % 4);
+  utils.logCpu("move(" + creep.name + ") moveTo");
   const outcome = creep.moveTo(destination, {
     reusePath: Memory.reusePath,
     visualizePathStyle: {
-      stroke: hslToHex(hue, 100, 50),
+      stroke,
       opacity: 0.6,
       lineStyle: "dotted",
-      strokeWidth: 0.1 + 0.1 * (index % 4)
+      strokeWidth
     }
   });
   utils.logCpu("move(" + creep.name + ") moveTo");
@@ -1205,10 +1211,12 @@ function getRoomToClaim(controlledRooms: Room[]) {
 }
 
 function needCarriers(): boolean {
-  return (
+  utils.logCpu("needCarriers()");
+  const need =
     utils.getTotalCreepCapacity("carrier") < utils.getTotalEnergyToHaul() ||
-    (utils.getTotalCreepCapacity("carrier") < 300 && Memory.plan.fillSpawnsFromStorage)
-  );
+    (utils.getTotalCreepCapacity("carrier") < 300 && Memory.plan.fillSpawnsFromStorage);
+  utils.logCpu("needCarriers()");
+  return need;
 }
 
 function needTransferers(): boolean {

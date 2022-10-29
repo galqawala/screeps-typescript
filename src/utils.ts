@@ -469,6 +469,7 @@ export function getCreepCost(creep: Creep): number {
 }
 
 export function getTotalEnergyToHaul(): number {
+  logCpu("getTotalEnergyToHaul()");
   let energy = 0;
   for (const i in Game.rooms) {
     if (Game.rooms[i].memory.hostilesPresent) continue;
@@ -483,6 +484,7 @@ export function getTotalEnergyToHaul(): number {
       .find(FIND_RUINS)
       .reduce((aggregated, item) => aggregated + getEnergy(item), 0 /* initial*/);
   }
+  logCpu("getTotalEnergyToHaul()");
   return energy;
 }
 
@@ -983,25 +985,22 @@ export function updateRoomEnergyStores(room: Room): void {
   room.memory.energyStores = stores.map(store => {
     return {
       id: store.id,
-      energy: getEnergy(store) + getStorePlannedEnergyChange(store.id),
-      freeCap: getFreeCap(store) - getStorePlannedEnergyChange(store.id)
+      energy: getEnergy(store),
+      freeCap: getFreeCap(store)
     } as EnergyStore;
   });
+  logCpu("updateRoomEnergyStores(" + room.name + ") tasks");
+  for (const creep of Object.values(Game.creeps)) {
+    if (!creep.memory.deliveryTasks) continue;
+    for (const task of creep.memory.deliveryTasks) {
+      const taskStore = room.memory.energyStores.filter(store => store.id === task.destination)[0];
+      if (!taskStore) continue;
+      taskStore.energy -= task.energy;
+      taskStore.freeCap += task.energy;
+    }
+  }
+  logCpu("updateRoomEnergyStores(" + room.name + ") tasks");
   logCpu("updateRoomEnergyStores(" + room.name + ")");
-}
-
-function getStorePlannedEnergyChange(id: Id<EnergySource | AnyStoreStructure>) {
-  return Object.values(Game.creeps).reduce(
-    (aggregated, item) =>
-      aggregated +
-      (item.memory.deliveryTasks
-        ? item.memory.deliveryTasks.reduce(
-            (total, task) => total + (task.destination === id ? -task.energy : 0),
-            0 /* initial*/
-          )
-        : 0),
-    0 /* initial*/
-  );
 }
 
 export function constructInRoom(room: Room): void {
