@@ -1314,15 +1314,17 @@ export function construct(room: Room, structureType: BuildableStructureConstant)
       });
     }
     const outcome = pos.createConstructionSite(structureType);
-    msg(
-      room,
-      "Creating a construction site for " +
-        structureType +
-        " at " +
-        pos.toString() +
-        " outcome: " +
-        outcome.toString()
-    );
+    if (structureType !== STRUCTURE_ROAD) {
+      msg(
+        room,
+        "Creating a construction site for " +
+          structureType +
+          " at " +
+          pos.toString() +
+          " outcome: " +
+          outcome.toString()
+      );
+    }
     if (structureType === STRUCTURE_LINK) {
       pos
         .findInRange(FIND_STRUCTURES, 1)
