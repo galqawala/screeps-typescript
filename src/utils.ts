@@ -14,6 +14,12 @@ export function isController(structure: Structure): structure is StructureContro
   if (!("structureType" in structure)) return false;
   return structure.structureType === STRUCTURE_CONTROLLER;
 }
+export function isContainer(
+  structure: Structure | EnergySource | AnyStoreStructure
+): structure is StructureContainer {
+  if (!("structureType" in structure)) return false;
+  return structure.structureType === STRUCTURE_CONTAINER;
+}
 export function isDestructibleWall(structure: Structure): structure is StructureWall {
   return structure.structureType === STRUCTURE_WALL && "hits" in structure;
 }
@@ -66,6 +72,13 @@ export function isFull(object: Structure | Creep | Ruin | Resource | Tombstone):
   return store.getFreeCapacity(RESOURCE_ENERGY) <= 0;
 }
 
+export function hasSpace(object: Structure | Creep | Ruin | Resource | Tombstone): boolean {
+  if (!object) return false;
+  const store = getStore(object);
+  if (!store) return false;
+  return store.getFreeCapacity(RESOURCE_ENERGY) > 0;
+}
+
 export function getFillRatio(object: Structure | Creep): number {
   if (!object) return 0;
   const store = getStore(object);
@@ -88,7 +101,7 @@ export function getFreeCap(object: Creep | AnyStructure | Resource | Ruin | Tomb
   return Number.NEGATIVE_INFINITY;
 }
 
-export function getPos(obj: RoomPosition | RoomObject | null): RoomPosition | undefined {
+export function getPos(obj: RoomPosition | RoomObject | null | undefined): RoomPosition | undefined {
   if (!obj) return;
   if (obj instanceof RoomPosition) return obj;
   if ("pos" in obj) return obj.pos;
@@ -116,13 +129,14 @@ export function getGlobalRange(from: RoomPosition | undefined, to: RoomPosition 
   if (!from || !to) return Number.POSITIVE_INFINITY;
   const fromGlobal = getGlobalCoords(from);
   const toGlobal = getGlobalCoords(to);
-  return Math.max(Math.abs(fromGlobal.x - toGlobal.x), Math.abs(fromGlobal.y - toGlobal.y));
+  const range = Math.max(Math.abs(fromGlobal.x - toGlobal.x), Math.abs(fromGlobal.y - toGlobal.y));
+  return range;
 }
 
 export function cpuInfo(): void {
   if (Game.cpu.getUsed() > Game.cpu.limit) {
     Memory.cpuLimitExceededStreak++;
-    if (Memory.cpuLimitExceededStreak >= 3)
+    if (Memory.cpuLimitExceededStreak >= 2)
       msg(
         "cpuInfo()",
         Game.cpu.getUsed().toString() +
@@ -204,9 +218,8 @@ export function getTrafficFlagName(pos: RoomPosition): string {
   return "traffic_" + pos.roomName + "_" + pos.x.toString() + "_" + pos.y.toString();
 }
 
-export function getPositionsAround(origin: RoomPosition): RoomPosition[] {
+export function getPositionsAround(origin: RoomPosition, range = 1): RoomPosition[] {
   logCpu("getPositionsAround(" + origin.toString() + ")");
-  const range = 1;
   const terrain = new Room.Terrain(origin.roomName);
   const spots: RoomPosition[] = [];
 
@@ -475,7 +488,7 @@ export function getTotalEnergyToHaul(): number {
     if (Game.rooms[i].memory.hostilesPresent) continue;
     energy += Game.rooms[i]
       .find(FIND_STRUCTURES)
-      .filter(structure => structure.structureType === STRUCTURE_CONTAINER)
+      .filter(structure => structure.structureType === STRUCTURE_CONTAINER && !isStorageSubstitute(structure))
       .reduce((aggregated, item) => aggregated + getEnergy(item), 0 /* initial*/);
     energy += Game.rooms[i]
       .find(FIND_DROPPED_RESOURCES)
@@ -486,6 +499,14 @@ export function getTotalEnergyToHaul(): number {
   }
   logCpu("getTotalEnergyToHaul()");
   return energy;
+}
+
+export function isStorageSubstitute(container: EnergySource | AnyStoreStructure | ConstructionSite): boolean {
+  return (
+    "structureType" in container &&
+    container.structureType === STRUCTURE_CONTAINER &&
+    container.pos.findInRange(FIND_MY_STRUCTURES, 3).filter(isController).length > 0
+  );
 }
 
 export function getTotalCreepCapacity(role: Role | undefined): number {
@@ -503,6 +524,7 @@ export function needRepair(structure: Structure): boolean {
   if (!structure.hitsMax) return false;
   if (structure.hits >= structure.hitsMax) return false;
   if (structure instanceof StructureRoad && getTrafficRateAt(structure.pos) < minRoadTraffic) return false;
+  if (isDestructibleWall(structure)) return false;
   return true;
 }
 
@@ -528,7 +550,7 @@ export function getConstructionSites(): ConstructionSite[] {
     sites = sites.concat(
       room
         .find(FIND_MY_CONSTRUCTION_SITES)
-        .filter(target => target.structureType !== STRUCTURE_CONTAINER /* leave for harvesters */)
+        .filter(target => target.structureType !== STRUCTURE_CONTAINER || isStorageSubstitute(target))
     );
   }
   return sites;
@@ -547,6 +569,7 @@ export function isUnderRepair(structure: Structure): boolean {
 export function tryResetSpawnsAndExtensionsSorting(room: Room): void {
   // First filled spawns/extensions should be used first, as they are probably easier to refill
   // If none are full we can forget the old order and learn a new one
+  logCpu("tryResetSpawnsAndExtensionsSorting(" + room.name + ")");
   if (
     room
       .find(FIND_MY_STRUCTURES)
@@ -558,6 +581,7 @@ export function tryResetSpawnsAndExtensionsSorting(room: Room): void {
   ) {
     room.memory.sortedSpawnStructureIds = [];
   }
+  logCpu("tryResetSpawnsAndExtensionsSorting(" + room.name + ")");
 }
 
 export function canOperateInRoom(room: Room): boolean {
@@ -606,35 +630,6 @@ export function getExit(
   return;
 }
 
-export function getPosForStorage(room: Room): RoomPosition | undefined {
-  // next to the link, controller and upgrade spots
-  if (!room) return;
-  const controller = room.controller;
-  if (!controller) return;
-  const targetPos = getPosOfLinkByTheController(controller);
-  if (!targetPos) return;
-
-  let bestScore = Number.NEGATIVE_INFINITY;
-  let bestPos;
-  const terrain = new Room.Terrain(room.name);
-
-  for (let x = targetPos.x - 1; x <= targetPos.x + 1; x++) {
-    for (let y = targetPos.y - 1; y <= targetPos.y + 1; y++) {
-      if (x === targetPos.x && y === targetPos.y) continue;
-      if (terrain.get(x, y) === TERRAIN_MASK_WALL) continue;
-      const pos = new RoomPosition(x, y, room.name);
-      let score = getNearbyWorkSpotCount(pos, true);
-      if (hasStructureInRange(pos, undefined, 1, true)) score -= 0.1;
-      if (bestScore < score) {
-        bestScore = score;
-        bestPos = pos;
-      }
-    }
-  }
-
-  return bestPos;
-}
-
 export function getPosOfLinkByTheController(controller: StructureController): RoomPosition | undefined {
   let targetPos;
   const linkFilter = {
@@ -657,12 +652,12 @@ export function getPrimaryPosForLink(room: Room): RoomPosition | undefined {
   const range = 3;
   const terrain = new Room.Terrain(room.name);
 
-  const placesRequiringLink: (StructureController | Source)[] = getPlacesRequiringLink(room);
+  const placesRequiringLink: (StructureStorage | Source)[] = getPlacesRequiringLink(room);
 
   for (const target of placesRequiringLink) {
     if (target && !hasStructureInRange(target.pos, STRUCTURE_LINK, 6, true)) {
       const targetPos = target.pos;
-      let bestScore = -1;
+      let bestScore = Number.NEGATIVE_INFINITY;
       let bestPos;
 
       for (let x = targetPos.x - range; x <= targetPos.x + range; x++) {
@@ -670,7 +665,7 @@ export function getPrimaryPosForLink(room: Room): RoomPosition | undefined {
           if (x === targetPos.x && y === targetPos.y) continue;
           if (terrain.get(x, y) === TERRAIN_MASK_WALL) continue;
           const pos = new RoomPosition(x, y, room.name);
-          let score = getNearbyWorkSpotCount(pos, target instanceof StructureController);
+          let score = getNearbyWorkSpotCount(pos, target instanceof StructureStorage);
           if (hasStructureInRange(pos, undefined, 1, true)) score -= 0.1;
           if (bestScore < score) {
             bestScore = score;
@@ -685,9 +680,31 @@ export function getPrimaryPosForLink(room: Room): RoomPosition | undefined {
   return;
 }
 
-export function getPlacesRequiringLink(room: Room): (StructureController | Source)[] {
-  let placesRequiringLink: (StructureController | Source)[] = [];
-  if (room.controller) placesRequiringLink.push(room.controller);
+export function getPosForStorage(room: Room): RoomPosition | undefined {
+  if (
+    !room ||
+    !room.controller ||
+    !room.controller.my ||
+    getStructureCount(room, STRUCTURE_STORAGE, true) > 0
+  )
+    return;
+
+  let bestScore = Number.NEGATIVE_INFINITY;
+  let bestPos;
+
+  for (const pos of getPositionsAround(room.controller.pos, 3)) {
+    let score = getNearbyWorkSpotCount(pos, true);
+    if (hasStructureInRange(pos, undefined, 1, true)) score -= 0.1;
+    if (bestScore < score) {
+      bestScore = score;
+      bestPos = pos;
+    }
+  }
+  return bestPos;
+}
+
+export function getPlacesRequiringLink(room: Room): (StructureStorage | Source)[] {
+  let placesRequiringLink: (StructureStorage | Source)[] = room.find(FIND_MY_STRUCTURES).filter(isStorage);
   placesRequiringLink = placesRequiringLink.concat(
     room
       .find(FIND_SOURCES)
@@ -704,7 +721,11 @@ export function getNearbyWorkSpotCount(pos: RoomPosition, upgradeSpots: boolean)
     : Memory.rooms[pos.roomName].harvestSpots;
   let spotsAround = 0;
   spots.forEach(spot => {
-    if (pos.getRangeTo(spot.x, spot.y) === 1) spotsAround++;
+    if (
+      pos.getRangeTo(spot.x, spot.y) === 1 &&
+      new RoomPosition(spot.x, spot.y, spot.roomName).lookFor(LOOK_STRUCTURES).length < 1
+    )
+      spotsAround++;
   });
   return spotsAround;
 }
@@ -931,7 +952,6 @@ export function isEdge(pos: RoomPosition): boolean {
 
 export function setDestination(creep: Creep, destination: Destination): void {
   logCpu("setDestination(" + creep.name + ")");
-  logCpu("setDestination(" + creep.name + ") update memory");
   if (destination && creep.memory.destination !== ("id" in destination ? destination.id : destination)) {
     if ("id" in destination) {
       creep.memory.destination = destination.id;
@@ -939,23 +959,20 @@ export function setDestination(creep: Creep, destination: Destination): void {
       creep.memory.destination = destination;
     }
   }
-  logCpu("setDestination(" + creep.name + ") update memory");
-  logCpu("setDestination(" + creep.name + ") set flag");
-  if ("pos" in destination) setDestinationFlag(creep.name, destination.pos);
-  else if (destination instanceof RoomPosition) setDestinationFlag(creep.name, destination);
-  logCpu("setDestination(" + creep.name + ") set flag");
   logCpu("setDestination(" + creep.name + ")");
 }
 
 export function updateRoomRepairTargets(room: Room): void {
   logCpu("updateRoomRepairTargets(" + room.name + ")");
-  const targets: Structure[] = room.find(FIND_STRUCTURES).filter(
-    target =>
-      needRepair(target) &&
-      (getHpRatio(target) || 1) < 0.9 &&
-      !isUnderRepair(target) &&
-      target.structureType !== STRUCTURE_CONTAINER // leave to harvesters
-  );
+  const targets: Structure[] = room
+    .find(FIND_STRUCTURES)
+    .filter(
+      target =>
+        needRepair(target) &&
+        (getHpRatio(target) || 1) < 0.9 &&
+        !isUnderRepair(target) &&
+        (target.structureType !== STRUCTURE_CONTAINER || isStorageSubstitute(target))
+    );
   room.memory.repairTargets = targets
     .map(target => target.id)
     .filter(
@@ -1016,18 +1033,36 @@ export function constructInRoom(room: Room): void {
     STRUCTURE_TOWER
   ];
   structureTypes.forEach(structureType => construct(room, structureType));
+  if (
+    room.controller &&
+    room.controller.my &&
+    CONTROLLER_STRUCTURES[STRUCTURE_STORAGE][room.controller.level] < 1 &&
+    !hasStructureInRange(room.controller.pos, STRUCTURE_CONTAINER, 3, true)
+  ) {
+    // container instead of storage
+    const pos = getPosForStorage(room);
+    if (pos) {
+      const outcome = pos.createConstructionSite(STRUCTURE_CONTAINER);
+      msg(room, "Constructing a container near controller: " + outcome.toString());
+    } else {
+      msg(room, "Can't find pos for storage/container");
+    }
+  }
   logCpu("constructInRoom(" + room.name + ")");
 }
 
 export function checkRoomStatus(room: Room): void {
+  logCpu("checkRoomStatus(" + room.name + ")");
   const value = getRoomStatus(room.name);
   if (room.memory.status !== value) {
     msg(room, "Status: " + room.memory.status + " ➤ " + value.toString(), true);
     room.memory.status = value;
   }
+  logCpu("checkRoomStatus(" + room.name + ")");
 }
 
 export function checkRoomCanOperate(room: Room): void {
+  logCpu("checkRoomCanOperate(" + room.name + ")");
   const value = canOperateInRoom(room);
   if (room.memory && room.memory.canOperate !== value) {
     msg(
@@ -1036,6 +1071,7 @@ export function checkRoomCanOperate(room: Room): void {
     );
     room.memory.canOperate = value;
   }
+  logCpu("checkRoomCanOperate(" + room.name + ")");
 }
 
 export function handleHostilesInRoom(room: Room): void {
@@ -1373,8 +1409,10 @@ export function resetDestination(creep: Creep): void {
   logCpu("resetDestination(" + creep.name + ")");
   if (creep?.memory?.deliveryTasks && creep?.memory?.deliveryTasks?.length >= 1)
     creep?.memory?.deliveryTasks?.shift();
-  creep.memory.destination = undefined;
-  creep.memory.action = undefined;
+  delete creep.memory.destination;
+  delete creep.memory.action;
+  delete creep.memory.path;
+  delete creep.memory.pathTo;
   const flag = Game.flags["creep_" + creep.name];
   if (flag) flag.remove();
   logCpu("resetDestination(" + creep.name + ")");
