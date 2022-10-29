@@ -974,6 +974,7 @@ export function getHpRatio(obj: Structure): number {
 
 export function updateRoomEnergyStores(room: Room): void {
   logCpu("updateRoomEnergyStores(" + room.name + ")");
+  room.memory.updateEnergyStores = false;
   if (room.memory.hostilesPresent) {
     room.memory.energyStores = [];
     return;

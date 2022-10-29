@@ -49,7 +49,6 @@ declare global {
   interface Memory {
     cpuLimitExceededStreak: number;
     cpuLog: Record<string, CpuLogEntry>;
-    needHarvesters: boolean;
     plan: Plan;
     reusePath: number;
     username: string;
@@ -84,10 +83,11 @@ declare global {
     hostilesPresent: boolean;
     lastTimeFlagEnergyConsumerSet: number;
     remoteHarvestScore: number;
-    score: number;
     repairTargets: Id<Structure>[];
+    score: number;
     sortedSpawnStructureIds: Id<Structure>[];
     status: "normal" | "closed" | "novice" | "respawn";
+    updateEnergyStores: boolean;
     upgradeSpots: RoomPosition[];
   }
 
@@ -193,8 +193,7 @@ function updatePlan() {
     needTransferers: needTransferers(),
     needUpgraders:
       storageMin >= 100000 &&
-      utils.getCreepCountByRole("upgrader") < 4 * utils.getUpgradeableControllerCount() &&
-      needUpgraders(),
+      utils.getCreepCountByRole("upgrader") < 4 * utils.getUpgradeableControllerCount(),
     needWorkers: needWorkers()
   };
 }
@@ -1076,7 +1075,7 @@ function roomUpdates(room: Room) {
   if (!room.memory.harvestSpots) utils.updateHarvestSpots(room);
   if (!room.memory.remoteHarvestScore) utils.updateRemoteHarvestScore(room);
   if (!room.memory.score) utils.updateRoomScore(room);
-  if (Math.random() < 0.05) utils.updateRoomEnergyStores(room);
+  if (room.memory.updateEnergyStores || Math.random() < 0.05) utils.updateRoomEnergyStores(room);
   if (Math.random() < 0.05) utils.updateRoomRepairTargets(room);
   utils.logCpu("roomUpdates(" + room.name + ")");
 }
@@ -1434,15 +1433,10 @@ function getTotalConstructionWork() {
   );
 }
 
-function needUpgraders() {
-  return Memory.plan.needUpgraders;
-}
-
 function needHarvesters() {
   const source = getSourceToHarvest(Object.values(Game.spawns)[0].pos);
   if (!source) return false; // nothing to harvest
-  if (Memory.needHarvesters) return true;
-  return Memory.plan.needHarvesters;
+  return true;
 }
 
 function getSourceToHarvest(pos: RoomPosition) {
@@ -1488,7 +1482,6 @@ function spawnHarvester(spawn: StructureSpawn) {
   utils.constructContainerIfNeed(harvestPos);
   const memory = { role: roleToSpawn, sourceId: source.id };
   if (spawn.spawnCreep(body, name, { memory, energyStructures }) === OK) {
-    Memory.needHarvesters = false;
     utils.setDestinationFlag(name, harvestPos);
     utils.spawnMsg(spawn, roleToSpawn, name, body, harvestPos.toString());
   }
@@ -1521,7 +1514,6 @@ function spawnTransferer(spawn: StructureSpawn) {
   );
   const memory = { role: roleToSpawn, retrieve: link.id, transfer: tgtStorage.id };
   if (spawn.spawnCreep(body, name, { memory, energyStructures }) === OK) {
-    Memory.needHarvesters = false;
     utils.spawnMsg(spawn, roleToSpawn, name, body, tgtStorage.toString());
   }
   return true;
@@ -1547,6 +1539,7 @@ function spawnCreep(
   });
 
   if (outcome === OK) {
+    spawn.room.memory.updateEnergyStores = true;
     let targetStr;
     if (task && task.destination) {
       targetStr = task.destination.toString();
