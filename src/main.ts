@@ -451,7 +451,8 @@ function build(creep: Creep) {
     if (!destination) delete creep.memory.build;
   }
   if (!destination || !(destination instanceof ConstructionSite)) {
-    destination = getBuildSite(creep);
+    destination = getBuildSite(creep, false);
+    if (!destination) destination = getBuildSite(creep, true);
   }
   utils.logCpu("build(" + creep.name + ") find");
   utils.logCpu("build(" + creep.name + ") build");
@@ -471,10 +472,14 @@ function build(creep: Creep) {
   return false;
 }
 
-function getBuildSite(creep: Creep) {
+function getBuildSite(creep: Creep, allowMultipleBuilders: boolean) {
   return utils
     .getConstructionSites()
-    .filter(site => Object.values(Game.creeps).filter(builder => builder.memory.build === site.id).length < 1)
+    .filter(
+      site =>
+        allowMultipleBuilders ||
+        Object.values(Game.creeps).filter(builder => builder.memory.build === site.id).length < 1
+    )
     .map(value => ({
       value,
       sort: utils.getGlobalRange(creep.pos, utils.getPos(value))
