@@ -173,7 +173,7 @@ export function msg(
 }
 
 export function getNameForCreep(role: Role): string {
-  const characters = "ABCDEFHJKLMNPQRTUVWXYZ234789";
+  const characters = "ABCDEFHJKLMNPRTUVWXYZ234789";
   let name = role.substring(0, 1).toUpperCase();
   while (Game.creeps[name]) {
     name += characters.charAt(Math.floor(Math.random() * characters.length));
