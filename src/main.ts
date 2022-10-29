@@ -194,21 +194,23 @@ function allSpawnsFull() {
 function handleCreeps() {
   utils.logCpu("handleCreeps()");
   for (const c in Game.creeps) {
-    utils.logCpu("creep: " + c);
-    const role = Game.creeps[c].memory.role;
+    if (!Game.creeps[c].spawning) {
+      utils.logCpu("creep: " + c);
+      const role = Game.creeps[c].memory.role;
 
-    if (role === "attacker") handleAttacker(Game.creeps[c]);
-    else if (role === "carrier") handleCarrier(Game.creeps[c]);
-    else if (role === "explorer") handleExplorer(Game.creeps[c]);
-    else if (role === "harvester") handleHarvester(Game.creeps[c]);
-    else if (role === "infantry") handleInfantry(Game.creeps[c]);
-    else if (role === "reserver") handleReserver(Game.creeps[c]);
-    else if (role === "transferer") handleTransferer(Game.creeps[c]);
-    else if (role === "upgrader") handleUpgrader(Game.creeps[c]);
-    else if (role === "worker") handleWorker(Game.creeps[c]);
+      if (role === "attacker") handleAttacker(Game.creeps[c]);
+      else if (role === "carrier") handleCarrier(Game.creeps[c]);
+      else if (role === "explorer") handleExplorer(Game.creeps[c]);
+      else if (role === "harvester") handleHarvester(Game.creeps[c]);
+      else if (role === "infantry") handleInfantry(Game.creeps[c]);
+      else if (role === "reserver") handleReserver(Game.creeps[c]);
+      else if (role === "transferer") handleTransferer(Game.creeps[c]);
+      else if (role === "upgrader") handleUpgrader(Game.creeps[c]);
+      else if (role === "worker") handleWorker(Game.creeps[c]);
 
-    if (Memory.plan.celebrate && Math.random() < 0.3) celebrate(Game.creeps[c]);
-    utils.logCpu("creep: " + c);
+      if (Memory.plan.celebrate && Math.random() < 0.3) celebrate(Game.creeps[c]);
+      utils.logCpu("creep: " + c);
+    }
   }
   utils.logCpu("handleCreeps()");
 }
