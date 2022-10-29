@@ -17,6 +17,9 @@ export function isController(structure: Structure): structure is StructureContro
 export function isDestructibleWall(structure: Structure): structure is StructureWall {
   return structure.structureType === STRUCTURE_WALL && "hits" in structure;
 }
+export function isInvaderCore(structure: Structure): structure is StructureInvaderCore {
+  return structure.structureType === STRUCTURE_INVADER_CORE;
+}
 export function isLink(
   structure: Structure | Ruin | Tombstone | Resource | EnergyStore
 ): structure is StructureLink {
@@ -559,6 +562,7 @@ export function canOperateInRoom(room: Room): boolean {
   if (room.controller.my) return true; // my controller
   const reservation = room.controller.reservation;
   if (reservation && reservation.username === Memory.username) return true; // reserved to me
+  if (room.find(FIND_HOSTILE_STRUCTURES).filter(isInvaderCore).length > 0) return false;
   if (!room.controller.owner && !reservation) return true; // no owner & no reservation
   return false;
 }
