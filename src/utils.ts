@@ -10,6 +10,10 @@ export function isStorage(
   if (!("structureType" in structure)) return false;
   return structure.structureType === STRUCTURE_STORAGE;
 }
+export function isController(structure: Structure): structure is StructureController {
+  if (!("structureType" in structure)) return false;
+  return structure.structureType === STRUCTURE_CONTROLLER;
+}
 export function isDestructibleWall(structure: Structure): structure is StructureWall {
   return structure.structureType === STRUCTURE_WALL && "hits" in structure;
 }

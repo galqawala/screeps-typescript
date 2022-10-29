@@ -636,12 +636,7 @@ function carrierExecutePlan(creep: Creep) {
     // retrieve
     if (utils.isFull(creep) || utils.isEmpty(destination)) {
       utils.resetDestination(creep);
-    } else if (
-      destination instanceof Structure ||
-      destination instanceof Tombstone ||
-      destination instanceof Ruin ||
-      destination instanceof Resource
-    ) {
+    } else if (isRetrievable(destination)) {
       if (retrieveEnergy(creep, destination) !== ERR_NOT_IN_RANGE) utils.resetDestination(creep);
     }
   } else if (task.isDelivery) {
@@ -651,8 +646,21 @@ function carrierExecutePlan(creep: Creep) {
     } else if (destination instanceof Creep || destination instanceof Structure) {
       if (transfer(creep, destination) !== ERR_NOT_IN_RANGE) utils.resetDestination(creep);
     }
+  } else if (Math.random() < 0.2) {
+    // keep moving and try not to block others
+    const directions = [TOP, TOP_RIGHT, RIGHT, BOTTOM_RIGHT, BOTTOM, BOTTOM_LEFT, LEFT, TOP_LEFT];
+    creep.move(directions[Math.floor(Math.random() * directions.length)]);
   }
   utils.logCpu("carrierExecutePlan(" + creep.name + ")");
+}
+
+function isRetrievable(destination: Structure | Tombstone | Ruin | Resource) {
+  return (
+    destination instanceof Structure ||
+    destination instanceof Tombstone ||
+    destination instanceof Ruin ||
+    destination instanceof Resource
+  );
 }
 
 function addCarrierDestination(creep: Creep, pos: RoomPosition) {
@@ -714,8 +722,32 @@ function addCarrierDestinationDownstream(
   });
 }
 
+function getReserverForClaiming() {
+  return Object.values(Game.creeps)
+    .filter(creep => creep.memory.role === "reserver")
+    .map(value => ({
+      value,
+      sort: utils.getGlobalRange(value.pos, Game.flags.claim.pos)
+    })) /* persist sort values */
+    .sort((a, b) => a.sort - b.sort) /* sort */
+    .map(({ value }) => value) /* remove sort values */[0];
+}
+
 function handleReserver(creep: Creep) {
-  if (creep.memory.action === "recycleCreep" || creep.room.memory.hostilesPresent) {
+  if ("claim" in Game.flags && getReserverForClaiming().name === creep.name) {
+    const flag = Game.flags.claim;
+    if (flag.room) {
+      const controller = flag.pos.lookFor(LOOK_STRUCTURES).filter(utils.isController)[0];
+      if (utils.isReservedByOthers(controller)) {
+        if (creep.attackController(controller) === ERR_NOT_IN_RANGE) move(creep, controller);
+      } else {
+        if (creep.claimController(controller) === ERR_NOT_IN_RANGE) move(creep, controller);
+      }
+    } else {
+      move(creep, flag);
+    }
+    return;
+  } else if (creep.memory.action === "recycleCreep" || creep.room.memory.hostilesPresent) {
     recycleCreep(creep);
     return;
   }
@@ -1083,14 +1115,12 @@ function pickup(creep: Creep, destination: Destination) {
 function handleSpawns(room: Room) {
   const spawn = room.find(FIND_MY_SPAWNS).filter(s => !s.spawning)[0];
   if (spawn) {
-    const controllersToReserve = utils.getControllersToReserve();
-
     if (needCarriers()) {
       spawnRole("carrier", spawn);
     } else if (needHarvesters()) {
       spawnHarvester(spawn);
-    } else if (controllersToReserve.length > 0) {
-      spawnReserver(spawn, controllersToReserve[0]);
+    } else if (needReservers()) {
+      spawnReserver(spawn);
     } else if (needInfantry()) {
       spawnRole("infantry", spawn);
     } else if (needAttackers(spawn.room)) {
@@ -1105,6 +1135,13 @@ function handleSpawns(room: Room) {
       spawnRole("upgrader", spawn, Math.min(450, spawn.room.energyCapacityAvailable));
     }
   }
+}
+
+function needReservers() {
+  return (
+    utils.getControllersToReserve().length > 0 ||
+    ("claim" in Game.flags && utils.getCreepCountByRole("reserver") < 1)
+  );
 }
 
 function updateFlagClaim() {
@@ -1212,13 +1249,11 @@ function needAttackers(room: Room) {
   );
 }
 
-function spawnReserver(spawn: StructureSpawn, controllerToReserve: StructureController) {
-  const minBudget = Math.max(1300, spawn.room.energyCapacityAvailable);
+function spawnReserver(spawn: StructureSpawn) {
+  const minBudget = Math.min(1300, spawn.room.energyCapacityAvailable);
   if (minBudget > spawn.room.energyAvailable) return;
-  if (spawn.room.energyAvailable >= minBudget) {
-    const task: Task = { destination: controllerToReserve, action: "reserveController" };
-    spawnCreep(spawn, "reserver", minBudget, undefined, task);
-  }
+  const task: Task = { destination: utils.getControllersToReserve()[0], action: "reserveController" };
+  spawnCreep(spawn, "reserver", minBudget, undefined, task);
 }
 
 function getDestructibleWallAt(pos: RoomPosition) {
@@ -1469,7 +1504,7 @@ function spawnCreep(
 
   if (outcome === OK) {
     let targetStr;
-    if (task) {
+    if (task && task.destination) {
       targetStr = task.destination.toString();
       if ("pos" in task.destination) targetStr += " @ " + task.destination.pos.roomName;
     }
