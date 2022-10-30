@@ -1047,7 +1047,7 @@ export function constructInRoom(room: Room): void {
   }
   if (!hasExtensionClusters(room)) {
     flagExtensionClusters(room);
-  } else {
+  } else if (Math.random() < 0.1) {
     clearExtensionClusters(room);
   }
   logCpu("constructInRoom(" + room.name + ")");
@@ -1524,7 +1524,7 @@ function getPositionsForEC(center: RoomPosition, range: number) {
     .filter(pos => pos.x >= 4 && pos.x <= 45 && pos.y >= 4 && pos.y <= 45)
     .map(pos => ({
       pos,
-      space: getPositionsAround(pos, 1, 1).filter(near => near.lookFor(LOOK_STRUCTURES).length <= 0)
+      space: getPositionsAround(pos, 1, 1)
     }))
     .filter(spot => spot.space.length >= 6)
     .sort(function (a, b) {

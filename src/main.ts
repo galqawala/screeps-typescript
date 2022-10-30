@@ -103,6 +103,7 @@ declare global {
   interface CreepMemory {
     action?: Action;
     build?: Id<ConstructionSite>;
+    container?: Id<StructureContainer>;
     deliveryTasks?: DeliveryTask[];
     destination?: DestinationId | RoomPosition;
     pathKey?: string;
@@ -110,9 +111,11 @@ declare global {
     retrieve?: Id<Structure | Tombstone | Ruin | Resource>;
     role: Role;
     sourceId?: Id<Source>;
-    transferTo?: Id<Structure>;
+    storage?: Id<StructureStorage>;
     stroke: string;
     strokeWidth: number;
+    transferTo?: Id<Structure>;
+    upgrade?: Id<StructureController>;
   }
 
   interface DeliveryTask {
@@ -156,11 +159,13 @@ export const loop = ErrorMapper.wrapLoop(() => {
   utils.logCpu("mem");
   Memory.reusePath = (Memory.reusePath || 0) + 1;
   if (!Memory.paths) Memory.paths = {};
-  for (const key in Memory.creeps) {
-    if (!Game.creeps[key]) delete Memory.creeps[key];
+  if (Math.random() < 0.1) {
+    for (const key in Memory.creeps) {
+      if (!Game.creeps[key]) delete Memory.creeps[key];
+    }
+    purgeFlags();
+    purgeFlagsMemory();
   }
-  purgeFlags();
-  purgeFlagsMemory();
   if (!Memory.username) utils.setUsername();
   utils.logCpu("mem");
   utils.logCpu("handle rooms, flags, creeps, spawns");
@@ -390,16 +395,7 @@ function getRoomEnergyDestination(
   if (stores) {
     for (const store of stores) {
       const destination = Game.getObjectById(store.id);
-      if (
-        destination &&
-        (!(destination instanceof StructureContainer) || utils.isStorageSubstitute(destination)) &&
-        !(destination instanceof Ruin) &&
-        (allowStorageAndLink ||
-          (!utils.isStorageSubstitute(destination) &&
-            !utils.isStorage(destination) &&
-            !utils.isLink(destination)))
-      )
-        destinations.push(destination);
+      if (isValidEnergyDestination(destination, allowStorageAndLink)) destinations.push(destination);
     }
     const closest = destinations
       .map(value => ({
@@ -414,17 +410,66 @@ function getRoomEnergyDestination(
   return;
 }
 
+function isValidEnergyDestination(
+  destination:
+    | StructureExtension
+    | StructureFactory
+    | StructureLab
+    | StructureLink
+    | StructureNuker
+    | StructurePowerSpawn
+    | StructureSpawn
+    | StructureStorage
+    | StructureTerminal
+    | StructureTower
+    | Ruin
+    | Tombstone
+    | Resource<ResourceConstant>
+    | StructureContainer
+    | null,
+  allowStorageAndLink: boolean
+) {
+  return (
+    destination &&
+    (utils.isStorageSubstitute(destination) ||
+      (!(destination instanceof StructureContainer) &&
+        !(destination instanceof Ruin) &&
+        (allowStorageAndLink ||
+          (!utils.isStorageSubstitute(destination) &&
+            !utils.isStorage(destination) &&
+            !utils.isLink(destination)))))
+  );
+}
+
 function handleUpgrader(creep: Creep) {
   utils.logCpu("handleUpgrader(" + creep.name + ")");
-
-  if (utils.isFull(creep)) delete creep.memory.retrieve;
-
+  // controller
+  const controllerId = creep.memory.upgrade;
+  let controller;
+  if (controllerId) controller = Game.getObjectById(controllerId);
+  if (!controller) controller = getControllerToUpgrade(creep.pos, false);
+  utils.logCpu("handleUpgrader(" + creep.name + ")");
+  if (!controller) return;
+  creep.memory.upgrade = controller.id;
+  // actions
   if (utils.isEmpty(creep)) {
-    workerRetrieveEnergy(creep);
-  } else {
-    upgrade(creep, false);
+    const storeId = creep.memory.storage || creep.memory.container;
+    let store;
+    if (storeId) store = Game.getObjectById(storeId);
+    if (!store)
+      store = controller.pos.findClosestByRange(FIND_STRUCTURES, {
+        filter(object) {
+          return utils.isStorage(object) || utils.isContainer(object);
+        }
+      });
+    utils.logCpu("handleUpgrader(" + creep.name + ")");
+    if (!store) return;
+    if (utils.isStorage(store)) creep.memory.storage = store.id;
+    else if (utils.isContainer(store)) creep.memory.container = store.id;
+    if (creep.withdraw(store, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) move(creep, store);
   }
-
+  utils.flagEnergyConsumer(controller.pos);
+  if (controller && creep.upgradeController(controller) === ERR_NOT_IN_RANGE) move(creep, controller);
   utils.logCpu("handleUpgrader(" + creep.name + ")");
 }
 
@@ -558,14 +603,6 @@ function repair(creep: Creep) {
   return false;
 }
 
-function upgrade(creep: Creep, urgentOnly: boolean) {
-  utils.logCpu("upgrade(" + creep.name + "," + urgentOnly.toString() + ")");
-  const controller = getControllerToUpgrade(creep.pos, urgentOnly);
-  utils.flagEnergyConsumer(controller.pos);
-  if (controller && creep.upgradeController(controller) === ERR_NOT_IN_RANGE) move(creep, controller);
-  utils.logCpu("upgrade(" + creep.name + "," + urgentOnly.toString() + ")");
-}
-
 function dismantle(creep: Creep) {
   utils.logCpu("dismantle(" + creep.name + ")");
   const flag = Game.flags.dismantle;
@@ -658,6 +695,7 @@ function moveTowardMemory(creep: Creep) {
 
 function handleCarrier(creep: Creep) {
   utils.logCpu("handleCarrier(" + creep.name + ")");
+  utils.logCpu("handleCarrier(" + creep.name + ") transfer");
   if (!utils.isEmpty(creep)) {
     const tgt = creep.pos
       .findInRange(FIND_MY_STRUCTURES, 2)
@@ -674,6 +712,7 @@ function handleCarrier(creep: Creep) {
       return;
     }
   }
+  utils.logCpu("handleCarrier(" + creep.name + ") transfer");
   if (!creep.memory.deliveryTasks) creep.memory.deliveryTasks = [];
   let pos = creep.pos;
   if ("last_" + creep.name in Game.flags) pos = Game.flags["last_" + creep.name].pos;
@@ -1779,7 +1818,7 @@ function getPathKey(from: RoomPosition, to: RoomPosition) {
 }
 
 function getPosKey(pos: RoomPosition) {
-  const gridSize = 20;
+  const gridSize = 30;
   const coords = utils.getGlobalCoords(pos);
   return Math.floor(coords.x / gridSize).toString() + "," + Math.floor(coords.y / gridSize).toString();
 }
