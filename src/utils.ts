@@ -212,15 +212,18 @@ export function getTrafficFlagName(pos: RoomPosition): string {
   return "traffic_" + pos.roomName + "_" + pos.x.toString() + "_" + pos.y.toString();
 }
 
-export function getPositionsAround(origin: RoomPosition, range = 1): RoomPosition[] {
+export function getPositionsAround(origin: RoomPosition, rangeMin: number, rangeMax: number): RoomPosition[] {
   logCpu("getPositionsAround(" + origin.toString() + ")");
   const terrain = new Room.Terrain(origin.roomName);
   const spots: RoomPosition[] = [];
 
-  for (let x = origin.x - range; x <= origin.x + range; x++) {
-    for (let y = origin.y - range; y <= origin.y + range; y++) {
-      if (x < 0 || x > 49 || y < 0 || y > 49) continue;
-      if (x === origin.x && y === origin.y) continue;
+  const minX = Math.max(0, origin.x - rangeMax);
+  const maxX = Math.min(49, origin.x + rangeMax);
+  const minY = Math.max(0, origin.y - rangeMax);
+  const maxY = Math.min(49, origin.y + rangeMax);
+  for (let x = minX; x <= maxX; x++) {
+    for (let y = minY; y <= maxY; y++) {
+      if (Math.max(Math.abs(origin.x - x), Math.abs(origin.y - y)) < rangeMin) continue;
       if (terrain.get(x, y) === TERRAIN_MASK_WALL) continue;
       const pos = new RoomPosition(x, y, origin.roomName);
       if (blockedByStructure(pos)) continue;
@@ -409,7 +412,7 @@ export function getSpawnsAndExtensionsSorted(room: Room): (StructureSpawn | Stru
       structure =>
         structure.structureType === STRUCTURE_EXTENSION || structure.structureType === STRUCTURE_SPAWN
     );
-
+  if (!room.memory.sortedSpawnStructureIds) room.memory.sortedSpawnStructureIds = [];
   return room.memory.sortedSpawnStructureIds
     .map(id => Game.getObjectById(id))
     .concat(
@@ -686,7 +689,7 @@ export function getPosForStorage(room: Room): RoomPosition | undefined {
   let bestScore = Number.NEGATIVE_INFINITY;
   let bestPos;
 
-  for (const pos of getPositionsAround(room.controller.pos, 3)) {
+  for (const pos of getPositionsAround(room.controller.pos, 1, 3)) {
     let score = getNearbyWorkSpotCount(pos, true);
     if (hasStructureInRange(pos, undefined, 1, true)) score -= 0.1;
     if (bestScore < score) {
@@ -868,7 +871,7 @@ export function getPotentialConstructionSites(room: Room): ScoredPos[] {
 
 function getSurroundingPlainsCount(pos: RoomPosition) {
   let plains = 0;
-  const positions = getPositionsAround(pos);
+  const positions = getPositionsAround(pos, 0, 1);
   const terrain = new Room.Terrain(pos.roomName);
   for (const posAround of positions) {
     if (terrain.get(posAround.x, posAround.y) === 0) plains++;
@@ -1042,10 +1045,10 @@ export function constructInRoom(room: Room): void {
       msg(room, "Can't find pos for storage/container");
     }
   }
-  if (hasExtensionClusters(room)) {
-    clearExtensionClusters(room);
-  } else {
+  if (!hasExtensionClusters(room)) {
     flagExtensionClusters(room);
+  } else {
+    clearExtensionClusters(room);
   }
   logCpu("constructInRoom(" + room.name + ")");
 }
@@ -1476,28 +1479,33 @@ export function getTotalRepairTargetCount(): number {
   );
 }
 function flagExtensionClusters(room: Room) {
-  let count = 0; // 3 Spawns, 60 Extensions
+  let count = 0;
   const clusters = [];
-  const roads = getRoadsForEC(room);
-  for (const road of roads) {
-    if (clusters.filter(cluster => cluster.road.pos.getRangeTo(road.road) < 3).length > 0) continue;
-    clusters.push(road);
-    const clusterName =
-      "ec" + room.name + "_" + String.fromCharCode(96 + clusters.length) + road.space.length.toString();
-    road.road.pos.createFlag(clusterName, COLOR_ORANGE, COLOR_GREY);
-    for (const pos of road.space) {
-      count += 1;
-      if (count <= 3) {
-        const type = "spawn";
-        pos.createFlag(clusterName + "_" + type.substring(0, 1) + count.toString(), COLOR_BLUE, COLOR_BLUE);
-      } else {
-        const type = "extension";
-        const num = count - 3;
-        pos.createFlag(clusterName + "_" + type.substring(0, 1) + num.toString(), COLOR_CYAN, COLOR_BLUE);
-      }
-      if (count >= 63) {
-        clusterReport(room, clusters.length, count);
-        return;
+  const center = room.controller?.pos.findClosestByRange(FIND_SOURCES);
+  if (!center) return;
+  for (let range = 3; range <= 40; range++) {
+    const positions = getPositionsForEC(center.pos, range);
+    for (const spot of positions) {
+      if (clusters.filter(cluster => cluster.pos.getRangeTo(spot.pos) < 3).length > 0) continue;
+      clusters.push(spot);
+      const clusterName =
+        "ec" + room.name + "_" + String.fromCharCode(96 + clusters.length) + spot.space.length.toString();
+      spot.pos.createFlag(clusterName, COLOR_ORANGE, COLOR_GREY);
+      for (const pos of pos.space) {
+        count += 1;
+        if (count <= 3) {
+          const type = "spawn";
+          pos.createFlag(clusterName + "_" + type.substring(0, 1) + count.toString(), COLOR_BLUE, COLOR_BLUE);
+        } else {
+          const type = "extension";
+          const num = count - 3;
+          pos.createFlag(clusterName + "_" + type.substring(0, 1) + num.toString(), COLOR_CYAN, COLOR_BLUE);
+        }
+        if (count >= 63) {
+          // 3 Spawns, 60 Extensions
+          clusterReport(room, clusters.length, count);
+          return;
+        }
       }
     }
   }
@@ -1510,17 +1518,15 @@ function clusterReport(room: Room, clusterCount: number, count: number) {
   );
 }
 
-function getRoadsForEC(room: Room) {
-  return room
-    .find(FIND_STRUCTURES)
-    .filter(isRoad)
-    .filter(road => road.pos.x >= 4 && road.pos.x <= 45 && road.pos.y >= 4 && road.pos.y <= 45)
-    .map(road => ({
-      road,
-      space: getPositionsAround(road.pos, 1).filter(pos => pos.lookFor(LOOK_STRUCTURES).length <= 0),
-      sourceRange: road.pos.findClosestByRange(FIND_SOURCES)?.pos.getRangeTo(road) || 0
+function getPositionsForEC(center: RoomPosition, range: number) {
+  return getPositionsAround(center, range, range)
+    .filter(pos => pos.x >= 4 && pos.x <= 45 && pos.y >= 4 && pos.y <= 45)
+    .map(pos => ({
+      pos,
+      space: getPositionsAround(pos, 1, 1).filter(near => near.lookFor(LOOK_STRUCTURES).length <= 0)
     }))
+    .filter(spot => spot.space >= 6)
     .sort(function (a, b) {
-      return b.space.length * 100 - b.sourceRange - (a.space.length * 100 - a.sourceRange);
+      return b.space.length - a.space.length;
     });
 }

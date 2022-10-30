@@ -151,7 +151,7 @@ declare global {
 export const loop = ErrorMapper.wrapLoop(() => {
   Memory.cpuLog = {}; // before everything!
   utils.logCpu("main");
-  if (Game.cpu.getUsed() > 2) utils.msg("main", "CPU before main: " + Game.cpu.getUsed().toString());
+  if (Game.cpu.getUsed() > 3) utils.msg("main", "CPU before main: " + Game.cpu.getUsed().toString());
   if ((Memory.maxTickLimit || 0) < Game.cpu.tickLimit) Memory.maxTickLimit = Game.cpu.tickLimit;
   utils.logCpu("mem");
   Memory.reusePath = (Memory.reusePath || 0) + 1;
@@ -949,7 +949,7 @@ function evadeHostiles(creep: Creep) {
     .map(hostile => hostile.pos)
     .concat(creep.pos.findInRange(FIND_HOSTILE_POWER_CREEPS, 4).map(hostile => hostile.pos));
   if (hostilePositions.length < 1) return;
-  const options = utils.getPositionsAround(creep.pos);
+  const options = utils.getPositionsAround(creep.pos, 1, 1);
   let bestScore = Number.NEGATIVE_INFINITY;
   let bestPos;
   const terrain = new Room.Terrain(creep.pos.roomName);
@@ -1195,7 +1195,7 @@ function moveOptimally(creep: Creep, destination: Destination) {
 
 function updatePath(key: string, from: RoomPosition, to: RoomPosition) {
   utils.logCpu("updatePath(" + key + ")");
-  if (!(key in Memory.paths)) {
+  if (!(key in Memory.paths) && Math.random() < 0.1) {
     Memory.paths[key] = from.findPathTo(to, { range: 1 });
   }
   utils.logCpu("updatePath(" + key + ")");
