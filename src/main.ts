@@ -1174,20 +1174,24 @@ function moveOptimally(creep: Creep, destination: Destination) {
     creep.moveTo(tgtPos);
     utils.logCpu("moveOptimally(" + creep.name + ")");
     return;
-  } else if (!creep.memory.pathKey?.endsWith(":" + getPosKey(tgtPos))) {
+  } else if (!creep.memory.pathKey?.endsWith(":" + getPosKey(tgtPos)) || Math.random() < 0.1) {
     creep.memory.pathKey = key;
+    updatePath(key, creep.pos, tgtPos);
   }
-  updatePath(key, creep.pos, tgtPos);
   const path = Memory.paths[creep.memory.pathKey];
   const outcome = creep.moveByPath(path);
   if (outcome === ERR_NOT_FOUND) {
-    const start = new RoomPosition(path[0].x, path[0].y, creep.pos.roomName);
-    const end = new RoomPosition(path[path.length - 1].x, path[path.length - 1].y, creep.pos.roomName);
-    if (start && end && utils.getGlobalRange(creep.pos, start) < utils.getGlobalRange(creep.pos, end)) {
-      creep.moveTo(start);
+    if (path.length > 1) {
+      const start = new RoomPosition(path[0].x, path[0].y, creep.pos.roomName);
+      const end = new RoomPosition(path[path.length - 1].x, path[path.length - 1].y, creep.pos.roomName);
+      if (start && end && utils.getGlobalRange(creep.pos, start) < utils.getGlobalRange(creep.pos, end)) {
+        creep.moveTo(start);
+      } else {
+        const exit = end.findClosestByRange(FIND_EXIT);
+        if (exit) creep.moveTo(exit);
+      }
     } else {
-      const exit = end.findClosestByRange(FIND_EXIT);
-      if (exit) creep.moveTo(exit);
+      delete creep.memory.pathKey;
     }
   }
   utils.logCpu("moveOptimally(" + creep.name + ")");
@@ -1195,7 +1199,7 @@ function moveOptimally(creep: Creep, destination: Destination) {
 
 function updatePath(key: string, from: RoomPosition, to: RoomPosition) {
   utils.logCpu("updatePath(" + key + ")");
-  if (!(key in Memory.paths) && Math.random() < 0.1) {
+  if (!(key in Memory.paths) || Math.random() < 0.1) {
     Memory.paths[key] = from.findPathTo(to, { range: 1 });
   }
   utils.logCpu("updatePath(" + key + ")");
