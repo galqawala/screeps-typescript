@@ -47,8 +47,8 @@ declare global {
   type EnergySource = Resource | Ruin | StructureContainer | StructureLink | StructureStorage | Tombstone;
 
   interface Memory {
-    cpuLimitExceededStreak: number;
     cpuLog: Record<string, CpuLogEntry>;
+    maxTickLimit: number;
     paths: Record<string, PathStep[]>;
     plan: Plan;
     reusePath: number;
@@ -105,8 +105,6 @@ declare global {
     build?: Id<ConstructionSite>;
     deliveryTasks?: DeliveryTask[];
     destination?: DestinationId | RoomPosition;
-    path?: PathStep[];
-    pathTo?: RoomPosition;
     pathKey?: string;
     pos: RoomPosition;
     retrieve?: Id<Structure | Tombstone | Ruin | Resource>;
@@ -151,38 +149,33 @@ declare global {
 
 // Main loop
 export const loop = ErrorMapper.wrapLoop(() => {
+  Memory.cpuLog = {}; // before everything!
   utils.logCpu("main");
+  if (Game.cpu.getUsed() > 2) utils.msg("main", "CPU before main: " + Game.cpu.getUsed().toString());
+  if ((Memory.maxTickLimit || 0) < Game.cpu.tickLimit) Memory.maxTickLimit = Game.cpu.tickLimit;
+  utils.logCpu("mem");
   Memory.reusePath = (Memory.reusePath || 0) + 1;
-  Memory.cpuLog = {};
   if (!Memory.paths) Memory.paths = {};
-  utils.logCpu("delete Memory.creeps");
   for (const key in Memory.creeps) {
     if (!Game.creeps[key]) delete Memory.creeps[key];
   }
-  utils.logCpu("delete Memory.creeps");
   purgeFlags();
   purgeFlagsMemory();
   if (!Memory.username) utils.setUsername();
-
+  utils.logCpu("mem");
   utils.logCpu("handle rooms, flags, creeps, spawns");
   updatePlan();
-  utils.logCpu("handle rooms");
   for (const r in Game.rooms) handleRoom(Game.rooms[r]);
-  utils.logCpu("handle rooms");
-  utils.logCpu("update flags");
   updateFlagAttack();
   updateFlagClaim();
   updateFlagReserve();
   updateFlagDismantle();
-  utils.logCpu("update flags");
   handleCreeps();
-  utils.logCpu("updateFlagReserve() handleSpawn");
-  utils.logCpu("updateFlagReserve() handleSpawn");
   utils.logCpu("handle rooms, flags, creeps, spawns");
-  utils.cpuInfo();
   const unusedCpuRatio = (Game.cpu.limit - Game.cpu.getUsed()) / Game.cpu.limit;
   Memory.reusePath = Math.max(0, (Memory.reusePath || 0) - Math.ceil(unusedCpuRatio * 2));
   utils.logCpu("main");
+  utils.cpuInfo(); // after everything!
 });
 
 function updatePlan() {
@@ -244,7 +237,7 @@ function handleCreeps() {
     if (!Game.creeps[c].spawning) {
       utils.logCpu("creep: " + c);
       const creep = Game.creeps[c];
-      if (creep.memory.pos?.roomName !== creep.pos.roomName) delete creep.memory.path;
+      if (creep.memory.pos?.roomName !== creep.pos.roomName) delete creep.memory.pathKey;
 
       const role = creep.memory.role;
       if (role === "attacker") handleAttacker(creep);
@@ -1114,7 +1107,8 @@ function handleRoom(room: Room) {
 
   utils.logCpu("handleRoom(" + room.name + ") updates1");
   utils.handleHostilesInRoom(room);
-  if (utils.canOperateInRoom(room) && Math.random() < 0.03) utils.constructInRoom(room);
+  if (utils.canOperateInRoom(room) && Math.random() < 0.03 && Game.cpu.tickLimit > 40)
+    utils.constructInRoom(room);
   utils.logCpu("handleRoom(" + room.name + ") updates1");
   utils.logCpu("handleRoom(" + room.name + ") updates2");
   utils.handleLinks(room);
@@ -1162,8 +1156,6 @@ function move(creep: Creep, destination: Destination) {
   }
   let outcome;
   if (utils.getGlobalRange(creep.pos, utils.getPos(destination)) <= 5) {
-    delete creep.memory.path;
-    delete creep.memory.pathTo;
     delete creep.memory.pathKey;
     outcome = creep.moveTo(destination);
   } else {
@@ -1182,38 +1174,31 @@ function moveOptimally(creep: Creep, destination: Destination) {
     creep.moveTo(tgtPos);
     utils.logCpu("moveOptimally(" + creep.name + ")");
     return;
+  } else if (!creep.memory.pathKey?.endsWith(":" + getPosKey(tgtPos))) {
+    creep.memory.pathKey = key;
   }
-  if (!creep.memory.pathTo || !isPosEqual(creep.memory.pathTo, tgtPos) || Math.random() < 0.03) {
-    delete creep.memory.path;
-    delete creep.memory.pathTo;
-    delete creep.memory.pathKey;
-  }
-  if (!Array.isArray(creep.memory.path)) updatePath(key, creep, tgtPos);
-  if (!Array.isArray(creep.memory.path)) return;
-  const outcome = creep.moveByPath(creep.memory.path);
+  updatePath(key, creep.pos, tgtPos);
+  const path = Memory.paths[creep.memory.pathKey];
+  const outcome = creep.moveByPath(path);
   if (outcome === ERR_NOT_FOUND) {
-    const startPos = creep.memory.path[0];
-    if (startPos) {
-      creep.moveTo(new RoomPosition(startPos.x, startPos.y, creep.pos.roomName));
+    const start = new RoomPosition(path[0].x, path[0].y, creep.pos.roomName);
+    const end = new RoomPosition(path[path.length - 1].x, path[path.length - 1].y, creep.pos.roomName);
+    if (start && end && utils.getGlobalRange(creep.pos, start) < utils.getGlobalRange(creep.pos, end)) {
+      creep.moveTo(start);
     } else {
-      const exit = creep.pos.findClosestByRange(FIND_EXIT);
+      const exit = end.findClosestByRange(FIND_EXIT);
       if (exit) creep.moveTo(exit);
     }
   }
   utils.logCpu("moveOptimally(" + creep.name + ")");
 }
 
-function updatePath(key: string, creep: Creep, tgtPos: RoomPosition) {
-  utils.logCpu("updatePath(" + key + "," + creep.name + ")");
-  if (key in Memory.paths) {
-    creep.memory.path = Memory.paths[key];
-  } else {
-    creep.memory.path = creep.pos.findPathTo(tgtPos, { range: 1 });
-    Memory.paths[key] = creep.memory.path;
+function updatePath(key: string, from: RoomPosition, to: RoomPosition) {
+  utils.logCpu("updatePath(" + key + ")");
+  if (!(key in Memory.paths)) {
+    Memory.paths[key] = from.findPathTo(to, { range: 1 });
   }
-  creep.memory.pathTo = tgtPos;
-  creep.memory.pathKey = key;
-  utils.logCpu("updatePath(" + key + "," + creep.name + ")");
+  utils.logCpu("updatePath(" + key + ")");
 }
 
 function hslToHex(h: number /* deg */, s: number /* % */, l: number /* % */) {
@@ -1785,17 +1770,12 @@ function getPathKey(from: RoomPosition, to: RoomPosition) {
   if (fromKey === toKey) {
     return;
   } else {
-    return fromKey + "-" + toKey;
+    return fromKey + ":" + toKey;
   }
 }
 
 function getPosKey(pos: RoomPosition) {
-  const gridSize = 8;
-  return (
-    pos.roomName +
-    "," +
-    Math.floor(pos.x / gridSize).toString() +
-    "," +
-    Math.floor(pos.y / gridSize).toString()
-  );
+  const gridSize = 20;
+  const coords = utils.getGlobalCoords(pos);
+  return Math.floor(coords.x / gridSize).toString() + "," + Math.floor(coords.y / gridSize).toString();
 }

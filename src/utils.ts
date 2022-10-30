@@ -20,6 +20,10 @@ export function isContainer(
   if (!("structureType" in structure)) return false;
   return structure.structureType === STRUCTURE_CONTAINER;
 }
+export function isRoad(structure: Structure): structure is StructureRoad {
+  if (!("structureType" in structure)) return false;
+  return structure.structureType === STRUCTURE_ROAD;
+}
 export function isDestructibleWall(structure: Structure): structure is StructureWall {
   return structure.structureType === STRUCTURE_WALL && "hits" in structure;
 }
@@ -134,21 +138,11 @@ export function getGlobalRange(from: RoomPosition | undefined, to: RoomPosition 
 }
 
 export function cpuInfo(): void {
-  if (Game.cpu.getUsed() > Game.cpu.limit) {
-    Memory.cpuLimitExceededStreak++;
-    if (Memory.cpuLimitExceededStreak >= 2)
-      msg(
-        "cpuInfo()",
-        Game.cpu.getUsed().toString() +
-          "/" +
-          Game.cpu.limit.toString() +
-          " CPU used! Limit exceeded " +
-          Memory.cpuLimitExceededStreak.toString() +
-          " ticks in a row.\n" +
-          getCpuLog()
-      );
-  } else {
-    Memory.cpuLimitExceededStreak = 0;
+  if (Game.cpu.tickLimit - Game.cpu.getUsed() < Memory.maxTickLimit / 2) {
+    msg(
+      "cpuInfo()",
+      Game.cpu.getUsed().toString() + "/" + Game.cpu.limit.toString() + " CPU used!\n" + getCpuLog()
+    );
   }
 }
 
@@ -1048,7 +1042,27 @@ export function constructInRoom(room: Room): void {
       msg(room, "Can't find pos for storage/container");
     }
   }
+  if (hasExtensionClusters(room)) {
+    clearExtensionClusters(room);
+  } else {
+    flagExtensionClusters(room);
+  }
   logCpu("constructInRoom(" + room.name + ")");
+}
+
+function hasExtensionClusters(room: Room) {
+  const flags = room.find(FIND_FLAGS);
+  for (const flag of flags) {
+    if (flag.name.startsWith("ec" + room.name + "_")) return true;
+  }
+  return false;
+}
+
+function clearExtensionClusters(room: Room) {
+  const flags = room.find(FIND_FLAGS);
+  for (const flag of flags) {
+    if (flag.name.startsWith("ec" + room.name + "_")) flag.remove();
+  }
 }
 
 export function checkRoomStatus(room: Room): void {
@@ -1411,8 +1425,7 @@ export function resetDestination(creep: Creep): void {
     creep?.memory?.deliveryTasks?.shift();
   delete creep.memory.destination;
   delete creep.memory.action;
-  delete creep.memory.path;
-  delete creep.memory.pathTo;
+  delete creep.memory.pathKey;
   const flag = Game.flags["creep_" + creep.name];
   if (flag) flag.remove();
   logCpu("resetDestination(" + creep.name + ")");
@@ -1461,4 +1474,53 @@ export function getTotalRepairTargetCount(): number {
     (aggregated, item) => aggregated + (item.memory.repairTargets?.length || 0),
     0 /* initial*/
   );
+}
+function flagExtensionClusters(room: Room) {
+  let count = 0; // 3 Spawns, 60 Extensions
+  const clusters = [];
+  const roads = getRoadsForEC(room);
+  for (const road of roads) {
+    if (clusters.filter(cluster => cluster.road.pos.getRangeTo(road.road) < 3).length > 0) continue;
+    clusters.push(road);
+    const clusterName =
+      "ec" + room.name + "_" + String.fromCharCode(96 + clusters.length) + road.space.length.toString();
+    road.road.pos.createFlag(clusterName, COLOR_ORANGE, COLOR_GREY);
+    for (const pos of road.space) {
+      count += 1;
+      if (count <= 3) {
+        const type = "spawn";
+        pos.createFlag(clusterName + "_" + type.substring(0, 1) + count.toString(), COLOR_BLUE, COLOR_BLUE);
+      } else {
+        const type = "extension";
+        const num = count - 3;
+        pos.createFlag(clusterName + "_" + type.substring(0, 1) + num.toString(), COLOR_CYAN, COLOR_BLUE);
+      }
+      if (count >= 63) {
+        clusterReport(room, clusters.length, count);
+        return;
+      }
+    }
+  }
+  clusterReport(room, clusters.length, count);
+}
+function clusterReport(room: Room, clusterCount: number, count: number) {
+  msg(
+    room,
+    "planned " + clusterCount.toString() + " clusters with " + count.toString() + " spawns/extensions"
+  );
+}
+
+function getRoadsForEC(room: Room) {
+  return room
+    .find(FIND_STRUCTURES)
+    .filter(isRoad)
+    .filter(road => road.pos.x >= 4 && road.pos.x <= 45 && road.pos.y >= 4 && road.pos.y <= 45)
+    .map(road => ({
+      road,
+      space: getPositionsAround(road.pos, 1).filter(pos => pos.lookFor(LOOK_STRUCTURES).length <= 0),
+      sourceRange: road.pos.findClosestByRange(FIND_SOURCES)?.pos.getRangeTo(road) || 0
+    }))
+    .sort(function (a, b) {
+      return b.space.length * 100 - b.sourceRange - (a.space.length * 100 - a.sourceRange);
+    });
 }
