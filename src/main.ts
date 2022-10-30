@@ -151,7 +151,7 @@ declare global {
 export const loop = ErrorMapper.wrapLoop(() => {
   Memory.cpuLog = {}; // before everything!
   utils.logCpu("main");
-  if (Game.cpu.getUsed() > 3) utils.msg("main", "CPU before main: " + Game.cpu.getUsed().toString());
+  if (Game.cpu.getUsed() > 4) utils.msg("main", "CPU before main: " + Game.cpu.getUsed().toString());
   if ((Memory.maxTickLimit || 0) < Game.cpu.tickLimit) Memory.maxTickLimit = Game.cpu.tickLimit;
   utils.logCpu("mem");
   Memory.reusePath = (Memory.reusePath || 0) + 1;
@@ -627,7 +627,7 @@ function getControllerToUpgrade(pos: RoomPosition, urgentOnly: boolean) {
   const destination = targets
     .map(value => ({
       value,
-      sort: utils.getGlobalRange(pos, utils.getPos(value)) + value.ticksToDowngrade / 15
+      sort: utils.getGlobalRange(pos, utils.getPos(value)) + value.ticksToDowngrade / 20
     })) /* persist sort values */
     .sort((a, b) => a.sort - b.sort) /* sort */
     .map(({ value }) => value) /* remove sort values */[0];
@@ -1174,7 +1174,7 @@ function moveOptimally(creep: Creep, destination: Destination) {
     creep.moveTo(tgtPos);
     utils.logCpu("moveOptimally(" + creep.name + ")");
     return;
-  } else if (!creep.memory.pathKey?.endsWith(":" + getPosKey(tgtPos)) || Math.random() < 0.1) {
+  } else if (!creep.memory.pathKey?.endsWith(":" + getPosKey(tgtPos)) || Math.random() < 0.02) {
     creep.memory.pathKey = key;
     updatePath(key, creep.pos, tgtPos);
   }
