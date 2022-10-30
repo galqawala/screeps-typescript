@@ -1491,15 +1491,16 @@ function flagExtensionClusters(room: Room) {
       const clusterName =
         "ec" + room.name + "_" + String.fromCharCode(96 + clusters.length) + spot.space.length.toString();
       spot.pos.createFlag(clusterName, COLOR_ORANGE, COLOR_GREY);
-      for (const pos of pos.space) {
+      for (const space of spot.space) {
         count += 1;
         if (count <= 3) {
           const type = "spawn";
-          pos.createFlag(clusterName + "_" + type.substring(0, 1) + count.toString(), COLOR_BLUE, COLOR_BLUE);
+          const name = clusterName + "_" + type.substring(0, 1) + count.toString();
+          space.createFlag(name, COLOR_BLUE, COLOR_BLUE);
         } else {
           const type = "extension";
-          const num = count - 3;
-          pos.createFlag(clusterName + "_" + type.substring(0, 1) + num.toString(), COLOR_CYAN, COLOR_BLUE);
+          const name = clusterName + "_" + type.substring(0, 1) + (count - 3).toString();
+          space.createFlag(name, COLOR_CYAN, COLOR_BLUE);
         }
         if (count >= 63) {
           // 3 Spawns, 60 Extensions
@@ -1525,7 +1526,7 @@ function getPositionsForEC(center: RoomPosition, range: number) {
       pos,
       space: getPositionsAround(pos, 1, 1).filter(near => near.lookFor(LOOK_STRUCTURES).length <= 0)
     }))
-    .filter(spot => spot.space >= 6)
+    .filter(spot => spot.space.length >= 6)
     .sort(function (a, b) {
       return b.space.length - a.space.length;
     });
