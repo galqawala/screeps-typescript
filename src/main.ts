@@ -104,16 +104,14 @@ declare global {
     action?: Action;
     build?: Id<ConstructionSite>;
     container?: Id<StructureContainer>;
-    deliverTo?: Id<Structure>[];
     deliveryTasks?: DeliveryTask[];
     destination?: DestinationId | RoomPosition;
     link?: Id<StructureLink>;
-    pathIndex?: number;
     pathKey?: string;
-    paths?: PathStep[][];
+    phaseIndex?: number;
+    phases?: Phase[];
     pos: RoomPosition;
     retrieve?: Id<Structure | Tombstone | Ruin | Resource>;
-    retrieveFrom?: Id<Structure>[];
     role: Role;
     sourceId?: Id<Source>;
     storage?: Id<StructureStorage>;
@@ -121,6 +119,12 @@ declare global {
     strokeWidth: number;
     transferTo?: Id<Structure>;
     upgrade?: Id<StructureController>;
+  }
+
+  interface Phase {
+    retrieve?: Id<Structure>;
+    transfer?: Id<Structure>;
+    move?: RoomPosition[];
   }
 
   interface DeliveryTask {
@@ -733,7 +737,7 @@ function moveTowardMemory(creep: Creep) {
 
 function handleCarrier(creep: Creep) {
   utils.logCpu("handleCarrier(" + creep.name + ")");
-  if (!creep.memory.retrieveFrom) planCarrierRoutes(creep);
+  if (!creep.memory.phases) planCarrierRoutes(creep);
   utils.logCpu("handleCarrier(" + creep.name + ") transfer");
   if (!utils.isEmpty(creep)) {
     const tgt = creep.pos
@@ -1764,6 +1768,7 @@ function getBodyForUpgrader(energyAvailable: number) {
     if (body.length >= 50) return body;
   }
 }
+
 function getBodyForWorker(energyAvailable: number) {
   const body: BodyPartConstant[] = [WORK, CARRY, MOVE];
   for (;;) {
@@ -1776,6 +1781,7 @@ function getBodyForWorker(energyAvailable: number) {
     if (body.length >= 50) return body;
   }
 }
+
 function getBodyForCarrier(energyAvailable: number) {
   const body: BodyPartConstant[] = [CARRY, MOVE];
   for (;;) {
@@ -1785,6 +1791,7 @@ function getBodyForCarrier(energyAvailable: number) {
     if (body.length >= 50) return body;
   }
 }
+
 function getBodyForReserver(energyAvailable: number) {
   const body: BodyPartConstant[] = [CLAIM, MOVE];
   for (;;) {
@@ -1794,6 +1801,7 @@ function getBodyForReserver(energyAvailable: number) {
     if (body.length >= 50) return body;
   }
 }
+
 function getBodyForAttacker(energyAvailable: number) {
   const body: BodyPartConstant[] = [ATTACK, MOVE];
   for (;;) {
@@ -1803,6 +1811,7 @@ function getBodyForAttacker(energyAvailable: number) {
     if (body.length >= 50) return body;
   }
 }
+
 function getBodyForInfantry(energyAvailable: number) {
   const body: BodyPartConstant[] = [MOVE, RANGED_ATTACK];
   for (;;) {
@@ -1830,12 +1839,14 @@ function purgeFlags() {
   }
   utils.logCpu("purgeFlags()");
 }
+
 function isPosEqual(a: RoomPosition, b: RoomPosition) {
   if (a.x !== b.x) return false;
   if (a.y !== b.y) return false;
   if (a.roomName !== b.roomName) return false;
   return true;
 }
+
 function getPathKey(from: RoomPosition, to: RoomPosition) {
   const fromKey = getPosKey(from);
   const toKey = getPosKey(to);
@@ -1853,8 +1864,82 @@ function getPosKey(pos: RoomPosition) {
 }
 
 function planCarrierRoutes(creep: Creep) {
-  delete creep.memory.paths; // ?: PathStep[][];
-  delete creep.memory.pathIndex; // ?: number;
-  delete creep.memory.retrieveFrom; // ?: Id<Structure>[];
-  delete creep.memory.deliverTo; // ?: Id<Structure>[];
+  creep.memory.phaseIndex = 0;
+  const source = getCarrierEnergySource(creep);
+  if (!source) return;
+  creep.memory.phases = [{ retrieve: source.id }];
+  let pos = source.pos;
+  let energy = creep.store.getCapacity(RESOURCE_ENERGY);
+  const transferIds = [];
+  while (energy > 0) {
+    const destination = getCarrierEnergyDestination(pos, transferIds);
+    creep.memory.phases.push({ move: PathFinder.search(pos, destination.pos).path });
+    creep.memory.phases.push({ transfer: destination.id });
+    pos = destination.pos;
+    energy -= destination.store.getCapacity(RESOURCE_ENERGY);
+    transferIds.push(destination.id);
+  }
+  creep.memory.phases.push({ move: PathFinder.search(pos, source.pos).path });
+  utils.msg(creep, creep.memory.phases.length.toString() + " phases planned!");
+}
+
+function getCarrierEnergySource(creep: Creep) {
+  let containers: StructureContainer[] = [];
+  for (const room of Object.values(Game.rooms)) {
+    if (room.memory.hostilesPresent) continue;
+    containers = containers.concat(
+      room
+        .find(FIND_STRUCTURES)
+        .filter(utils.isContainer)
+        .filter(container => !room.controller || room.controller.pos.getRangeTo(container) > 3)
+    );
+  }
+  return containers
+    .map(value => ({
+      value,
+      sort:
+        utils.getEnergy(value) /
+        (Object.values(Game.creeps).filter(
+          carrier =>
+            carrier.memory.role === "carrier" &&
+            carrier.memory.phases &&
+            carrier.memory.phases.map(phase => phase.retrieve || "").includes(value.id)
+        ).length || 0.1) /
+        (utils.getGlobalRange(creep.pos, value.pos) / 100)
+    })) /* persist sort values */
+    .sort((a, b) => b.sort - a.sort) /* sort */
+    .map(({ value }) => value) /* remove sort values */[0];
+}
+
+function getCarrierEnergyDestination(pos: RoomPosition, existingIds: Id<AnyStoreStructure>[]) {
+  let stores: AnyStoreStructure[] = [];
+  for (const room of Object.values(Game.rooms)) {
+    if (room.memory.hostilesPresent) continue;
+    stores = stores.concat(
+      room
+        .find(FIND_STRUCTURES)
+        .filter(utils.isStoreStructure)
+        .filter(
+          store =>
+            (!utils.isContainer(store) || (room.controller && room.controller.pos.getRangeTo(store) < 3)) &&
+            !utils.isLink(store) &&
+            !existingIds.includes(store.id)
+        )
+    );
+  }
+  return stores
+    .map(value => ({
+      value,
+      sort:
+        Object.values(Game.creeps).filter(
+          carrier =>
+            carrier.memory.role === "carrier" &&
+            carrier.memory.phases &&
+            carrier.memory.phases.map(phase => phase.transfer || "").includes(value.id)
+        ).length *
+          100 +
+        utils.getGlobalRange(pos, value.pos)
+    })) /* persist sort values */
+    .sort((a, b) => a.sort - b.sort) /* sort */
+    .map(({ value }) => value) /* remove sort values */[0];
 }

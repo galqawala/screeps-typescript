@@ -1514,6 +1514,7 @@ function planExtensionClusters(room: Room) {
     }
   }
 }
+
 function flagClusters(
   clusters: { pos: RoomPosition; space: RoomPosition[] }[],
   room: Room,
