@@ -1723,7 +1723,7 @@ function planCarrierRoutes(creep: Creep) {
       pos = path[path.length - 1];
     }
     creep.memory.phases.push({ transfer: destination.id });
-    energy -= destination.store.getCapacity(RESOURCE_ENERGY);
+    if (!utils.isTower(destination)) energy -= destination.store.getCapacity(RESOURCE_ENERGY);
     transferIds.push(destination.id);
   }
   if (!firstPos) return;
