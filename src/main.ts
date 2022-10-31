@@ -1727,13 +1727,8 @@ function planCarrierRoutes(creep: Creep) {
     transferIds.push(destination.id);
   }
   if (!firstPos) return;
-  utils.msg(creep, "planning return path: " + pos.toString() + " - " + firstPos.toString());
   const returnPath = getPath(pos, firstPos, 0);
-  if (returnPath.length > 0) {
-    creep.memory.phases.push({ move: returnPath });
-  } else {
-    utils.msg(creep, "no return path: " + pos.toString() + " - " + firstPos.toString());
-  }
+  if (returnPath.length > 0) creep.memory.phases.push({ move: returnPath });
   utils.msg(creep, creep.memory.phases.length.toString() + " phases planned!");
 }
 
