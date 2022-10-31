@@ -303,11 +303,12 @@ export function getControllersToReserve(): StructureController[] {
       controllers.push(controller);
     }
   }
-  logCpu("getControllersToReserve()");
-  return controllers
+  const sorted = controllers
     .map(value => ({ value, sort: value?.reservation?.ticksToEnd || 0 }))
     .sort((a, b) => a.sort - b.sort)
     .map(({ value }) => value);
+  logCpu("getControllersToReserve()");
+  return sorted;
 }
 
 export function creepsHaveDestination(structure: Structure): boolean {
@@ -1051,7 +1052,7 @@ export function constructInRoom(room: Room): void {
     }
   }
   if (!hasExtensionClusters(room)) {
-    flagExtensionClusters(room);
+    planExtensionClusters(room);
   } else if (Math.random() < 0.2) {
     msg(room, "clearing clusters plans (will be updated later)");
     clearExtensionClusters(room);
@@ -1350,9 +1351,12 @@ export function shouldHarvestRoom(room: Room): boolean {
 }
 
 export function getCreepCountByRole(role: Role, minTicksToLive = 120): number {
-  return Object.values(Game.creeps).filter(function (creep) {
+  logCpu("getCreepCountByRole(" + role + ")");
+  const count = Object.values(Game.creeps).filter(function (creep) {
     return creep.memory.role === role && (!creep.ticksToLive || creep.ticksToLive >= minTicksToLive);
   }).length;
+  logCpu("getCreepCountByRole(" + role + ")");
+  return count;
 }
 
 export function getBodyCost(body: BodyPartConstant[]): number {
@@ -1446,9 +1450,12 @@ export function getOwnedRoomsCount(): number {
 }
 
 export function getUpgradeableControllerCount(): number {
-  return Object.values(Game.rooms).filter(
+  logCpu("getUpgradeableControllerCount");
+  const count = Object.values(Game.rooms).filter(
     room => room.controller?.my && (room.controller?.level < 8 || room.controller?.ticksToDowngrade < 100000)
   ).length;
+  logCpu("getUpgradeableControllerCount");
+  return count;
 }
 
 export function updateRemoteHarvestScore(room: Room): void {
@@ -1484,7 +1491,7 @@ export function getTotalRepairTargetCount(): number {
     0 /* initial*/
   );
 }
-function flagExtensionClusters(room: Room) {
+function planExtensionClusters(room: Room) {
   const clusters = [];
   const structures: string[] = [];
   const roads: string[] = [];
@@ -1506,14 +1513,14 @@ function flagExtensionClusters(room: Room) {
         const structureIndex = structures.indexOf(step.x.toString() + "," + step.y.toString());
         if (structureIndex > -1) structures.splice(structureIndex, 1);
       }
-    }
-    if (structures.length >= 63) {
-      // 3 Spawns, 60 Extensions
-      break;
+      if (structures.length >= 63) {
+        // 3 Spawns, 60 Extensions
+        flagClusters(clusters, room, roads, structures);
+        clusterReport(room, clusters.length, structures.length);
+        return;
+      }
     }
   }
-  flagClusters(clusters, room, roads, structures);
-  clusterReport(room, clusters.length, structures.length);
 }
 function flagClusters(
   clusters: { pos: RoomPosition; space: RoomPosition[] }[],

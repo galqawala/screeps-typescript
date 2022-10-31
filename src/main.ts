@@ -167,15 +167,15 @@ export const loop = ErrorMapper.wrapLoop(() => {
   }
   if (!Memory.username) utils.setUsername();
   utils.logCpu("mem");
-  utils.logCpu("handle rooms, flags, creeps, spawns");
   updatePlan();
   for (const r in Game.rooms) handleRoom(Game.rooms[r]);
+  utils.logCpu("update flags");
   updateFlagAttack();
   updateFlagClaim();
   updateFlagReserve();
   updateFlagDismantle();
+  utils.logCpu("update flags");
   handleCreeps();
-  utils.logCpu("handle rooms, flags, creeps, spawns");
   const unusedCpuRatio = (Game.cpu.limit - Game.cpu.getUsed()) / Game.cpu.limit;
   Memory.reusePath = Math.max(0, (Memory.reusePath || 0) - Math.ceil(unusedCpuRatio * 2));
   utils.logCpu("main");
@@ -183,55 +183,88 @@ export const loop = ErrorMapper.wrapLoop(() => {
 });
 
 function updatePlan() {
+  utils.logCpu("updatePlan");
+  const storageMin = getStorageMin();
+  const allSpawnsFull = areAllSpawnsFull();
+  const needHarvesters = getNeedHarvesters();
+  Memory.plan = {
+    celebrate: shouldCelebrate(),
+    controllersToReserve: utils.getControllersToReserve().map(controller => controller.id),
+    fillSpawnsFromStorage: storageMin >= 900000 && !allSpawnsFull,
+    fillStorage: (storageMin < 150000 && !needHarvesters) || allSpawnsFull,
+    needAttackers: needAttackers(),
+    needCarriers: needCarriers(),
+    needExplorers: needExplorers(),
+    needHarvesters: storageMin < 900000 && needHarvesters,
+    needInfantry: needInfantry(),
+    needReservers: needReservers(),
+    needTransferers: needTransferers(),
+    needUpgraders: needUpgraders(storageMin),
+    needWorkers: needWorkers(),
+    maxEnergyCap: Math.max(...Object.values(Game.rooms).map(room => room.energyCapacityAvailable)),
+    minTicksToDowngrade: getMinTicksToDowngrade()
+  };
+  utils.logCpu("updatePlan");
+}
+
+function shouldCelebrate() {
+  utils.logCpu("shouldCelebrate");
+  const value =
+    Object.values(Game.rooms).filter(room => room.controller?.my && room.controller?.progressTotal).length <=
+    0;
+  utils.logCpu("shouldCelebrate");
+  return value;
+}
+
+function needUpgraders(storageMin: number) {
+  return (
+    storageMin >= 100000 && utils.getCreepCountByRole("upgrader") < 4 * utils.getUpgradeableControllerCount()
+  );
+}
+
+function getMinTicksToDowngrade() {
+  utils.logCpu("getMinTicksToDowngrade");
+  const value = Math.min(
+    ...Object.values(Game.rooms)
+      .filter(room => room.controller && room.controller.my)
+      .map(room => room.controller?.ticksToDowngrade || Number.POSITIVE_INFINITY)
+  );
+  utils.logCpu("getMinTicksToDowngrade");
+  return value;
+}
+
+function getStorageMin() {
+  utils.logCpu("getStorageMin");
   let storageMin = Number.POSITIVE_INFINITY;
   const storages = Object.values(Game.structures).filter(utils.isStorage);
   for (const storage of storages) {
     storageMin = Math.min(storageMin, storage.store.getUsedCapacity(RESOURCE_ENERGY));
   }
-
-  Memory.plan = {
-    celebrate:
-      Object.values(Game.rooms).filter(room => room.controller?.my && room.controller?.progressTotal)
-        .length <= 0,
-    controllersToReserve: utils.getControllersToReserve().map(controller => controller.id),
-    fillSpawnsFromStorage: storageMin >= 900000 && !allSpawnsFull(),
-    fillStorage: (storageMin < 150000 && !needHarvesters()) || allSpawnsFull(),
-    needAttackers: needAttackers(),
-    needCarriers: needCarriers(),
-    needExplorers: needExplorers(),
-    needHarvesters: storageMin < 900000 && needHarvesters(),
-    needInfantry: needInfantry(),
-    needReservers: needReservers(),
-    needTransferers: needTransferers(),
-    needUpgraders:
-      storageMin >= 100000 &&
-      utils.getCreepCountByRole("upgrader") < 4 * utils.getUpgradeableControllerCount(),
-    needWorkers: needWorkers(),
-    maxEnergyCap: Math.max(...Object.values(Game.rooms).map(room => room.energyCapacityAvailable)),
-    minTicksToDowngrade: Math.min(
-      ...Object.values(Game.rooms)
-        .filter(room => room.controller && room.controller.my)
-        .map(room => room.controller?.ticksToDowngrade || Number.POSITIVE_INFINITY)
-    )
-  };
+  utils.logCpu("getStorageMin");
+  return storageMin;
 }
 
 function needExplorers() {
-  return (
+  utils.logCpu("needExplorers()");
+  const value =
     utils.getCreepCountByRole("explorer") < 2 &&
     Object.values(Game.rooms).filter(
       room =>
         room.controller &&
         room.controller.my &&
         CONTROLLER_STRUCTURES[STRUCTURE_OBSERVER][room.controller.level] > 0
-    ).length < 1
-  );
+    ).length < 1;
+  utils.logCpu("needExplorers()");
+  return value;
 }
 
-function allSpawnsFull() {
+function areAllSpawnsFull() {
+  utils.logCpu("areAllSpawnsFull()");
   for (const room of Object.values(Game.rooms)) {
+    utils.logCpu("areAllSpawnsFull()");
     if (room.energyAvailable < room.energyCapacityAvailable) return false;
   }
+  utils.logCpu("areAllSpawnsFull()");
   return true;
 }
 
@@ -1373,7 +1406,8 @@ function needCarriers(): boolean {
 
 function needTransferers(): boolean {
   // we have storages without transferrer, next to link that has energy
-  return (
+  utils.logCpu("needTransferers()");
+  const value =
     Object.values(Game.structures)
       .filter(utils.isStorage)
       .filter(
@@ -1385,8 +1419,9 @@ function needTransferers(): boolean {
             .findInRange(FIND_MY_STRUCTURES, 1)
             .filter(utils.isLink)
             .filter(link => utils.getEnergy(link) > 0).length > 0
-      ).length > 0
-  );
+      ).length > 0;
+  utils.logCpu("needTransferers()");
+  return value;
 }
 
 function spawnRole(
@@ -1549,11 +1584,14 @@ function updateFlagReserve() {
 }
 
 function needWorkers() {
+  utils.logCpu("needWorkers");
   const workParts = Object.values(Game.creeps)
     .filter(creep => creep.memory.role === "worker")
     .reduce((aggregated, item) => aggregated + item.getActiveBodyparts(WORK), 0 /* initial*/);
   const partsNeeded = Math.ceil(getTotalConstructionWork() / 300 + utils.getTotalRepairTargetCount() / 2);
-  return partsNeeded > workParts && Memory.plan.minTicksToDowngrade > 4000;
+  const value = partsNeeded > workParts && Memory.plan.minTicksToDowngrade > 4000;
+  utils.logCpu("needWorkers");
+  return value;
 }
 
 function getTotalConstructionWork() {
@@ -1563,13 +1601,14 @@ function getTotalConstructionWork() {
   );
 }
 
-function needHarvesters() {
+function getNeedHarvesters() {
   const source = getSourceToHarvest(Object.values(Game.spawns)[0].pos);
   if (!source) return false; // nothing to harvest
   return true;
 }
 
 function getSourceToHarvest(pos: RoomPosition) {
+  utils.logCpu("getSourceToHarvest(" + pos.toString() + ")");
   let sources: Source[] = [];
   for (const r in Game.rooms) {
     const room = Game.rooms[r];
@@ -1580,11 +1619,13 @@ function getSourceToHarvest(pos: RoomPosition) {
       room.find(FIND_SOURCES).filter(harvestSource => !utils.sourceHasHarvester(harvestSource))
     );
   }
+  utils.logCpu("getSourceToHarvest(" + pos.toString() + ")");
   if (sources.length < 1) return;
   const source = sources
     .map(value => ({ value, sort: utils.getGlobalRange(pos, utils.getPos(value)) })) /* persist sort values */
     .sort((a, b) => a.sort - b.sort) /* sort */
     .map(({ value }) => value) /* remove sort values */[0];
+  utils.logCpu("getSourceToHarvest(" + pos.toString() + ")");
   return source;
 }
 
@@ -1817,7 +1858,7 @@ function getPathKey(from: RoomPosition, to: RoomPosition) {
 }
 
 function getPosKey(pos: RoomPosition) {
-  const gridSize = 30;
+  const gridSize = 40;
   const coords = utils.getGlobalCoords(pos);
   return Math.floor(coords.x / gridSize).toString() + "," + Math.floor(coords.y / gridSize).toString();
 }
