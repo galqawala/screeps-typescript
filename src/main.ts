@@ -104,11 +104,16 @@ declare global {
     action?: Action;
     build?: Id<ConstructionSite>;
     container?: Id<StructureContainer>;
+    deliverTo?: Id<Structure>[];
     deliveryTasks?: DeliveryTask[];
     destination?: DestinationId | RoomPosition;
+    link?: Id<StructureLink>;
+    pathIndex?: number;
     pathKey?: string;
+    paths?: PathStep[][];
     pos: RoomPosition;
     retrieve?: Id<Structure | Tombstone | Ruin | Resource>;
+    retrieveFrom?: Id<Structure>[];
     role: Role;
     sourceId?: Id<Source>;
     storage?: Id<StructureStorage>;
@@ -167,7 +172,7 @@ export const loop = ErrorMapper.wrapLoop(() => {
   }
   if (!Memory.username) utils.setUsername();
   utils.logCpu("mem");
-  updatePlan();
+  if (Math.random() < 0.1) updatePlan();
   for (const r in Game.rooms) handleRoom(Game.rooms[r]);
   utils.logCpu("update flags");
   updateFlagAttack();
@@ -488,16 +493,17 @@ function handleUpgrader(creep: Creep) {
     const storeId = creep.memory.storage || creep.memory.container;
     let store;
     if (storeId) store = Game.getObjectById(storeId);
-    if (!store)
+    if (!store) {
       store = controller.pos.findClosestByRange(FIND_STRUCTURES, {
         filter(object) {
           return utils.isStorage(object) || utils.isContainer(object);
         }
       });
+      if (!store) return;
+      if (utils.isStorage(store)) creep.memory.storage = store.id;
+      else if (utils.isContainer(store)) creep.memory.container = store.id;
+    }
     utils.logCpu("handleUpgrader(" + creep.name + ")");
-    if (!store) return;
-    if (utils.isStorage(store)) creep.memory.storage = store.id;
-    else if (utils.isContainer(store)) creep.memory.container = store.id;
     if (creep.withdraw(store, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) move(creep, store);
   }
   utils.flagEnergyConsumer(controller.pos);
@@ -727,6 +733,7 @@ function moveTowardMemory(creep: Creep) {
 
 function handleCarrier(creep: Creep) {
   utils.logCpu("handleCarrier(" + creep.name + ")");
+  if (!creep.memory.retrieveFrom) planCarrierRoutes(creep);
   utils.logCpu("handleCarrier(" + creep.name + ") transfer");
   if (!utils.isEmpty(creep)) {
     const tgt = creep.pos
@@ -1121,47 +1128,29 @@ function harvesterSpendEnergy(creep: Creep) {
   if (site) creep.build(site);
   utils.logCpu("harvesterSpendEnergy(" + creep.name + ") build");
   utils.logCpu("harvesterSpendEnergy(" + creep.name + ") unloadCreep");
-  if (utils.isFull(creep)) unloadCreep(creep);
+  if (utils.getFillRatio(creep) > 0.9) {
+    const storeId = creep.memory.link || creep.memory.container;
+    let store;
+    if (storeId) store = Game.getObjectById(storeId);
+    if (!store) {
+      const sourceId = creep.memory.sourceId;
+      if (!sourceId) return;
+      const source = Game.getObjectById(sourceId);
+      if (!source) return;
+      store = source.pos.findClosestByRange(FIND_STRUCTURES, {
+        filter(object) {
+          return utils.isLink(object) || utils.isContainer(object);
+        }
+      });
+      if (!store) return;
+      if (utils.isLink(store)) creep.memory.link = store.id;
+      else if (utils.isContainer(store)) creep.memory.container = store.id;
+    }
+    utils.logCpu("handleUpgrader(" + creep.name + ")");
+    if (creep.transfer(store, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) move(creep, store);
+  }
   utils.logCpu("harvesterSpendEnergy(" + creep.name + ") unloadCreep");
   utils.logCpu("harvesterSpendEnergy(" + creep.name + ")");
-}
-
-function unloadCreep(creep: Creep) {
-  const pos = creep.pos;
-  const destination = pos
-    .findInRange(FIND_MY_STRUCTURES, 1)
-    .filter(target => !utils.isFull(target) && utils.isLink(target))[0];
-  if (destination) {
-    creep.transfer(destination, RESOURCE_ENERGY);
-    return;
-  }
-  const targetCreep = pos.findInRange(FIND_CREEPS, 1).filter(wantsEnergy)[0];
-  if (targetCreep) {
-    creep.transfer(targetCreep, RESOURCE_ENERGY);
-    return;
-  }
-  const myStructure = pos
-    .findInRange(FIND_MY_STRUCTURES, 1)
-    .filter(target => !utils.isFull(target) && target.my !== false)[0];
-  if (myStructure) {
-    creep.transfer(myStructure, RESOURCE_ENERGY);
-    return;
-  }
-  const structure = pos
-    .findInRange(FIND_STRUCTURES, 1)
-    .filter(target => !utils.isFull(target) && !utils.isOwnedStructure(target))[0];
-  if (structure) {
-    creep.transfer(structure, RESOURCE_ENERGY);
-    return;
-  }
-}
-
-function wantsEnergy(target: Creep) {
-  return (
-    !utils.isFull(target) &&
-    target.my !== false &&
-    ["carrier", "upgrader", "worker"].includes(target.memory.role)
-  );
 }
 
 function handleRoom(room: Room) {
@@ -1861,4 +1850,11 @@ function getPosKey(pos: RoomPosition) {
   const gridSize = 40;
   const coords = utils.getGlobalCoords(pos);
   return Math.floor(coords.x / gridSize).toString() + "," + Math.floor(coords.y / gridSize).toString();
+}
+
+function planCarrierRoutes(creep: Creep) {
+  delete creep.memory.paths; // ?: PathStep[][];
+  delete creep.memory.pathIndex; // ?: number;
+  delete creep.memory.retrieveFrom; // ?: Id<Structure>[];
+  delete creep.memory.deliverTo; // ?: Id<Structure>[];
 }

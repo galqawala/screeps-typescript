@@ -1190,14 +1190,6 @@ export function getLinkDownstreamPos(room: Room): RoomPosition | undefined {
   if (!(flagName in Game.flags)) return;
   const flag = Game.flags[flagName];
   const destination = flag.pos;
-  if (getCreepCountByRole("worker", 0) < 1) {
-    // move energy toward storage when we have no workers
-    const storages = room
-      .find(FIND_STRUCTURES)
-      .filter(structure => structure.structureType === STRUCTURE_STORAGE);
-    logCpu("getLinkDownstreamPos(" + room.name + ")");
-    if (storages.length) return storages[0].pos;
-  }
   logCpu("getLinkDownstreamPos(" + room.name + ")");
   return destination;
 }
