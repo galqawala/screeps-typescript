@@ -1792,7 +1792,8 @@ function getCarrierEnergyDestination(pos: RoomPosition, existingIds: Id<AnyStore
           store =>
             (!utils.isContainer(store) || (room.controller && room.controller.pos.getRangeTo(store) < 3)) &&
             !utils.isLink(store) &&
-            !existingIds.includes(store.id)
+            !existingIds.includes(store.id) &&
+            (!Memory.plan.fillSpawnsFromStorage || !utils.isStorage(store))
         )
     );
   }
