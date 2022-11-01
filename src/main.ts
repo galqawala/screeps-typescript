@@ -200,7 +200,7 @@ function updatePlan() {
   Memory.plan = {
     celebrate: shouldCelebrate(),
     controllersToReserve: utils.getControllersToReserve().map(controller => controller.id),
-    fillSpawnsFromStorage: storageMin >= 900000 && !allSpawnsFull,
+    fillSpawnsFromStorage: storageMin >= 800000 && !allSpawnsFull,
     fillStorage: (storageMin < 150000 && !needHarvesters) || allSpawnsFull,
     needAttackers: needAttackers(),
     needCarriers: needCarriers(),
@@ -1745,7 +1745,7 @@ function getPath(from: RoomPosition, to: RoomPosition, range: number) {
 }
 
 function getCarrierEnergySource(creep: Creep) {
-  let containers: StructureContainer[] = [];
+  let containers: (StructureContainer | StructureStorage)[] = [];
   for (const room of Object.values(Game.rooms)) {
     if (room.memory.hostilesPresent) continue;
     containers = containers.concat(
@@ -1754,6 +1754,7 @@ function getCarrierEnergySource(creep: Creep) {
         .filter(utils.isContainer)
         .filter(container => !room.controller || room.controller.pos.getRangeTo(container) > 3)
     );
+    if (Memory.plan.fillSpawnsFromStorage && room.storage) containers.push(room.storage);
   }
   return containers
     .map(value => ({
