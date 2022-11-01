@@ -1442,8 +1442,9 @@ export function getUpgradeableControllerCount(): number {
     room =>
       room.controller?.my &&
       (room.controller?.level < 8 || room.controller?.ticksToDowngrade < 100000) &&
-      (hasStructureInRange(room.controller.pos, STRUCTURE_STORAGE, 3, false) ||
-        hasStructureInRange(room.controller.pos, STRUCTURE_CONTAINER, 3, false))
+      room.controller.pos
+        .findInRange(FIND_STRUCTURES, 3)
+        .filter(structure => isStorage(structure) || (isContainer(structure) && getEnergy(structure))).length
   ).length;
   logCpu("getUpgradeableControllerCount");
   return count;
