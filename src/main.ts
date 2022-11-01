@@ -60,7 +60,8 @@ declare global {
     controllersToReserve: Id<StructureController>[];
     fillSpawnsFromStorage: boolean;
     fillStorage: boolean;
-    maxEnergyCap: number;
+    maxRoomEnergy: number;
+    maxRoomEnergyCap: number;
     minTicksToDowngrade: number;
     needAttackers: boolean;
     needCarriers: boolean;
@@ -211,7 +212,8 @@ function updatePlan() {
     needTransferers: needTransferers(),
     needUpgraders: needUpgraders(storageMin),
     needWorkers: needWorkers(),
-    maxEnergyCap: Math.max(...Object.values(Game.rooms).map(room => room.energyCapacityAvailable)),
+    maxRoomEnergy: Math.max(...Object.values(Game.rooms).map(room => room.energyAvailable)),
+    maxRoomEnergyCap: Math.max(...Object.values(Game.rooms).map(room => room.energyCapacityAvailable)),
     minTicksToDowngrade: getMinTicksToDowngrade()
   };
   utils.logCpu("updatePlan");
@@ -1155,7 +1157,7 @@ function handleSpawns(room: Room) {
       spawnReserver(spawn);
     } else if (Memory.plan.needInfantry) {
       spawnRole("infantry", spawn);
-    } else if (Memory.plan.needAttackers && room.energyAvailable >= Memory.plan.maxEnergyCap) {
+    } else if (Memory.plan.needAttackers && room.energyAvailable >= Memory.plan.maxRoomEnergyCap) {
       spawnRole("attacker", spawn);
     } else if (Memory.plan.needExplorers) {
       spawnRole("explorer", spawn, 0, [MOVE]);
@@ -1165,9 +1167,9 @@ function handleSpawns(room: Room) {
       spawnRole("worker", spawn);
     } else if (
       Memory.plan.needUpgraders &&
-      (room.energyAvailable >= Memory.plan.maxEnergyCap || Memory.plan.minTicksToDowngrade < 4000)
+      (room.energyAvailable >= Memory.plan.maxRoomEnergyCap || Memory.plan.minTicksToDowngrade < 4000)
     ) {
-      spawnRole("upgrader", spawn, Math.min(450, Memory.plan.maxEnergyCap));
+      spawnRole("upgrader", spawn, Math.min(450, Memory.plan.maxRoomEnergyCap));
     }
   }
   utils.logCpu("handleSpawns(" + room.name + ")");
@@ -1267,7 +1269,7 @@ function spawnRole(
   const budget = Math.floor(
     Math.min(
       Math.max(utils.getCostOfCurrentCreepsInTheRole(roleToSpawn), minBudget),
-      Memory.plan.maxEnergyCap
+      Memory.plan.maxRoomEnergyCap
     )
   );
 
@@ -1286,7 +1288,7 @@ function needAttackers() {
 }
 
 function spawnReserver(spawn: StructureSpawn) {
-  const minBudget = Math.min(1300, Memory.plan.maxEnergyCap);
+  const minBudget = Math.min(1300, Memory.plan.maxRoomEnergyCap);
   if (minBudget > spawn.room.energyAvailable) return;
   let task: Task | undefined;
   const controller = Game.getObjectById(Memory.plan.controllersToReserve[0]);
@@ -1552,7 +1554,7 @@ function spawnCreep(
   body: undefined | BodyPartConstant[],
   task: Task | undefined
 ) {
-  if (!body) body = getBody(roleToSpawn, energyAvailable, Memory.plan.maxEnergyCap);
+  if (!body) body = getBody(roleToSpawn, energyAvailable, Memory.plan.maxRoomEnergyCap);
   const energyStructures = utils.getSpawnsAndExtensionsSorted(spawn.room);
   const name = utils.getNameForCreep(roleToSpawn);
 
