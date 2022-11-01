@@ -493,12 +493,6 @@ export function getTotalEnergyToHaul(): number {
       .find(FIND_STRUCTURES)
       .filter(structure => structure.structureType === STRUCTURE_CONTAINER && !isStorageSubstitute(structure))
       .reduce((aggregated, item) => aggregated + getEnergy(item), 0 /* initial*/);
-    energy += Game.rooms[i]
-      .find(FIND_DROPPED_RESOURCES)
-      .reduce((aggregated, item) => aggregated + getEnergy(item), 0 /* initial*/);
-    energy += Game.rooms[i]
-      .find(FIND_RUINS)
-      .reduce((aggregated, item) => aggregated + getEnergy(item), 0 /* initial*/);
   }
   logCpu("getTotalEnergyToHaul()");
   return energy;
@@ -1484,6 +1478,7 @@ export function getTotalRepairTargetCount(): number {
   );
 }
 function planExtensionClusters(room: Room) {
+  // ToDo: add towers to the clusters among spawns and extensions
   const clusters = [];
   const structures: string[] = [];
   const roads: string[] = [];
