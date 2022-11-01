@@ -1180,6 +1180,7 @@ export function updateHarvestSpots(room: Room): void {
 
 export function getLinkDownstreamPos(room: Room): RoomPosition | undefined {
   logCpu("getLinkDownstreamPos(" + room.name + ")");
+  if (room.storage) return room.storage.pos;
   const flagName = room.name + "_EnergyConsumer";
   if (!(flagName in Game.flags)) return;
   const flag = Game.flags[flagName];
