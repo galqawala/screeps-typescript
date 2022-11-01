@@ -1145,12 +1145,17 @@ function pickup(creep: Creep, destination: Destination) {
   return ERR_INVALID_TARGET;
 }
 
+function gotSpareCpu() {
+  return Game.cpu.tickLimit >= Memory.maxTickLimit;
+}
+
 function handleSpawns(room: Room) {
   utils.logCpu("handleSpawns(" + room.name + ")");
   const spawn = room.find(FIND_MY_SPAWNS).filter(s => !s.spawning)[0];
   if (spawn) {
     if (Memory.plan.needCarriers) {
-      spawnRole("carrier", spawn);
+      const budget = gotSpareCpu() ? Memory.plan.maxRoomEnergy : Memory.plan.maxRoomEnergyCap;
+      spawnCreep(spawn, "carrier", budget);
     } else if (Memory.plan.needHarvesters) {
       spawnHarvester(spawn);
     } else if (Memory.plan.needReservers) {
@@ -1551,8 +1556,8 @@ function spawnCreep(
   spawn: StructureSpawn,
   roleToSpawn: Role,
   energyAvailable: number,
-  body: undefined | BodyPartConstant[],
-  task: Task | undefined
+  body: undefined | BodyPartConstant[] = undefined,
+  task: Task | undefined = undefined
 ) {
   if (!body) body = getBody(roleToSpawn, energyAvailable, Memory.plan.maxRoomEnergyCap);
   const energyStructures = utils.getSpawnsAndExtensionsSorted(spawn.room);
