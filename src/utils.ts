@@ -1439,7 +1439,11 @@ export function getOwnedRoomsCount(): number {
 export function getUpgradeableControllerCount(): number {
   logCpu("getUpgradeableControllerCount");
   const count = Object.values(Game.rooms).filter(
-    room => room.controller?.my && (room.controller?.level < 8 || room.controller?.ticksToDowngrade < 100000)
+    room =>
+      room.controller?.my &&
+      (room.controller?.level < 8 || room.controller?.ticksToDowngrade < 100000) &&
+      (hasStructureInRange(room.controller.pos, STRUCTURE_STORAGE, 3, false) ||
+        hasStructureInRange(room.controller.pos, STRUCTURE_CONTAINER, 3, false))
   ).length;
   logCpu("getUpgradeableControllerCount");
   return count;
