@@ -1153,8 +1153,8 @@ function handleSpawns(room: Room) {
   utils.logCpu("handleSpawns(" + room.name + ")");
   const spawn = room.find(FIND_MY_SPAWNS).filter(s => !s.spawning)[0];
   if (spawn) {
+    const budget = gotSpareCpu() ? Memory.plan.maxRoomEnergy : Memory.plan.maxRoomEnergyCap;
     if (Memory.plan.needCarriers) {
-      const budget = gotSpareCpu() ? Memory.plan.maxRoomEnergy : Memory.plan.maxRoomEnergyCap;
       spawnCreep(spawn, "carrier", budget);
     } else if (Memory.plan.needHarvesters) {
       spawnHarvester(spawn);
@@ -1169,7 +1169,7 @@ function handleSpawns(room: Room) {
     } else if (Memory.plan.needTransferers) {
       spawnTransferer(spawn);
     } else if (Memory.plan.needWorkers) {
-      spawnRole("worker", spawn);
+      spawnCreep(spawn, "worker", budget);
     } else if (
       Memory.plan.needUpgraders &&
       (room.energyAvailable >= Memory.plan.maxRoomEnergyCap || Memory.plan.minTicksToDowngrade < 4000)
