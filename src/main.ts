@@ -1191,7 +1191,14 @@ function updateFlagClaim() {
   if ("claim" in Game.flags) {
     const room = Game.flags.claim.room;
     if (room && room.controller && room.controller.my) {
-      utils.msg(Game.flags.claim, "Clearing 'claim' flag from room " + room.name, true);
+      utils.msg(
+        Game.flags.claim,
+        "Clearing 'claim' flag from room " +
+          room.name +
+          ". " +
+          (room.controller.my ? "It's our room now!" : ""),
+        true
+      );
       Game.flags.claim.remove();
     }
   }
@@ -1794,7 +1801,8 @@ function getCarrierEnergyDestination(pos: RoomPosition, existingIds: Id<AnyStore
             (!utils.isContainer(store) || (room.controller && room.controller.pos.getRangeTo(store) < 3)) &&
             !utils.isLink(store) &&
             !existingIds.includes(store.id) &&
-            (!Memory.plan.fillSpawnsFromStorage || !utils.isStorage(store))
+            (!Memory.plan.fillSpawnsFromStorage || !utils.isStorage(store)) &&
+            store.isActive()
         )
     );
   }
