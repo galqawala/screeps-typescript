@@ -1124,10 +1124,7 @@ function handleSpawns(room: Room) {
       spawnTransferer(spawn);
     } else if (Memory.plan.needWorkers) {
       spawnCreep(spawn, "worker", budget);
-    } else if (
-      Memory.plan.needUpgraders &&
-      (room.energyAvailable >= Memory.plan.maxRoomEnergyCap || Memory.plan.minTicksToDowngrade < 4000)
-    ) {
+    } else if (Memory.plan.needUpgraders) {
       spawnCreep(spawn, "upgrader", budget);
     }
   }
