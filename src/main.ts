@@ -50,7 +50,6 @@ declare global {
     cpuLog: Record<string, CpuLogEntry>;
     maxTickLimit: number;
     plan: Plan;
-    reusePath: number;
     username: string;
   }
 
@@ -164,9 +163,8 @@ declare global {
 export const loop = ErrorMapper.wrapLoop(() => {
   Memory.cpuLog = {}; // before everything!
   utils.logCpu("main");
-  if ((Memory.maxTickLimit || 0) < Game.cpu.tickLimit) Memory.maxTickLimit = Game.cpu.tickLimit;
   utils.logCpu("mem");
-  Memory.reusePath = (Memory.reusePath || 0) + 1;
+  if ((Memory.maxTickLimit || 0) < Game.cpu.tickLimit) Memory.maxTickLimit = Game.cpu.tickLimit;
   if (Math.random() < 0.1) {
     for (const key in Memory.creeps) {
       if (!Game.creeps[key]) delete Memory.creeps[key];
@@ -185,8 +183,6 @@ export const loop = ErrorMapper.wrapLoop(() => {
   updateFlagDismantle();
   utils.logCpu("update flags");
   handleCreeps();
-  const unusedCpuRatio = (Game.cpu.limit - Game.cpu.getUsed()) / Game.cpu.limit;
-  Memory.reusePath = Math.max(0, (Memory.reusePath || 0) - Math.ceil(unusedCpuRatio * 2));
   utils.logCpu("main");
   utils.cpuInfo(); // after everything!
 });
@@ -1057,7 +1053,7 @@ function move(creep: Creep, destination: Destination) {
   }
   utils.logCpu("move(" + creep.name + ") moveTo");
   const outcome = creep.moveTo(destination, {
-    reusePath: Memory.reusePath,
+    reusePath: Memory.maxTickLimit - Game.cpu.tickLimit,
     visualizePathStyle: {
       stroke: creep.memory.stroke,
       opacity: 0.6,
