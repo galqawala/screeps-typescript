@@ -1120,8 +1120,8 @@ function handleSpawns(room: Room) {
       spawnReserver(spawn);
     } else if (Memory.plan.needInfantry) {
       spawnRole("infantry", spawn);
-    } else if (Memory.plan.needAttackers && room.energyAvailable >= Memory.plan.maxRoomEnergyCap) {
-      spawnRole("attacker", spawn);
+    } else if (Memory.plan.needAttackers) {
+      spawnCreep(spawn, "attacker", budget);
     } else if (Memory.plan.needExplorers) {
       spawnRole("explorer", spawn, 0, [MOVE]);
     } else if (Memory.plan.needTransferers) {
@@ -1132,7 +1132,7 @@ function handleSpawns(room: Room) {
       Memory.plan.needUpgraders &&
       (room.energyAvailable >= Memory.plan.maxRoomEnergyCap || Memory.plan.minTicksToDowngrade < 4000)
     ) {
-      spawnRole("upgrader", spawn, Math.min(450, Memory.plan.maxRoomEnergyCap));
+      spawnCreep(spawn, "upgrader", budget);
     }
   }
   utils.logCpu("handleSpawns(" + room.name + ")");
