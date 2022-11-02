@@ -1251,8 +1251,6 @@ function needAttackers() {
 }
 
 function spawnReserver(spawn: StructureSpawn) {
-  const minBudget = Math.min(1300, Memory.plan.maxRoomEnergyCap);
-  if (minBudget > spawn.room.energyAvailable) return;
   let task: Task | undefined;
   const controller = Game.getObjectById(Memory.plan.controllersToReserve[0]);
   if (controller) {
@@ -1261,7 +1259,7 @@ function spawnReserver(spawn: StructureSpawn) {
       action: "reserveController"
     };
   }
-  spawnCreep(spawn, "reserver", minBudget, undefined, task);
+  spawnCreep(spawn, "reserver", Math.min(Math.max(1300, Memory.plan.maxRoomEnergy), 3800), undefined, task);
 }
 
 function getDestructibleWallAt(pos: RoomPosition) {
@@ -1521,7 +1519,7 @@ function spawnCreep(
   body: undefined | BodyPartConstant[] = undefined,
   task: Task | undefined = undefined
 ) {
-  if (!body) body = getBody(roleToSpawn, energyAvailable, Memory.plan.maxRoomEnergyCap);
+  if (!body) body = getBody(roleToSpawn, energyAvailable);
   const energyStructures = utils.getSpawnsAndExtensionsSorted(spawn.room);
   const name = utils.getNameForCreep(roleToSpawn);
 
@@ -1556,12 +1554,12 @@ function getInitialCreepMem(roleToSpawn: Role, task: Task | undefined, pos: Room
   };
 }
 
-function getBody(roleToSpawn: Role, energyAvailable: number, energyCap: number) {
+function getBody(roleToSpawn: Role, energyAvailable: number) {
   if (roleToSpawn === "attacker") return getBodyForAttacker(energyAvailable);
   else if (roleToSpawn === "carrier") return getBodyForCarrier(energyAvailable);
   else if (roleToSpawn === "infantry") return getBodyForInfantry(energyAvailable);
-  else if (roleToSpawn === "reserver") return getBodyForReserver(Math.min(3800, energyAvailable));
-  else if (roleToSpawn === "upgrader") return getBodyForUpgrader(energyCap);
+  else if (roleToSpawn === "reserver") return getBodyForReserver(energyAvailable);
+  else if (roleToSpawn === "upgrader") return getBodyForUpgrader(energyAvailable);
   else if (roleToSpawn === "worker") return getBodyForWorker(energyAvailable);
   return;
 }
