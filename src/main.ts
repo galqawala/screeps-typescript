@@ -1221,7 +1221,7 @@ function getRoomToClaim(controlledRooms: Room[]) {
     const accessibleRooms = Object.values(exits).filter(
       roomName =>
         utils.isRoomSafe(roomName) &&
-        Memory.rooms[roomName].canOperate &&
+        Memory.rooms[roomName]?.canOperate &&
         utils.getRoomStatus(roomName) === utils.getRoomStatus(room.name)
     );
     for (const nearRoomName of accessibleRooms) {
