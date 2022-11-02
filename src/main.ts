@@ -618,7 +618,10 @@ function getControllerToUpgrade(pos: RoomPosition, urgentOnly: boolean) {
   const destination = targets
     .map(value => ({
       value,
-      sort: utils.getGlobalRange(pos, utils.getPos(value)) + value.ticksToDowngrade / 20
+      sort:
+        utils.getGlobalRange(pos, utils.getPos(value)) +
+        value.ticksToDowngrade / 20 +
+        Object.values(Game.creeps).filter(creep => creep.memory.upgrade === value.id).length * 100
     })) /* persist sort values */
     .sort((a, b) => a.sort - b.sort) /* sort */
     .map(({ value }) => value) /* remove sort values */[0];
