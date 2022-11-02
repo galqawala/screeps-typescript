@@ -1338,7 +1338,10 @@ function updateFlagAttack() {
   utils.logCpu("updateFlagAttack() new");
   let targets: (Structure | Creep | PowerCreep)[] = [];
   for (const r in Game.rooms) {
-    if (!utils.shouldHarvestRoom(Game.rooms[r])) continue;
+    const controller = Game.rooms[r].controller;
+    if (!controller) continue;
+    if (!controller.my) continue;
+    if (!utils.isReservationOk(controller)) continue;
     utils.logCpu("updateFlagAttack() targets");
     targets = targets.concat(getTargetsInRoom(Game.rooms[r]));
     utils.logCpu("updateFlagAttack() targets");
