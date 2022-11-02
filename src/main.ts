@@ -49,7 +49,6 @@ declare global {
   interface Memory {
     cpuLog: Record<string, CpuLogEntry>;
     maxTickLimit: number;
-    paths: Record<string, PathStep[]>;
     plan: Plan;
     reusePath: number;
     username: string;
@@ -168,7 +167,6 @@ export const loop = ErrorMapper.wrapLoop(() => {
   if ((Memory.maxTickLimit || 0) < Game.cpu.tickLimit) Memory.maxTickLimit = Game.cpu.tickLimit;
   utils.logCpu("mem");
   Memory.reusePath = (Memory.reusePath || 0) + 1;
-  if (!Memory.paths) Memory.paths = {};
   if (Math.random() < 0.1) {
     for (const key in Memory.creeps) {
       if (!Game.creeps[key]) delete Memory.creeps[key];
@@ -678,7 +676,7 @@ function phaseMove(creep: Creep, phase: Phase) {
       const tgt = creep.pos.findClosestByRange(path);
       if (!tgt) return;
       utils.msg(creep, "Moving back to path: " + tgt.toString());
-      creep.moveTo(tgt);
+      move(creep, tgt);
     }
   } else if (outcome === OK && (creep.memory.lastMoveTime || 0) < Game.time - 20) {
     nextPhase(creep); // switch to dynamic navigation to get unstuck
@@ -692,7 +690,7 @@ function phaseRetrieve(creep: Creep, phase: Phase) {
   if (!tgt) return;
   const outcome = retrieveEnergy(creep, tgt);
   if (outcome === ERR_NOT_IN_RANGE) {
-    creep.moveTo(tgt);
+    move(creep, tgt);
   } else {
     nextPhase(creep);
   }
@@ -705,7 +703,7 @@ function phaseTransfer(creep: Creep, phase: Phase) {
   if (!tgt) return;
   const outcome = transfer(creep, tgt);
   if (outcome === ERR_NOT_IN_RANGE) {
-    creep.moveTo(tgt);
+    move(creep, tgt);
   } else {
     nextPhase(creep);
   }
@@ -1042,11 +1040,8 @@ function roomUpdates(room: Room) {
 }
 
 function move(creep: Creep, destination: Destination) {
-  const tgtPos = utils.getPos(destination);
-  if (tgtPos && isPosEqual(creep.pos, tgtPos)) utils.msg(creep, "already at " + destination.toString());
   utils.logCpu("move(" + creep.name + ")");
   if (creep.memory.role !== "explorer") {
-    utils.logCpu("move(" + creep.name + ") traffic");
     const flagName = utils.getTrafficFlagName(creep.pos);
     const flag = Game.flags[flagName];
     if (flag) {
@@ -1059,57 +1054,20 @@ function move(creep: Creep, destination: Destination) {
     } else if (utils.shouldMaintainStatsFor(creep.pos)) {
       creep.pos.createFlag(flagName, COLOR_GREEN, COLOR_GREY);
     }
-    utils.logCpu("move(" + creep.name + ") traffic");
   }
-  let outcome;
-  if (utils.getGlobalRange(creep.pos, utils.getPos(destination)) <= 5) {
-    delete creep.memory.pathKey;
-    outcome = creep.moveTo(destination);
-  } else {
-    outcome = moveOptimally(creep, destination);
-  }
+  utils.logCpu("move(" + creep.name + ") moveTo");
+  const outcome = creep.moveTo(destination, {
+    reusePath: Memory.reusePath,
+    visualizePathStyle: {
+      stroke: creep.memory.stroke,
+      opacity: 0.6,
+      lineStyle: "dotted",
+      strokeWidth: creep.memory.strokeWidth
+    }
+  });
+  utils.logCpu("move(" + creep.name + ") moveTo");
   utils.logCpu("move(" + creep.name + ")");
   return outcome;
-}
-
-function moveOptimally(creep: Creep, destination: Destination) {
-  utils.logCpu("moveOptimally(" + creep.name + ")");
-  const tgtPos = utils.getPos(destination);
-  if (!tgtPos) return;
-  const key = getPathKey(creep.pos, tgtPos);
-  if (!key) {
-    creep.moveTo(tgtPos);
-    utils.logCpu("moveOptimally(" + creep.name + ")");
-    return;
-  } else if (!creep.memory.pathKey?.endsWith(":" + getPosKey(tgtPos)) || Math.random() < 0.02) {
-    creep.memory.pathKey = key;
-    updatePath(key, creep.pos, tgtPos);
-  }
-  const path = Memory.paths[creep.memory.pathKey];
-  const outcome = creep.moveByPath(path);
-  if (outcome === ERR_NOT_FOUND) {
-    if (path.length > 1) {
-      const start = new RoomPosition(path[0].x, path[0].y, creep.pos.roomName);
-      const end = new RoomPosition(path[path.length - 1].x, path[path.length - 1].y, creep.pos.roomName);
-      if (start && end && utils.getGlobalRange(creep.pos, start) < utils.getGlobalRange(creep.pos, end)) {
-        creep.moveTo(start);
-      } else {
-        const exit = end.findClosestByRange(FIND_EXIT);
-        if (exit) creep.moveTo(exit);
-      }
-    } else {
-      delete creep.memory.pathKey;
-    }
-  }
-  utils.logCpu("moveOptimally(" + creep.name + ")");
-}
-
-function updatePath(key: string, from: RoomPosition, to: RoomPosition) {
-  utils.logCpu("updatePath(" + key + ")");
-  if (!(key in Memory.paths) || Math.random() < 0.1) {
-    Memory.paths[key] = from.findPathTo(to, { range: 1 });
-  }
-  utils.logCpu("updatePath(" + key + ")");
 }
 
 function hslToHex(h: number /* deg */, s: number /* % */, l: number /* % */) {
@@ -1705,22 +1663,6 @@ function isPosEqual(a: RoomPosition, b: RoomPosition) {
   if (a.y !== b.y) return false;
   if (a.roomName !== b.roomName) return false;
   return true;
-}
-
-function getPathKey(from: RoomPosition, to: RoomPosition) {
-  const fromKey = getPosKey(from);
-  const toKey = getPosKey(to);
-  if (fromKey === toKey) {
-    return;
-  } else {
-    return fromKey + ":" + toKey;
-  }
-}
-
-function getPosKey(pos: RoomPosition) {
-  const gridSize = 40;
-  const coords = utils.getGlobalCoords(pos);
-  return Math.floor(coords.x / gridSize).toString() + "," + Math.floor(coords.y / gridSize).toString();
 }
 
 function planCarrierRoutes(creep: Creep) {
