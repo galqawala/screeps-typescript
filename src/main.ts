@@ -680,7 +680,7 @@ function phaseMove(creep: Creep, phase: Phase) {
       utils.msg(creep, "Moving back to path: " + tgt.toString());
       creep.moveTo(tgt);
     }
-  } else if (outcome === OK && (creep.memory.lastMoveTime || 0) < Game.time - 30) {
+  } else if (outcome === OK && (creep.memory.lastMoveTime || 0) < Game.time - 20) {
     nextPhase(creep); // switch to dynamic navigation to get unstuck
   }
 }
