@@ -423,10 +423,17 @@ function handleUpgrader(creep: Creep) {
     }
     utils.logCpu("handleUpgrader(" + creep.name + ")");
     if (creep.withdraw(store, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) move(creep, store);
+    if (isStuck(creep)) moveRandomDirection(creep);
   }
   utils.flagEnergyConsumer(controller.pos);
   if (controller && creep.upgradeController(controller) === ERR_NOT_IN_RANGE) move(creep, controller);
   utils.logCpu("handleUpgrader(" + creep.name + ")");
+}
+
+function moveRandomDirection(creep: Creep) {
+  const directions = [TOP, TOP_RIGHT, RIGHT, BOTTOM_RIGHT, BOTTOM, BOTTOM_LEFT, LEFT, TOP_LEFT];
+  const direction = directions[Math.floor(Math.random() * directions.length)];
+  creep.move(direction);
 }
 
 function handleWorker(creep: Creep) {
@@ -679,9 +686,13 @@ function phaseMove(creep: Creep, phase: Phase) {
       utils.msg(creep, "Moving back to path: " + tgt.toString());
       move(creep, tgt);
     }
-  } else if (outcome === OK && (creep.memory.lastMoveTime || 0) < Game.time - 20) {
+  } else if (outcome === OK && isStuck(creep)) {
     nextPhase(creep); // switch to dynamic navigation to get unstuck
   }
+}
+
+function isStuck(creep: Creep) {
+  return (creep.memory.lastMoveTime || 0) < Game.time - 20;
 }
 
 function phaseRetrieve(creep: Creep, phase: Phase) {
@@ -992,7 +1003,6 @@ function harvesterSpendEnergy(creep: Creep) {
       if (utils.isLink(store)) creep.memory.link = store.id;
       else if (utils.isContainer(store)) creep.memory.container = store.id;
     }
-    utils.logCpu("handleUpgrader(" + creep.name + ")");
     if (creep.transfer(store, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) move(creep, store);
   }
   utils.logCpu("harvesterSpendEnergy(" + creep.name + ") unloadCreep");
