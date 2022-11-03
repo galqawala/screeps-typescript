@@ -1081,7 +1081,8 @@ function move(creep: Creep, destination: Destination) {
   }
   utils.logCpu("move(" + creep.name + ") moveTo");
   const outcome = creep.moveTo(destination, {
-    reusePath: Memory.maxTickLimit - Game.cpu.tickLimit,
+    // bit of randomness to prevent creeps from moving the same way at same time to pass each other
+    reusePath: Math.round(Memory.maxTickLimit - Game.cpu.tickLimit + Math.random()),
     visualizePathStyle: {
       stroke: creep.memory.stroke,
       opacity: 0.6,
