@@ -48,6 +48,7 @@ declare global {
 
   interface Memory {
     cpuLog: Record<string, CpuLogEntry>;
+    cpuUsedRatio: number;
     maxTickLimit: number;
     plan: Plan;
     username: string;
@@ -183,6 +184,7 @@ export const loop = ErrorMapper.wrapLoop(() => {
   updateFlagDismantle();
   utils.logCpu("update flags");
   handleCreeps();
+  Memory.cpuUsedRatio = Game.cpu.getUsed() / Game.cpu.limit;
   utils.logCpu("main");
   utils.cpuInfo(); // after everything!
 });
@@ -1103,7 +1105,7 @@ function pickup(creep: Creep, destination: Destination) {
 }
 
 function gotSpareCpu() {
-  return Game.cpu.tickLimit >= Memory.maxTickLimit;
+  return Game.cpu.tickLimit >= Memory.maxTickLimit && Memory.cpuUsedRatio < 0.9;
 }
 
 function handleSpawns(room: Room) {
