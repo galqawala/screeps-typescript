@@ -273,12 +273,11 @@ export function logCpu(name: string): void {
 }
 
 export function blockedByStructure(pos: RoomPosition): boolean {
-  return (
-    pos
-      .lookFor(LOOK_STRUCTURES)
-      .filter(structure => (OBSTACLE_OBJECT_TYPES as StructureConstant[]).includes(structure.structureType))
-      .length > 0
-  );
+  return pos.lookFor(LOOK_STRUCTURES).filter(isObstacle).length > 0;
+}
+
+export function isObstacle(structure: Structure): boolean {
+  return (OBSTACLE_OBJECT_TYPES as StructureConstant[]).includes(structure.structureType);
 }
 
 export function containsPosition(list: RoomPosition[], pos: RoomPosition): boolean {
@@ -689,9 +688,13 @@ export function getPosForStorage(room: Room): RoomPosition | undefined {
   let bestScore = Number.NEGATIVE_INFINITY;
   let bestPos;
 
-  for (const pos of getPositionsAround(room.controller.pos, 1, 3, true)) {
-    let score = getNearbyWorkSpotCount(pos, true);
-    if (hasStructureInRange(pos, undefined, 1, true)) score -= 0.1;
+  for (const pos of getPositionsAround(room.controller.pos, 2, 2, true)) {
+    const score =
+      (getSurroundingPlains(pos, 1, 1).length -
+        pos.findInRange(FIND_STRUCTURES, 1).filter(isObstacle).length) *
+        100 +
+      (getSurroundingPlains(pos, 1, 2).length -
+        pos.findInRange(FIND_STRUCTURES, 2).filter(isObstacle).length);
     if (bestScore < score) {
       bestScore = score;
       bestPos = pos;
