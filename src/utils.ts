@@ -1360,24 +1360,17 @@ export function construct(room: Room, structureType: BuildableStructureConstant)
     if (!pos) return;
     if (structureType !== STRUCTURE_ROAD) {
       pos.lookFor(LOOK_STRUCTURES).forEach(existingStructure => {
-        if (existingStructure instanceof StructureExtension) {
+        if (
+          existingStructure instanceof StructureExtension ||
+          existingStructure instanceof StructureContainer
+        ) {
           msg(existingStructure, "Destroying to make space for: " + structureType, true);
           existingStructure.destroy();
         }
       });
     }
     const outcome = pos.createConstructionSite(structureType);
-    if (structureType !== STRUCTURE_ROAD) {
-      msg(
-        room,
-        "Creating a construction site for " +
-          structureType +
-          " at " +
-          pos.toString() +
-          " outcome: " +
-          outcome.toString()
-      );
-    }
+    if (structureType !== STRUCTURE_ROAD) constructMsg(room, structureType, pos, outcome);
     if (structureType === STRUCTURE_LINK) {
       pos
         .findInRange(FIND_STRUCTURES, 1)
@@ -1388,6 +1381,18 @@ export function construct(room: Room, structureType: BuildableStructureConstant)
         });
     }
   }
+}
+
+function constructMsg(room: Room, structureType: string, pos: RoomPosition, outcome: number) {
+  msg(
+    room,
+    "Creating a construction site for " +
+      structureType +
+      " at " +
+      pos.toString() +
+      " outcome: " +
+      outcome.toString()
+  );
 }
 
 export function needStructure(room: Room, structureType: BuildableStructureConstant): boolean {

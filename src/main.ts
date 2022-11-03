@@ -699,7 +699,15 @@ function phaseRetrieve(creep: Creep, phase: Phase) {
   if (!creep.memory.phases) return;
   if (!phase.retrieve) return;
   const tgt = Game.getObjectById(phase.retrieve);
-  if (!tgt) return;
+  if (!tgt) {
+    utils.msg(
+      creep,
+      "Trying to retrieve from " + phase.retrieve + ", but it doesn't exist! Resetting plans!"
+    );
+    delete creep.memory.phases;
+    delete creep.memory.phaseIndex;
+    return;
+  }
   const outcome = retrieveEnergy(creep, tgt);
   if (outcome === ERR_NOT_IN_RANGE) {
     move(creep, tgt);
@@ -712,7 +720,12 @@ function phaseTransfer(creep: Creep, phase: Phase) {
   if (!creep.memory.phases) return;
   if (!phase.transfer) return;
   const tgt = Game.getObjectById(phase.transfer);
-  if (!tgt) return;
+  if (!tgt) {
+    utils.msg(creep, "Trying to transfer to " + phase.transfer + ", but it doesn't exist! Resetting plans!");
+    delete creep.memory.phases;
+    delete creep.memory.phaseIndex;
+    return;
+  }
   const outcome = transfer(creep, tgt);
   if (outcome === ERR_NOT_IN_RANGE) {
     move(creep, tgt);
