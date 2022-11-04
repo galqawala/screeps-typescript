@@ -1243,11 +1243,18 @@ function getRoomToClaim(controlledRooms: Room[]) {
 
 function needCarriers(): boolean {
   utils.logCpu("needCarriers()");
-  const need =
-    utils.getTotalCreepCapacity("carrier") < utils.getTotalEnergyToHaul() ||
-    (utils.getTotalCreepCapacity("carrier") < 300 && Memory.plan.fillSpawnsFromStorage);
+  for (const room of Object.values(Game.rooms)) {
+    const sources = room.find(FIND_SOURCES);
+    for (const source of sources) {
+      const containers = source.pos.findInRange(FIND_STRUCTURES, 3).filter(utils.isContainer);
+      for (const container of containers) {
+        utils.logCpu("needCarriers()");
+        if (utils.isFull(container)) return true;
+      }
+    }
+  }
   utils.logCpu("needCarriers()");
-  return need;
+  return false;
 }
 
 function needTransferers(): boolean {
