@@ -1448,14 +1448,13 @@ function spawnHarvester() {
   if (!source || !(source instanceof Source)) return;
   let body: BodyPartConstant[] = utils.getBodyForHarvester(source);
   let cost = utils.getBodyCost(body);
-  if (utils.getCreepCountByRole("harvester") < 1) {
+  let spawn = getSpawn(cost, source.pos);
+  if (!spawn) {
     body = body.filter((value, index, self) => self.indexOf(value) === index); /* unique */
     cost = utils.getBodyCost(body);
-  } else {
-    return false;
+    spawn = getSpawn(cost, source.pos);
+    if (!spawn) return;
   }
-  const spawn = getSpawn(cost, source.pos);
-  if (!spawn) return;
   const energyStructures: (StructureSpawn | StructureExtension)[] = utils.getSpawnsAndExtensionsSorted(
     spawn.room
   );
