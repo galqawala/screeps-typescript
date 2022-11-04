@@ -113,6 +113,7 @@ export function getPos(obj: RoomPosition | RoomObject | null | undefined): RoomP
 }
 
 export function getGlobalCoords(pos: RoomPosition): { x: number; y: number } {
+  if (!pos) throw new Error("Missing pos!");
   const roomCoords = /([WE])(\d+)([NS])(\d+)/g.exec(pos.roomName);
   if (!roomCoords || roomCoords.length < 5) return { x: 0, y: 0 };
 
@@ -1048,28 +1049,14 @@ export function constructInRoom(room: Room): void {
       msg(room, "Can't find pos for storage/container");
     }
   }
-  if (!hasExtensionClusters(room)) {
-    planExtensionClusters(room);
+  if (!hasClusters(room)) {
+    msg(room, "creating clusters plans");
+    planClusters(room);
   } else if (Math.random() < 0.2) {
     msg(room, "clearing clusters plans (will be updated later)");
-    clearExtensionClusters(room);
+    clearClusters(room);
   }
   logCpu("constructInRoom(" + room.name + ")");
-}
-
-function hasExtensionClusters(room: Room) {
-  const flags = room.find(FIND_FLAGS);
-  for (const flag of flags) {
-    if (flag.name.startsWith("ec" + room.name + "_")) return true;
-  }
-  return false;
-}
-
-function clearExtensionClusters(room: Room) {
-  const flags = room.find(FIND_FLAGS);
-  for (const flag of flags) {
-    if (flag.name.startsWith("ec" + room.name + "_")) flag.remove();
-  }
 }
 
 export function checkRoomStatus(room: Room): void {
@@ -1491,8 +1478,11 @@ export function getTotalRepairTargetCount(): number {
     0 /* initial*/
   );
 }
-function planExtensionClusters(room: Room) {
-  // ToDo: add towers to the clusters among spawns and extensions
+function planClusters(room: Room) {
+  const targetCount =
+    CONTROLLER_STRUCTURES[STRUCTURE_SPAWN][8] +
+    CONTROLLER_STRUCTURES[STRUCTURE_EXTENSION][8] +
+    CONTROLLER_STRUCTURES[STRUCTURE_TOWER][8];
   const clusters = [];
   const structures: string[] = [];
   const roads: string[] = [];
@@ -1514,9 +1504,10 @@ function planExtensionClusters(room: Room) {
         const structureIndex = structures.indexOf(step.x.toString() + "," + step.y.toString());
         if (structureIndex > -1) structures.splice(structureIndex, 1);
       }
-      if (structures.length >= 63) {
-        // 3 Spawns, 60 Extensions
-        flagClusters(clusters, room, roads, structures);
+      if (structures.length >= targetCount) {
+        flagClusters(room, clusters);
+        flagRoads(room, roads);
+        flagStructures(room, structures);
         clusterReport(room, clusters.length, structures.length);
         return;
       }
@@ -1524,37 +1515,61 @@ function planExtensionClusters(room: Room) {
   }
 }
 
-function flagClusters(
-  clusters: { pos: RoomPosition; space: RoomPosition[] }[],
-  room: Room,
-  roads: string[],
-  structures: string[]
-) {
+function flagClusters(room: Room, clusters: { pos: RoomPosition; space: RoomPosition[] }[]) {
   for (const cluster of clusters) {
-    const name = "ec" + room.name + "_cluster_" + cluster.pos.x.toString() + "_" + cluster.pos.y.toString();
+    const coords = getGlobalCoords(cluster.pos);
+    const name = "cluster_" + coords.x.toString() + "_" + coords.y.toString();
     cluster.pos.createFlag(name, COLOR_WHITE, COLOR_YELLOW);
   }
+}
+
+function flagRoads(room: Room, roads: string[]) {
   for (const road of roads) {
     const [x, y] = road.split(",");
-    room.createFlag(Number(x), Number(y), "ec" + room.name + "_road_" + road, COLOR_GREY, COLOR_BROWN);
+    const pos = new RoomPosition(Number(x), Number(y), room.name);
+    if (!pos)
+      throw new Error(
+        "No position for: " + road + " in room " + room.name + " x=" + x.toString() + " y=" + y.toString()
+      );
+    const coords = getGlobalCoords(pos);
+    const name = "road_" + coords.x.toString() + "_" + coords.y.toString();
+    pos.createFlag(name, COLOR_GREY, COLOR_BROWN);
   }
+}
+
+function flagStructures(room: Room, structures: string[]) {
   for (const structure of structures) {
     const [x, y] = structure.split(",");
-    room.createFlag(
-      Number(x),
-      Number(y),
-      "ec" + room.name + "_structure_" + structure,
-      COLOR_RED,
-      COLOR_YELLOW
-    );
+    const pos = new RoomPosition(Number(x), Number(y), room.name);
+    const coords = getGlobalCoords(pos);
+    const name = "structure_" + coords.x.toString() + "_" + coords.y.toString();
+    pos.createFlag(name, COLOR_RED, COLOR_YELLOW);
+  }
+}
+
+function hasClusters(room: Room) {
+  const flags = room.find(FIND_FLAGS);
+  for (const flag of flags) {
+    if (flag.name.startsWith("cluster_")) return true;
+  }
+  return false;
+}
+
+function clearClusters(room: Room) {
+  const flags = room.find(FIND_FLAGS);
+  for (const flag of flags) {
+    if (
+      flag.name.startsWith("cluster_") ||
+      flag.name.startsWith("road_") ||
+      flag.name.startsWith("structure_") ||
+      flag.name.startsWith("ec") // legacy
+    )
+      flag.remove();
   }
 }
 
 function clusterReport(room: Room, clusterCount: number, count: number) {
-  msg(
-    room,
-    "planned " + clusterCount.toString() + " clusters with " + count.toString() + " spawns/extensions"
-  );
+  msg(room, "planned " + clusterCount.toString() + " clusters with " + count.toString() + " structures");
 }
 
 function getPositionsForEC(center: RoomPosition, range: number) {

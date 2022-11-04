@@ -1036,8 +1036,7 @@ function handleRoom(room: Room) {
 
   utils.logCpu("handleRoom(" + room.name + ") updates1");
   utils.handleHostilesInRoom(room);
-  if (utils.canOperateInRoom(room) && Math.random() < 0.03 && Game.cpu.tickLimit > 40)
-    utils.constructInRoom(room);
+  if (utils.canOperateInRoom(room) && Math.random() < 0.05 && gotSpareCpu()) utils.constructInRoom(room);
   utils.logCpu("handleRoom(" + room.name + ") updates1");
   utils.logCpu("handleRoom(" + room.name + ") updates2");
   utils.handleLinks(room);
