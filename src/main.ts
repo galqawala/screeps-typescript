@@ -207,7 +207,7 @@ function updatePlan() {
     needInfantry: needInfantry(),
     needReservers: needReservers(),
     needTransferers: needTransferers(),
-    needUpgraders: needUpgraders(storageMin),
+    needUpgraders: getControllerToUpgrade(undefined, false) ? true : false,
     needWorkers: needWorkers(),
     maxRoomEnergy: Math.max(...Object.values(Game.rooms).map(room => room.energyAvailable)),
     maxRoomEnergyCap: Math.max(...Object.values(Game.rooms).map(room => room.energyCapacityAvailable)),
@@ -223,12 +223,6 @@ function shouldCelebrate() {
     0;
   utils.logCpu("shouldCelebrate");
   return value;
-}
-
-function needUpgraders(storageMin: number) {
-  return (
-    storageMin >= 100000 && utils.getCreepCountByRole("upgrader") < 4 * utils.getUpgradeableControllerCount()
-  );
 }
 
 function getMinTicksToDowngrade() {
@@ -614,29 +608,29 @@ function getRepairTarget(pos: RoomPosition) {
   return;
 }
 
-function getControllerToUpgrade(pos: RoomPosition, urgentOnly: boolean) {
-  utils.logCpu("getControllerToUpgrade(" + pos.toString() + "," + urgentOnly.toString() + ")");
+function getControllerToUpgrade(pos: RoomPosition | undefined, urgentOnly: boolean) {
+  utils.logCpu("getControllerToUpgrade(" + (pos || "").toString() + "," + urgentOnly.toString() + ")");
   const targets = [];
   for (const i in Game.rooms) {
     const room = Game.rooms[i];
     if (room.memory.hostilesPresent) continue;
     if (!room.controller) continue;
     if (!room.controller.my) continue;
-    if (urgentOnly && room.controller.ticksToDowngrade > 2000) continue;
+    if (urgentOnly && room.controller.ticksToDowngrade > 4000) continue;
     targets.push(room.controller);
   }
   const destination = targets
     .map(value => ({
       value,
       sort:
-        utils.getGlobalRange(pos, utils.getPos(value)) +
+        (pos ? utils.getGlobalRange(pos, utils.getPos(value)) : 0) +
         value.ticksToDowngrade / 20 +
         Object.values(Game.creeps).filter(creep => creep.memory.upgrade === value.id).length * 100
     })) /* persist sort values */
     .sort((a, b) => a.sort - b.sort) /* sort */
     .map(({ value }) => value) /* remove sort values */[0];
 
-  utils.logCpu("getControllerToUpgrade(" + pos.toString() + "," + urgentOnly.toString() + ")");
+  utils.logCpu("getControllerToUpgrade(" + (pos || "").toString() + "," + urgentOnly.toString() + ")");
   return destination;
 }
 
@@ -1237,7 +1231,7 @@ function needTransferers(): boolean {
       .filter(
         storage =>
           Object.values(Game.creeps).filter(
-            creep => creep.memory.role === "transferer" && creep.memory.destination === storage.id
+            creep => creep.memory.role === "transferer" && creep.memory.transferTo === storage.id
           ).length <= 0 &&
           storage.pos
             .findInRange(FIND_MY_STRUCTURES, 1)
@@ -1525,7 +1519,7 @@ function getTransferrerMem(retrieve: Id<StructureLink>, transferTo: Id<Structure
 
 function getSpawn(energyAvailable: number, targetPos: RoomPosition | undefined) {
   return Object.values(Game.spawns)
-    .filter(spawn => spawn.room.energyAvailable >= energyAvailable)
+    .filter(spawn => spawn.room.energyAvailable >= energyAvailable && !spawn.spawning)
     .map(value => ({
       value,
       sort: targetPos
