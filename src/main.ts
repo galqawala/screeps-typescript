@@ -1730,7 +1730,7 @@ function getCarrierEnergySource(creep: Creep) {
         .filter(utils.isContainer)
         .filter(container => !room.controller || room.controller.pos.getRangeTo(container) > 3)
     );
-    if (room.storage && utils.getFillRatio(room.storage) > 0.5) containers.push(room.storage);
+    if (room.storage && utils.getFillRatio(room.storage) > 2 / 3) containers.push(room.storage);
   }
   return containers
     .map(value => ({
@@ -1762,7 +1762,7 @@ function getCarrierEnergyDestination(pos: RoomPosition, existingIds: Id<AnyStore
             (!utils.isContainer(store) || (room.controller && room.controller.pos.getRangeTo(store) < 3)) &&
             !utils.isLink(store) &&
             !existingIds.includes(store.id) &&
-            utils.getFillRatio(store) < 0.5 &&
+            utils.getFillRatio(store) < 1 / 3 &&
             store.isActive()
         )
     );
