@@ -608,6 +608,10 @@ function getRepairTarget(pos: RoomPosition) {
   return;
 }
 
+function hasEnergyAround(pos: RoomPosition) {
+  return pos.findInRange(FIND_STRUCTURES, 3).filter(structure => utils.getEnergy(structure) > 0).length > 0;
+}
+
 function getControllerToUpgrade(pos: RoomPosition | undefined, urgentOnly: boolean) {
   utils.logCpu("getControllerToUpgrade(" + (pos || "").toString() + "," + urgentOnly.toString() + ")");
   const targets = [];
@@ -617,6 +621,7 @@ function getControllerToUpgrade(pos: RoomPosition | undefined, urgentOnly: boole
     if (!room.controller) continue;
     if (!room.controller.my) continue;
     if (urgentOnly && room.controller.ticksToDowngrade > 4000) continue;
+    if (!hasEnergyAround(room.controller.pos)) continue;
     targets.push(room.controller);
   }
   const destination = targets
