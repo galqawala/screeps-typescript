@@ -402,27 +402,32 @@ function handleUpgrader(creep: Creep) {
   if (!controller) return;
   creep.memory.upgrade = controller.id;
   // actions
-  if (utils.isEmpty(creep)) {
-    const storeId = creep.memory.storage || creep.memory.container;
-    let store;
-    if (storeId) store = Game.getObjectById(storeId);
-    if (!store) {
-      store = controller.pos.findClosestByRange(FIND_STRUCTURES, {
-        filter(object) {
-          return utils.isStorage(object) || utils.isContainer(object);
-        }
-      });
-      if (!store) return;
-      if (utils.isStorage(store)) creep.memory.storage = store.id;
-      else if (utils.isContainer(store)) creep.memory.container = store.id;
-    }
-    utils.logCpu("handleUpgrader(" + creep.name + ")");
-    if (creep.withdraw(store, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) move(creep, store);
-    if (isStuck(creep)) moveRandomDirection(creep);
-  }
+  if (utils.isEmpty(creep)) upgraderRetrieveEnergy(creep, controller);
   utils.flagEnergyConsumer(controller.pos);
-  if (controller && creep.upgradeController(controller) === ERR_NOT_IN_RANGE) move(creep, controller);
+  if (controller) {
+    const outcome = creep.upgradeController(controller);
+    if (outcome === ERR_NOT_IN_RANGE) move(creep, controller);
+  }
   utils.logCpu("handleUpgrader(" + creep.name + ")");
+}
+
+function upgraderRetrieveEnergy(creep: Creep, controller: StructureController) {
+  const storeId = creep.memory.storage || creep.memory.container;
+  let store;
+  if (storeId) store = Game.getObjectById(storeId);
+  if (!store) {
+    store = controller.pos.findClosestByRange(FIND_STRUCTURES, {
+      filter(object) {
+        return utils.isStorage(object) || utils.isContainer(object);
+      }
+    });
+    if (!store) return;
+    if (utils.isStorage(store)) creep.memory.storage = store.id;
+    else if (utils.isContainer(store)) creep.memory.container = store.id;
+  }
+  utils.logCpu("handleUpgrader(" + creep.name + ")");
+  if (creep.withdraw(store, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) move(creep, store);
+  if (isStuck(creep)) moveRandomDirection(creep);
 }
 
 function moveRandomDirection(creep: Creep) {
@@ -622,6 +627,8 @@ function getControllerToUpgrade(pos: RoomPosition | undefined, urgentOnly: boole
     if (!room.controller.my) continue;
     if (urgentOnly && room.controller.ticksToDowngrade > 4000) continue;
     if (!hasEnergyAround(room.controller.pos)) continue;
+    if (isControllerUpgradedEnough(room.controller)) continue;
+    if (countUpgradersAssigned(room.controller.id) > 7) continue;
     targets.push(room.controller);
   }
   const destination = targets
@@ -637,6 +644,17 @@ function getControllerToUpgrade(pos: RoomPosition | undefined, urgentOnly: boole
 
   utils.logCpu("getControllerToUpgrade(" + (pos || "").toString() + "," + urgentOnly.toString() + ")");
   return destination;
+}
+
+function isControllerUpgradedEnough(controller: StructureController) {
+  if (controller.progressTotal) return false;
+  if (countUpgradersAssigned(controller.id) > 0) return true;
+  if (controller.ticksToDowngrade > 100000) return true;
+  return false;
+}
+
+function countUpgradersAssigned(controllerId: Id<StructureController>) {
+  return Object.values(Game.creeps).filter(creep => creep.memory.upgrade === controllerId).length;
 }
 
 function moveTowardMemory(creep: Creep) {
@@ -1740,7 +1758,7 @@ function getCarrierEnergySource(creep: Creep) {
     .map(value => ({
       value,
       sort:
-        utils.getEnergy(value) /
+        utils.getFillRatio(value) /
         (Object.values(Game.creeps).filter(
           carrier =>
             carrier.memory.role === "carrier" &&
