@@ -669,6 +669,7 @@ function phaseMove(creep: Creep, phase: Phase) {
   if (!creep.memory.phases) return;
   if (!phase.move) return;
   const path = phase.move.map(pos => new RoomPosition(pos.x, pos.y, pos.roomName));
+  updateTrafficStats(creep);
   const outcome = creep.moveByPath(path);
   if (outcome === ERR_NOT_FOUND) {
     const end = path[path.length - 1];
@@ -1058,20 +1059,7 @@ function roomUpdates(room: Room) {
 
 function move(creep: Creep, destination: Destination) {
   utils.logCpu("move(" + creep.name + ")");
-  if (creep.memory.role !== "explorer") {
-    const flagName = utils.getTrafficFlagName(creep.pos);
-    const flag = Game.flags[flagName];
-    if (flag) {
-      if ("steps" in flag.memory) {
-        flag.memory.steps++;
-      } else {
-        flag.memory.steps = 0;
-        flag.memory.initTime = Game.time;
-      }
-    } else if (utils.shouldMaintainStatsFor(creep.pos)) {
-      creep.pos.createFlag(flagName, COLOR_GREEN, COLOR_GREY);
-    }
-  }
+  updateTrafficStats(creep);
   utils.logCpu("move(" + creep.name + ") moveTo");
   const outcome = creep.moveTo(destination, {
     // bit of randomness to prevent creeps from moving the same way at same time to pass each other
@@ -1086,6 +1074,23 @@ function move(creep: Creep, destination: Destination) {
   utils.logCpu("move(" + creep.name + ") moveTo");
   utils.logCpu("move(" + creep.name + ")");
   return outcome;
+}
+
+function updateTrafficStats(creep: Creep) {
+  if (creep.memory.role !== "explorer") {
+    const flagName = utils.getTrafficFlagName(creep.pos);
+    const flag = Game.flags[flagName];
+    if (flag) {
+      if ("steps" in flag.memory) {
+        flag.memory.steps++;
+      } else {
+        flag.memory.steps = 0;
+        flag.memory.initTime = Game.time;
+      }
+    } else if (utils.shouldMaintainStatsFor(creep.pos)) {
+      creep.pos.createFlag(flagName, COLOR_GREEN, COLOR_GREY);
+    }
+  }
 }
 
 function hslToHex(h: number /* deg */, s: number /* % */, l: number /* % */) {
@@ -1698,6 +1703,7 @@ function planCarrierRoutes(creep: Creep) {
   if (!firstPos) return;
   const returnPath = getPath(pos, firstPos, 0);
   if (returnPath.length > 0) creep.memory.phases.push({ move: returnPath });
+  if (utils.getConstructionSites().length <= 0) buildRoadsForCarrier(creep);
   utils.msg(creep, creep.memory.phases.length.toString() + " phases planned!");
 }
 
@@ -1795,4 +1801,15 @@ function getCostMatrix(roomName: string) {
     });
   }
   return costs;
+}
+
+function buildRoadsForCarrier(creep: Creep) {
+  utils.msg(creep, "building roads for planned paths");
+  if (!creep.memory.phases) return;
+  for (const phase of creep.memory.phases) {
+    if (!phase.move) continue;
+    for (const pos of phase.move) {
+      pos.createConstructionSite(STRUCTURE_ROAD);
+    }
+  }
 }
