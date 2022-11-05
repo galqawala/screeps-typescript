@@ -1,5 +1,3 @@
-const minRoadTraffic = 0.016;
-
 // Type guards
 export function isOwnedStructure(structure: Structure): structure is AnyOwnedStructure {
   return (structure as { my?: boolean }).my !== undefined;
@@ -207,10 +205,6 @@ export function shouldMaintainStatsFor(pos: RoomPosition): boolean {
   const sections = 2;
   const interval = 10000;
   return pos.x % sections === Math.floor(Game.time / interval) % sections;
-}
-
-export function getTrafficFlagName(pos: RoomPosition): string {
-  return "traffic_" + pos.roomName + "_" + pos.x.toString() + "_" + pos.y.toString();
 }
 
 export function getPositionsAround(
@@ -520,7 +514,6 @@ export function needRepair(structure: Structure): boolean {
   if (!structure.hits) return false;
   if (!structure.hitsMax) return false;
   if (structure.hits >= structure.hitsMax) return false;
-  if (structure instanceof StructureRoad && getTrafficRateAt(structure.pos) < minRoadTraffic) return false;
   if (isDestructibleWall(structure)) return false;
   return true;
 }
@@ -788,7 +781,6 @@ export function getPosForConstruction(
     if (linkPos) return linkPos;
   }
   if (structureType === STRUCTURE_STORAGE) return getPosForStorage(room);
-  if (structureType === STRUCTURE_ROAD) return getPosForRoad(room);
 
   let bestScore = Number.NEGATIVE_INFINITY;
   let bestPos;
@@ -815,45 +807,6 @@ export function getPosForConstruction(
   return bestPos;
 }
 
-export function getPosForRoad(room: Room): RoomPosition | undefined {
-  const flags = room
-    .find(FIND_FLAGS)
-    .filter(
-      flag =>
-        flag.name.startsWith("traffic_") &&
-        flag.memory &&
-        flag.memory.steps > 0 &&
-        flag.memory.initTime < Game.time - 1000
-    );
-  let bestScore = Number.NEGATIVE_INFINITY;
-  let bestPos;
-  for (const flag of flags) {
-    if (isEdge(flag.pos)) continue;
-    const score = getTrafficRate(flag);
-    if (
-      bestScore < score &&
-      score > minRoadTraffic &&
-      flag.pos.lookFor(LOOK_STRUCTURES).length <= 0 &&
-      flag.pos.lookFor(LOOK_CONSTRUCTION_SITES).length <= 0
-    ) {
-      bestScore = score;
-      bestPos = flag.pos;
-    }
-  }
-  return bestPos;
-}
-
-export function getTrafficRate(flag: Flag): number {
-  if (!flag) return 0;
-  if (!("initTime" in flag.memory)) return 0;
-  if (flag.memory.initTime >= Game.time) return 0;
-  return (flag.memory.steps || 0) / (Game.time - flag.memory.initTime);
-}
-
-export function getTrafficRateAt(pos: RoomPosition): number {
-  return getTrafficRate(Game.flags[getTrafficFlagName(pos)]);
-}
-
 export function getPotentialConstructionSites(room: Room): ScoredPos[] {
   const sites: ScoredPos[] = [];
 
@@ -873,12 +826,13 @@ export function getPotentialConstructionSites(room: Room): ScoredPos[] {
   return sites;
 }
 
-function getSurroundingPlains(pos: RoomPosition, rangeMin: number, rangeMax: number) {
+function getSurroundingPlains(pos: RoomPosition, rangeMin: number, rangeMax: number, allowSwamp = false) {
   const plains = [];
   const positions = getPositionsAround(pos, rangeMin, rangeMax, true);
   const terrain = new Room.Terrain(pos.roomName);
   for (const posAround of positions) {
-    if (terrain.get(posAround.x, posAround.y) === 0) plains.push(posAround);
+    const type = terrain.get(posAround.x, posAround.y);
+    if (type === 0 || (type === TERRAIN_MASK_SWAMP && allowSwamp)) plains.push(posAround);
   }
   return plains;
 }
@@ -1028,7 +982,6 @@ export function constructInRoom(room: Room): void {
   const structureTypes = [
     STRUCTURE_EXTENSION,
     STRUCTURE_LINK,
-    STRUCTURE_ROAD,
     STRUCTURE_SPAWN,
     STRUCTURE_STORAGE,
     STRUCTURE_TOWER
@@ -1052,9 +1005,6 @@ export function constructInRoom(room: Room): void {
   if (!hasClusters(room)) {
     msg(room, "creating clusters plans");
     planClusters(room);
-  } else if (Math.random() < 0.2) {
-    msg(room, "clearing clusters plans (will be updated later)");
-    clearClusters(room);
   }
   logCpu("constructInRoom(" + room.name + ")");
 }
@@ -1478,72 +1428,117 @@ export function getTotalRepairTargetCount(): number {
     0 /* initial*/
   );
 }
-function planClusters(room: Room) {
-  const targetCount =
-    CONTROLLER_STRUCTURES[STRUCTURE_SPAWN][8] +
-    CONTROLLER_STRUCTURES[STRUCTURE_EXTENSION][8] +
-    CONTROLLER_STRUCTURES[STRUCTURE_TOWER][8];
-  const clusters = [];
-  const structures: string[] = [];
-  const roads: string[] = [];
+
+const structuresInRoomClusters =
+  CONTROLLER_STRUCTURES[STRUCTURE_SPAWN][8] +
+  CONTROLLER_STRUCTURES[STRUCTURE_EXTENSION][8] +
+  CONTROLLER_STRUCTURES[STRUCTURE_TOWER][8];
+
+interface ClusterPos {
+  pos: RoomPosition;
+  scanned: boolean;
+  content: undefined | "cluster" | "structure" | "path";
+}
+
+function getInitialClusterPaths(room: Room) {
   const center = room.controller?.pos.findClosestByRange(FIND_SOURCES);
   if (!center) return;
-  for (let range = 3; range <= 40; range++) {
-    const positions = getPositionsForEC(center.pos, range);
-    for (const spot of positions) {
-      if (clusters.filter(cluster => cluster.pos.getRangeTo(spot.pos) < 3).length > 0) continue;
-      clusters.push(spot);
-      for (const space of spot.space) {
-        if (roads.includes(space.x.toString() + "," + space.y.toString())) continue;
-        structures.push(space.x.toString() + "," + space.y.toString());
-      }
-      const path = spot.pos.findPathTo(center);
-      for (const step of path) {
-        if (roads.includes(step.x.toString() + "," + step.y.toString())) continue;
-        roads.push(step.x.toString() + "," + step.y.toString());
-        const structureIndex = structures.indexOf(step.x.toString() + "," + step.y.toString());
-        if (structureIndex > -1) structures.splice(structureIndex, 1);
-      }
-      if (structures.length >= targetCount) {
-        flagClusters(room, clusters);
-        flagRoads(room, roads);
-        flagStructures(room, structures);
-        clusterReport(room, clusters.length, structures.length);
-        return;
+  const posInfos: ClusterPos[] = [{ pos: center.pos, scanned: false, content: undefined }];
+  const sources = room.find(FIND_SOURCES);
+  if (sources.length === 2) {
+    const path = PathFinder.search(sources[0].pos, { pos: sources[1].pos, range: 1 }).path;
+    for (const step of path) {
+      const stepIndex = posInfos.findIndex(pi => pi.pos.x === step.x && pi.pos.y === step.y);
+      if (stepIndex > -1) {
+        if (posInfos[stepIndex].content !== "cluster") posInfos[stepIndex].content = "path";
+      } else {
+        posInfos.push({ pos: step, scanned: false, content: "path" });
       }
     }
   }
+  return posInfos;
 }
 
-function flagClusters(room: Room, clusters: { pos: RoomPosition; space: RoomPosition[] }[]) {
-  for (const cluster of clusters) {
-    const coords = getGlobalCoords(cluster.pos);
-    const name = "cluster_" + coords.x.toString() + "_" + coords.y.toString();
-    cluster.pos.createFlag(name, COLOR_WHITE, COLOR_YELLOW);
+function isValidClusterPos(structurePosCount: number, pos: RoomPosition, room: Room, posInfos: ClusterPos[]) {
+  if (structurePosCount < 8) return false;
+  if (pos.findInRange(FIND_SOURCES, 2).length > 0) return false;
+  if (room.controller && pos.getRangeTo(room.controller.pos) < 5) return false;
+  if (posInfos.some(cp => cp.content === "cluster" && cp.pos.getRangeTo(pos) < 3)) return false;
+  return true;
+}
+
+function planClusters(room: Room, allowSwamp = false) {
+  let posInfos = getInitialClusterPaths(room);
+  if (!posInfos) return;
+  for (;;) {
+    const clusterIndex = posInfos.findIndex(position => !position.scanned);
+    if (clusterIndex === -1) break;
+    const pos = posInfos[clusterIndex].pos;
+    posInfos[clusterIndex].scanned = true;
+    if (pos.x < 4 && pos.x > 45 && pos.y < 4 && pos.y > 45) continue;
+    const plains = getSurroundingPlains(posInfos[clusterIndex].pos, 1, 1, allowSwamp).filter(
+      plainPos => plainPos.x >= 4 && plainPos.x <= 45 && plainPos.y >= 4 && plainPos.y <= 45
+    );
+    const structureIndexes: number[] = [];
+    for (const spot of plains) {
+      const spotIndex = posInfos.findIndex(pi => pi.pos.x === spot.x && pi.pos.y === spot.y);
+      if (spotIndex > -1) {
+        if (!posInfos[spotIndex].content) structureIndexes.push(spotIndex);
+      } else {
+        posInfos.push({ pos: spot, scanned: false, content: undefined });
+        structureIndexes.push(posInfos.length - 1);
+      }
+    }
+    if (!isValidClusterPos(structureIndexes.length, pos, room, posInfos)) continue;
+    posInfos = addPathToCluster(pos, posInfos, room);
+    for (const index of structureIndexes) if (!posInfos[index].content) posInfos[index].content = "structure";
+    posInfos[clusterIndex].content = "cluster";
+    const structureCount = posInfos.filter(pi => pi.content === "structure").length;
+    if (structureCount >= structuresInRoomClusters) {
+      flagClusters(room, posInfos);
+      const clusterCount = posInfos.filter(pi => pi.content === "cluster").length;
+      clusterReport(room, clusterCount, structureCount);
+      return;
+    }
   }
+  if (!allowSwamp) planClusters(room, true);
 }
 
-function flagRoads(room: Room, roads: string[]) {
-  for (const road of roads) {
-    const [x, y] = road.split(",");
-    const pos = new RoomPosition(Number(x), Number(y), room.name);
-    if (!pos)
-      throw new Error(
-        "No position for: " + road + " in room " + room.name + " x=" + x.toString() + " y=" + y.toString()
-      );
-    const coords = getGlobalCoords(pos);
-    const name = "road_" + coords.x.toString() + "_" + coords.y.toString();
-    pos.createFlag(name, COLOR_GREY, COLOR_BROWN);
+function addPathToCluster(pos: RoomPosition, posInfos: ClusterPos[], room: Room) {
+  const path = getClusterPath(pos, posInfos, room);
+  for (const step of path) {
+    const stepIndex = posInfos.findIndex(pi => pi.pos.x === step.x && pi.pos.y === step.y);
+    if (stepIndex > -1) {
+      if (posInfos[stepIndex].content !== "cluster") posInfos[stepIndex].content = "path";
+    } else {
+      posInfos.push({ pos: step, scanned: false, content: "path" });
+    }
   }
+  return posInfos;
 }
 
-function flagStructures(room: Room, structures: string[]) {
-  for (const structure of structures) {
-    const [x, y] = structure.split(",");
-    const pos = new RoomPosition(Number(x), Number(y), room.name);
-    const coords = getGlobalCoords(pos);
-    const name = "structure_" + coords.x.toString() + "_" + coords.y.toString();
-    pos.createFlag(name, COLOR_RED, COLOR_YELLOW);
+function getClusterPath(pos: RoomPosition, posInfos: ClusterPos[], room: Room) {
+  return PathFinder.search(
+    pos,
+    posInfos
+      .filter(pi => pi.content === "cluster")
+      .map(pi => ({ pos: pi.pos, range: 1 }))
+      .concat(room.find(FIND_SOURCES).map(source => ({ pos: source.pos, range: 1 })))
+  ).path;
+}
+
+function flagClusters(room: Room, posInfos: ClusterPos[]) {
+  for (const info of posInfos) {
+    if (!info.content) continue;
+    const coords = getGlobalCoords(info.pos);
+    const name = info.content + "_" + coords.x.toString() + "_" + coords.y.toString();
+    if (info.content === "cluster") {
+      info.pos.createFlag(name, COLOR_WHITE, COLOR_YELLOW);
+    } else if (info.content === "structure") {
+      info.pos.createFlag(name, COLOR_RED, COLOR_YELLOW);
+    } else if (info.content === "path") {
+      info.pos.createFlag(name, COLOR_GREY, COLOR_BROWN);
+    }
   }
 }
 
@@ -1555,32 +1550,18 @@ function hasClusters(room: Room) {
   return false;
 }
 
-function clearClusters(room: Room) {
-  const flags = room.find(FIND_FLAGS);
-  for (const flag of flags) {
-    if (
-      flag.name.startsWith("cluster_") ||
-      flag.name.startsWith("road_") ||
-      flag.name.startsWith("structure_") ||
-      flag.name.startsWith("ec") // legacy
-    )
-      flag.remove();
-  }
-}
+// function clearClusters(room: Room) {
+//   const flags = room.find(FIND_FLAGS);
+//   for (const flag of flags) {
+//     if (
+//       flag.name.startsWith("cluster_") ||
+//       flag.name.startsWith("path_") ||
+//       flag.name.startsWith("structure_")
+//     )
+//       flag.remove();
+//   }
+// }
 
 function clusterReport(room: Room, clusterCount: number, count: number) {
   msg(room, "planned " + clusterCount.toString() + " clusters with " + count.toString() + " structures");
-}
-
-function getPositionsForEC(center: RoomPosition, range: number) {
-  return getSurroundingPlains(center, range, range)
-    .filter(pos => pos.x >= 4 && pos.x <= 45 && pos.y >= 4 && pos.y <= 45)
-    .map(pos => ({
-      pos,
-      space: getSurroundingPlains(pos, 1, 1)
-    }))
-    .filter(spot => spot.space.length >= 8)
-    .sort(function (a, b) {
-      return b.space.length - a.space.length;
-    });
 }

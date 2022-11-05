@@ -416,11 +416,13 @@ function upgraderRetrieveEnergy(creep: Creep, controller: StructureController) {
   let store;
   if (storeId) store = Game.getObjectById(storeId);
   if (!store) {
-    store = controller.pos.findClosestByRange(FIND_STRUCTURES, {
-      filter(object) {
-        return utils.isStorage(object) || utils.isContainer(object);
-      }
-    });
+    store = controller.pos.findClosestByRange(
+      controller.pos.findInRange(FIND_STRUCTURES, 10, {
+        filter(object) {
+          return utils.isStorage(object) || utils.isContainer(object);
+        }
+      })
+    );
     if (!store) return;
     if (utils.isStorage(store)) creep.memory.storage = store.id;
     else if (utils.isContainer(store)) creep.memory.container = store.id;
@@ -556,9 +558,11 @@ function repair(creep: Creep) {
   if (destination instanceof Structure && utils.needRepair(destination)) repairTarget = destination;
   if (!repairTarget) repairTarget = getRepairTarget(creep.pos);
   if (repairTarget) {
+    utils.logCpu("repair(" + creep.name + ") tgt");
     if (creep.repair(repairTarget) === ERR_NOT_IN_RANGE) move(creep, repairTarget);
     utils.flagEnergyConsumer(repairTarget.pos);
     utils.setDestination(creep, repairTarget);
+    utils.logCpu("repair(" + creep.name + ") tgt");
     utils.logCpu("repair(" + creep.name + ")");
     return true;
   }
@@ -628,7 +632,7 @@ function getControllerToUpgrade(pos: RoomPosition | undefined, urgentOnly: boole
     if (urgentOnly && room.controller.ticksToDowngrade > 4000) continue;
     if (!hasEnergyAround(room.controller.pos)) continue;
     if (isControllerUpgradedEnough(room.controller)) continue;
-    if (countUpgradersAssigned(room.controller.id) > 7) continue;
+    if (countUpgradersAssigned(room.controller.id) >= 7) continue;
     targets.push(room.controller);
   }
   const destination = targets
@@ -692,7 +696,6 @@ function phaseMove(creep: Creep, phase: Phase) {
   if (!creep.memory.phases) return;
   if (!phase.move) return;
   const path = phase.move.map(pos => new RoomPosition(pos.x, pos.y, pos.roomName));
-  updateTrafficStats(creep);
   const outcome = creep.moveByPath(path);
   if (outcome === ERR_NOT_FOUND) {
     const end = path[path.length - 1];
@@ -1055,7 +1058,7 @@ function handleRoom(room: Room) {
 
   utils.logCpu("handleRoom(" + room.name + ") updates1");
   utils.handleHostilesInRoom(room);
-  if (utils.canOperateInRoom(room) && Math.random() < 0.05 && gotSpareCpu()) utils.constructInRoom(room);
+  if (utils.canOperateInRoom(room) && Math.random() < 0.15 && gotSpareCpu()) utils.constructInRoom(room);
   utils.logCpu("handleRoom(" + room.name + ") updates1");
   utils.logCpu("handleRoom(" + room.name + ") updates2");
   utils.handleLinks(room);
@@ -1082,7 +1085,6 @@ function roomUpdates(room: Room) {
 
 function move(creep: Creep, destination: Destination) {
   utils.logCpu("move(" + creep.name + ")");
-  updateTrafficStats(creep);
   utils.logCpu("move(" + creep.name + ") moveTo");
   const outcome = creep.moveTo(destination, {
     // bit of randomness to prevent creeps from moving the same way at same time to pass each other
@@ -1097,23 +1099,6 @@ function move(creep: Creep, destination: Destination) {
   utils.logCpu("move(" + creep.name + ") moveTo");
   utils.logCpu("move(" + creep.name + ")");
   return outcome;
-}
-
-function updateTrafficStats(creep: Creep) {
-  if (creep.memory.role !== "explorer") {
-    const flagName = utils.getTrafficFlagName(creep.pos);
-    const flag = Game.flags[flagName];
-    if (flag) {
-      if ("steps" in flag.memory) {
-        flag.memory.steps++;
-      } else {
-        flag.memory.steps = 0;
-        flag.memory.initTime = Game.time;
-      }
-    } else if (utils.shouldMaintainStatsFor(creep.pos)) {
-      creep.pos.createFlag(flagName, COLOR_GREEN, COLOR_GREY);
-    }
-  }
 }
 
 function hslToHex(h: number /* deg */, s: number /* % */, l: number /* % */) {
@@ -1695,7 +1680,7 @@ function purgeFlags() {
   utils.logCpu("purgeFlags()");
   for (const flag of Object.values(Game.flags)) {
     const name = flag.name;
-    if (name.startsWith("traffic_") && !utils.shouldMaintainStatsFor(flag.pos)) flag.remove();
+    if (name.startsWith("traffic_")) flag.remove();
     if (name.startsWith("creep_") && !(name.substring(6) in Game.creeps)) flag.remove();
   }
   utils.logCpu("purgeFlags()");
