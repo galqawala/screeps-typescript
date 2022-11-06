@@ -48,6 +48,11 @@ export function isSpawnOrExtension(
   if (!("structureType" in structure)) return false;
   return structure.structureType === STRUCTURE_SPAWN || structure.structureType === STRUCTURE_EXTENSION;
 }
+export function isSpawn(structure: Structure | null | undefined | Destination): structure is StructureSpawn {
+  if (!structure) return false;
+  if (!("structureType" in structure)) return false;
+  return structure.structureType === STRUCTURE_SPAWN;
+}
 export function isRoomPosition(item: RoomPosition): item is RoomPosition {
   return item instanceof RoomPosition;
 }
@@ -1616,6 +1621,7 @@ function destroyStructuresOutsideClusters(room: Room) {
   for (const structure of structures) {
     if (structure.pos.lookFor(LOOK_FLAGS).filter(flag => flag.name.startsWith("structure_")).length > 0)
       continue;
+    if (isSpawn(structure) && Object.keys(Game.spawns).length < 2) continue;
     msg(structure, "Destroying outside planned clusters");
     structure.destroy();
     return;
