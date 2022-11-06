@@ -785,7 +785,7 @@ export function getPosForConstruction(
     if (linkPos) return linkPos;
   } else if (structureType === STRUCTURE_STORAGE) {
     return getPosForStorage(room);
-  } else if (isClusterStructure(structureType)) {
+  } else if (isClusterStructureType(structureType)) {
     return getPosForClusterStructure(room);
   }
 
@@ -813,12 +813,16 @@ export function getPosForConstruction(
   return bestPos;
 }
 
-function isClusterStructure(structureType: string) {
+function isClusterStructureType(structureType: string) {
   return (
     structureType === STRUCTURE_EXTENSION ||
     structureType === STRUCTURE_SPAWN ||
     structureType === STRUCTURE_TOWER
   );
+}
+
+function isClusterStructure(structure: AnyOwnedStructure) {
+  return isSpawnOrExtension(structure) || isTower(structure);
 }
 
 export function getPotentialConstructionSites(room: Room): ScoredPos[] {
@@ -1016,7 +1020,9 @@ export function constructInRoom(room: Room): void {
       msg(room, "Can't find pos for storage/container");
     }
   }
-  if (!hasClusters(room)) {
+  if (hasClusters(room)) {
+    if (getConstructionSites().length <= 0) destroyStructuresOutsideClusters(room);
+  } else {
     msg(room, "creating clusters plans");
     planClusters(room);
   }
@@ -1592,6 +1598,25 @@ function getPosForClusterStructure(room: Room): RoomPosition | undefined {
   for (const flag of flags) {
     if (flag.pos.lookFor(LOOK_STRUCTURES).filter(isNotRoad).length > 0) continue;
     return flag.pos;
+  }
+  return;
+}
+
+function destroyStructuresOutsideClusters(room: Room) {
+  const center = room.controller?.pos.findClosestByRange(FIND_SOURCES);
+  if (!center) return;
+  const structures = room
+    .find(FIND_MY_STRUCTURES)
+    .filter(isClusterStructure)
+    .map(value => ({ value, sort: getGlobalRange(center.pos, value.pos) })) /* persist sort values */
+    .sort((a, b) => b.sort - a.sort) /* sort */
+    .map(({ value }) => value); /* remove sort values */
+  for (const structure of structures) {
+    if (structure.pos.lookFor(LOOK_FLAGS).filter(flag => flag.name.startsWith("structure_")).length > 0)
+      continue;
+    msg(structure, "Destroying outside planned clusters");
+    structure.destroy();
+    return;
   }
   return;
 }
