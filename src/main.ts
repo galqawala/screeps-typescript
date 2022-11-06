@@ -702,10 +702,8 @@ function phaseMove(creep: Creep, phase: Phase) {
     if (isPosEqual(creep.pos, end)) {
       nextPhase(creep);
     } else {
-      utils.msg(creep, "Lost!");
       const tgt = creep.pos.findClosestByRange(path);
       if (!tgt) return;
-      utils.msg(creep, "Moving back to path: " + tgt.toString());
       move(creep, tgt);
     }
   } else if (outcome === OK && isStuck(creep)) {
