@@ -22,6 +22,10 @@ export function isRoad(structure: Structure): structure is StructureRoad {
   if (!("structureType" in structure)) return false;
   return structure.structureType === STRUCTURE_ROAD;
 }
+export function isNotRoad(structure: Structure): boolean {
+  if (!("structureType" in structure)) return true;
+  return structure.structureType !== STRUCTURE_ROAD;
+}
 export function isDestructibleWall(structure: Structure): structure is StructureWall {
   return structure.structureType === STRUCTURE_WALL && "hits" in structure;
 }
@@ -779,13 +783,15 @@ export function getPosForConstruction(
   if (structureType === STRUCTURE_LINK) {
     const linkPos = getPrimaryPosForLink(room);
     if (linkPos) return linkPos;
+  } else if (structureType === STRUCTURE_STORAGE) {
+    return getPosForStorage(room);
+  } else if (isClusterStructure(structureType)) {
+    return getPosForClusterStructure(room);
   }
-  if (structureType === STRUCTURE_STORAGE) return getPosForStorage(room);
 
   let bestScore = Number.NEGATIVE_INFINITY;
   let bestPos;
   const sites = getPotentialConstructionSites(room);
-
   for (const { pos, score } of sites) {
     let finalScore = score;
     if (structureType === STRUCTURE_LINK) {
@@ -805,6 +811,14 @@ export function getPosForConstruction(
   }
   msg(room, "best score: " + (bestScore || "-").toString() + ", best pos: " + (bestPos || "-").toString());
   return bestPos;
+}
+
+function isClusterStructure(structureType: string) {
+  return (
+    structureType === STRUCTURE_EXTENSION ||
+    structureType === STRUCTURE_SPAWN ||
+    structureType === STRUCTURE_TOWER
+  );
 }
 
 export function getPotentialConstructionSites(room: Room): ScoredPos[] {
@@ -1564,4 +1578,20 @@ function hasClusters(room: Room) {
 
 function clusterReport(room: Room, clusterCount: number, count: number) {
   msg(room, "planned " + clusterCount.toString() + " clusters with " + count.toString() + " structures");
+}
+
+function getPosForClusterStructure(room: Room): RoomPosition | undefined {
+  const center = room.controller?.pos.findClosestByRange(FIND_SOURCES);
+  if (!center) return;
+  const flags = room
+    .find(FIND_FLAGS)
+    .filter(flag => flag.name.startsWith("structure_"))
+    .map(value => ({ value, sort: getGlobalRange(center.pos, value.pos) })) /* persist sort values */
+    .sort((a, b) => a.sort - b.sort) /* sort */
+    .map(({ value }) => value); /* remove sort values */
+  for (const flag of flags) {
+    if (flag.pos.lookFor(LOOK_STRUCTURES).filter(isNotRoad).length > 0) continue;
+    return flag.pos;
+  }
+  return;
 }
