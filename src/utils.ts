@@ -1598,6 +1598,7 @@ function getPosForClusterStructure(room: Room): RoomPosition | undefined {
     .map(({ value }) => value); /* remove sort values */
   for (const flag of flags) {
     if (flag.pos.lookFor(LOOK_STRUCTURES).filter(isNotRoad).length > 0) continue;
+    if (flag.pos.lookFor(LOOK_CONSTRUCTION_SITES).length > 0) continue;
     return flag.pos;
   }
   return;
