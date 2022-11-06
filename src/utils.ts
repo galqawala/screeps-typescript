@@ -178,7 +178,8 @@ export function msg(
   email = false
 ): void {
   if (!text) return;
-  const finalMsg = Game.time.toString() + " " + context.toString() + ": " + text;
+  const pos = typeof context !== "string" && "pos" in context ? " @ " + context.pos.toString() : "";
+  const finalMsg = Game.time.toString() + " " + context.toString() + pos + ": " + text;
   console.log(finalMsg);
   if (email) Game.notify(finalMsg);
 }
