@@ -1717,7 +1717,6 @@ function planCarrierRoutes(creep: Creep) {
   const returnPath = getPath(pos, firstPos, 0);
   if (returnPath.length > 0) creep.memory.phases.push({ move: returnPath });
   if (utils.getConstructionSites().length <= 0) buildRoadsForCarrier(creep);
-  utils.msg(creep, creep.memory.phases.length.toString() + " phases planned!");
 }
 
 function getPath(from: RoomPosition, to: RoomPosition, range: number) {
