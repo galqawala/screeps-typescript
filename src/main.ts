@@ -621,7 +621,15 @@ function getRepairTarget(pos: RoomPosition) {
 }
 
 function hasEnergyAround(pos: RoomPosition) {
-  return pos.findInRange(FIND_STRUCTURES, 3).filter(structure => utils.getEnergy(structure) > 0).length > 0;
+  return (
+    pos
+      .findInRange(FIND_STRUCTURES, 3)
+      .filter(utils.isStoreStructure)
+      .filter(
+        structure =>
+          utils.getEnergy(structure) > 0 && Memory.rooms[pos.roomName].stickyEnergy[structure.id] > 0
+      ).length > 0
+  );
 }
 
 function getControllerToUpgrade(pos: RoomPosition | undefined, urgentOnly: boolean) {
