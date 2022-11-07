@@ -638,7 +638,6 @@ function hasEnoughEnergyForAnotherUpgrader(controller: StructureController) {
   if (assignedWorkParts < 1) return true;
   const energyPerWork = energy / assignedWorkParts;
   const isEnough = energyPerWork > 25;
-  if (isEnough) utils.msg(controller, "enough energy / assignedWorkParts: " + energyPerWork.toString());
   return isEnough;
 }
 
@@ -1593,9 +1592,10 @@ function spawnCreep(
   if (outcome === OK) {
     spawn.room.memory.updateEnergyStores = true;
     let targetStr;
-    if (task && task.destination) {
-      targetStr = task.destination.toString();
-      if ("pos" in task.destination) targetStr += " @ " + task.destination.pos.roomName;
+    const target = task?.destination || upgradeTarget;
+    if (target) {
+      targetStr = target.toString();
+      if ("pos" in target) targetStr += " @ " + target.pos.roomName;
     }
     utils.spawnMsg(spawn, roleToSpawn, name, body, targetStr);
   } else {
