@@ -620,19 +620,28 @@ function getRepairTarget(pos: RoomPosition) {
   return;
 }
 
-function hasEnergyAround(pos: RoomPosition) {
-  return (
-    pos
-      .findInRange(FIND_STRUCTURES, 3)
-      .filter(utils.isStoreStructure)
-      .filter(
-        structure =>
-          utils.getEnergy(structure) > 0 && Memory.rooms[pos.roomName].stickyEnergy[structure.id] > 0
-      ).length > 0
+function hasEnoughEnergyForAnotherUpgrader(controller: StructureController) {
+  const store = controller.pos.findClosestByRange(
+    controller.pos.findInRange(FIND_STRUCTURES, 10, {
+      filter(object) {
+        return utils.isStorage(object) || utils.isContainer(object);
+      }
+    })
   );
+  if (!store) return false;
+  if (!utils.isContainer(store) && !utils.isStorage(store)) return false;
+  const energy = controller.room.memory.stickyEnergy?.[store.id];
+  if (isNaN(energy)) return false;
+  const assignedWorkParts = Object.values(Game.creeps)
+    .filter(creep => creep.memory.upgrade === controller.id)
+    .reduce((aggregated, item) => aggregated + item.getActiveBodyparts(WORK), 0 /* initial*/);
+  if (assignedWorkParts < 1) return true;
+  const energyPerWork = energy / assignedWorkParts;
+  // utils.msg(controller, "energy / assignedWorkParts: " + energyPerWork.toString());
+  return energyPerWork > 1;
 }
 
-function getControllerToUpgrade(pos: RoomPosition | undefined, urgentOnly: boolean) {
+function getControllerToUpgrade(pos: RoomPosition | undefined = undefined, urgentOnly = false) {
   utils.logCpu("getControllerToUpgrade(" + (pos || "").toString() + "," + urgentOnly.toString() + ")");
   const targets = [];
   for (const i in Game.rooms) {
@@ -641,7 +650,7 @@ function getControllerToUpgrade(pos: RoomPosition | undefined, urgentOnly: boole
     if (!room.controller) continue;
     if (!room.controller.my) continue;
     if (urgentOnly && room.controller.ticksToDowngrade > 4000) continue;
-    if (!hasEnergyAround(room.controller.pos)) continue;
+    if (!hasEnoughEnergyForAnotherUpgrader(room.controller)) continue;
     if (isControllerUpgradedEnough(room.controller)) continue;
     if (countUpgradersAssigned(room.controller.id) >= 7) continue;
     targets.push(room.controller);
@@ -1168,7 +1177,8 @@ function spawnCreeps() {
   } else if (Memory.plan.needWorkers) {
     spawnCreep("worker", budget);
   } else if (Memory.plan.needUpgraders) {
-    spawnCreep("upgrader", budget);
+    const upgradeTarget = getControllerToUpgrade();
+    spawnCreep("upgrader", budget, undefined, undefined, upgradeTarget);
   }
   utils.logCpu("spawnCreeps()");
 }
@@ -1564,7 +1574,8 @@ function spawnCreep(
   roleToSpawn: Role,
   energyAvailable: number,
   body: undefined | BodyPartConstant[] = undefined,
-  task: Task | undefined = undefined
+  task: Task | undefined = undefined,
+  upgradeTarget: StructureController | undefined = undefined
 ) {
   if (!body) body = getBody(roleToSpawn, energyAvailable);
   const name = utils.getNameForCreep(roleToSpawn);
@@ -1574,7 +1585,7 @@ function spawnCreep(
 
   const energyStructures = utils.getSpawnsAndExtensionsSorted(spawn.room);
   const outcome = spawn.spawnCreep(body, name, {
-    memory: getInitialCreepMem(roleToSpawn, task, spawn.pos),
+    memory: getInitialCreepMem(roleToSpawn, task, spawn.pos, upgradeTarget),
     energyStructures
   });
 
@@ -1591,14 +1602,20 @@ function spawnCreep(
   }
 }
 
-function getInitialCreepMem(roleToSpawn: Role, task: Task | undefined, pos: RoomPosition) {
+function getInitialCreepMem(
+  roleToSpawn: Role,
+  task: Task | undefined,
+  pos: RoomPosition,
+  upgradeTarget: StructureController | undefined = undefined
+) {
   return {
-    role: roleToSpawn,
     action: task?.action,
     destination: task?.destination && "id" in task?.destination ? task?.destination?.id : undefined,
+    pos,
+    role: roleToSpawn,
     stroke: hslToHex(Math.random() * 360, 100, 50),
     strokeWidth: 0.1 + 0.1 * (Math.random() % 4),
-    pos
+    upgrade: upgradeTarget?.id
   };
 }
 
