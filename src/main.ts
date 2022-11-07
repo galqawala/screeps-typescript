@@ -52,6 +52,7 @@ declare global {
     maxTickLimit: number;
     plan: Plan;
     username: string;
+    wipeOut: boolean;
   }
 
   interface Plan {
@@ -175,6 +176,7 @@ export const loop = ErrorMapper.wrapLoop(() => {
     purgeFlagsMemory();
   }
   if (!Memory.username) utils.setUsername();
+  checkWipeOut();
   utils.logCpu("mem");
   if (Math.random() < 0.1 || Memory.cpuUsedRatio < 0.2) updatePlan();
   for (const r in Game.rooms) handleRoom(Game.rooms[r]);
@@ -1837,4 +1839,14 @@ function updateStickyEnergy(room: Room) {
     values[container.id] = (then || now) - (now < then ? 1 : 0) + (now > then ? 1 : 0);
   }
   room.memory.stickyEnergy = values;
+}
+
+function checkWipeOut() {
+  const count = Object.keys(Game.creeps).length;
+  const wipeOut = count < 1;
+  if (Memory.wipeOut !== wipeOut) {
+    Memory.wipeOut = wipeOut;
+    if (wipeOut) utils.msg("checkWipeOut()", "All creeps are wiped out!", true);
+    else utils.msg("checkWipeOut()", "We have " + count.toString() + " creeps again!", true);
+  }
 }
