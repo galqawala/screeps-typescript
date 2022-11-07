@@ -176,7 +176,7 @@ export const loop = ErrorMapper.wrapLoop(() => {
   }
   if (!Memory.username) utils.setUsername();
   utils.logCpu("mem");
-  if (Math.random() < 0.1) updatePlan();
+  if (Math.random() < 0.1 || Memory.cpuUsedRatio < 0.2) updatePlan();
   for (const r in Game.rooms) handleRoom(Game.rooms[r]);
   spawnCreeps();
   utils.logCpu("update flags");
@@ -210,8 +210,8 @@ function updatePlan() {
     needTransferers: needTransferers(),
     needUpgraders: getControllerToUpgrade(undefined, false) ? true : false,
     needWorkers: needWorkers(),
-    maxRoomEnergy: Math.max(...Object.values(Game.rooms).map(room => room.energyAvailable)),
-    maxRoomEnergyCap: Math.max(...Object.values(Game.rooms).map(room => room.energyCapacityAvailable)),
+    maxRoomEnergy: Math.max(...Object.values(Game.spawns).map(spawn => spawn.room.energyAvailable)),
+    maxRoomEnergyCap: Math.max(...Object.values(Game.spawns).map(s => s.room.energyCapacityAvailable)),
     minTicksToDowngrade: getMinTicksToDowngrade()
   };
   utils.logCpu("updatePlan");
