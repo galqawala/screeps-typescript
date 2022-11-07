@@ -1846,7 +1846,6 @@ function checkWipeOut() {
   const wipeOut = count < 1;
   if (Memory.wipeOut !== wipeOut) {
     Memory.wipeOut = wipeOut;
-    if (wipeOut) utils.msg("checkWipeOut()", "All creeps are wiped out!", true);
-    else utils.msg("checkWipeOut()", "We have " + count.toString() + " creeps again!", true);
+    utils.msg("checkWipeOut()", "We have " + count.toString() + " creeps!", true);
   }
 }
