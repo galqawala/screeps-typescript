@@ -91,7 +91,7 @@ declare global {
     score: number;
     sortedSpawnStructureIds: Id<Structure>[];
     status: "normal" | "closed" | "novice" | "respawn";
-    stickyEnergy: Record<Id<StructureContainer>, number>;
+    stickyEnergy: Record<Id<AnyStoreStructure>, number>;
     updateEnergyStores: boolean;
     upgradeSpots: RoomPosition[];
   }
@@ -1831,8 +1831,8 @@ function buildRoadsForCarrier(creep: Creep) {
 }
 
 function updateStickyEnergy(room: Room) {
-  const containers = room.find(FIND_STRUCTURES).filter(utils.isContainer);
-  const values: Record<Id<StructureContainer>, number> = {};
+  const containers = room.find(FIND_STRUCTURES).filter(utils.isStoreStructure);
+  const values: Record<Id<AnyStoreStructure>, number> = {};
   for (const container of containers) {
     const now = utils.getEnergy(container);
     const then = room.memory.stickyEnergy?.[container.id];
