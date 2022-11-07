@@ -637,7 +637,7 @@ function hasEnoughEnergyForAnotherUpgrader(controller: StructureController) {
     .reduce((aggregated, item) => aggregated + item.getActiveBodyparts(WORK), 0 /* initial*/);
   if (assignedWorkParts < 1) return true;
   const energyPerWork = energy / assignedWorkParts;
-  const isEnough = energyPerWork > 25;
+  const isEnough = energyPerWork > 30;
   return isEnough;
 }
 
