@@ -106,6 +106,7 @@ declare global {
     action?: Action;
     build?: Id<ConstructionSite>;
     container?: Id<StructureContainer>;
+    debug?: boolean;
     deliveryTasks?: DeliveryTask[];
     destination?: DestinationId | RoomPosition;
     lastMoveTime?: number;
@@ -716,6 +717,11 @@ function phaseMove(creep: Creep, phase: Phase) {
   if (!creep.memory.phases) return;
   if (!phase.move) return;
   const path = phase.move.map(pos => new RoomPosition(pos.x, pos.y, pos.roomName));
+  if (creep.memory.debug)
+    utils.msg(
+      creep,
+      "Following a path from " + path[0].toString() + " to " + path[path.length - 1].toString()
+    );
   const outcome = creep.moveByPath(path);
   if (outcome === ERR_NOT_FOUND) {
     const end = path[path.length - 1];
@@ -748,6 +754,7 @@ function phaseRetrieve(creep: Creep, phase: Phase) {
     delete creep.memory.phaseIndex;
     return;
   }
+  if (creep.memory.debug) utils.msg(creep, "Retrieving energy from " + utils.getObjectDescription(tgt));
   const outcome = retrieveEnergy(creep, tgt);
   if (outcome === ERR_NOT_IN_RANGE) {
     move(creep, tgt);
@@ -766,6 +773,7 @@ function phaseTransfer(creep: Creep, phase: Phase) {
     delete creep.memory.phaseIndex;
     return;
   }
+  if (creep.memory.debug) utils.msg(creep, "Transfering energy to " + utils.getObjectDescription(tgt));
   const outcome = transfer(creep, tgt);
   if (outcome === ERR_NOT_IN_RANGE) {
     move(creep, tgt);
