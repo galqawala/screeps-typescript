@@ -386,8 +386,7 @@ export function spawnMsg(
 ): void {
   msg(
     spawn,
-    spawn.room.name +
-      " spawning: " +
+    "Spawning: " +
       roleToSpawn +
       " (" +
       name +
