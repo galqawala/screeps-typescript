@@ -1350,7 +1350,7 @@ function updateFlagAttack() {
   const target = targets[Math.floor(Math.random() * targets.length)];
   if (target) {
     target.pos.createFlag("attack", COLOR_RED, COLOR_BROWN);
-    utils.msg(target, "attack: " + target.pos.toString());
+    utils.msg(target, "attack: " + utils.getObjectDescription(target));
   }
   utils.logCpu("updateFlagAttack() new");
   utils.logCpu("updateFlagAttack()");
@@ -1505,7 +1505,7 @@ function spawnHarvester() {
   };
   if (spawn.spawnCreep(body, name, { memory, energyStructures }) === OK) {
     utils.setDestinationFlag(name, harvestPos);
-    utils.spawnMsg(spawn, roleToSpawn, name, body, harvestPos.toString());
+    utils.spawnMsg(spawn, roleToSpawn, name, body, utils.getObjectDescription(harvestPos));
   }
   return true;
 }
@@ -1541,7 +1541,7 @@ function spawnTransferer() {
       energyStructures
     }) === OK
   ) {
-    utils.spawnMsg(spawn, roleToSpawn, name, body, tgtStorage.toString());
+    utils.spawnMsg(spawn, roleToSpawn, name, body, utils.getObjectDescription(tgtStorage));
   }
   return true;
 }
@@ -1591,13 +1591,8 @@ function spawnCreep(
 
   if (outcome === OK) {
     spawn.room.memory.updateEnergyStores = true;
-    let targetStr;
     const target = task?.destination || upgradeTarget;
-    if (target) {
-      targetStr = target.toString();
-      if ("pos" in target) targetStr += " @ " + target.pos.roomName;
-    }
-    utils.spawnMsg(spawn, roleToSpawn, name, body, targetStr);
+    utils.spawnMsg(spawn, roleToSpawn, name, body, utils.getObjectDescription(target));
   } else {
     utils.msg(spawn, "Failed to spawn creep: " + outcome.toString());
   }

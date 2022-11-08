@@ -183,8 +183,7 @@ export function msg(
   email = false
 ): void {
   if (!text) return;
-  const pos = typeof context !== "string" && "pos" in context ? " @ " + context.pos.toString() : "";
-  const finalMsg = Game.time.toString() + " " + context.toString() + pos + ": " + text;
+  const finalMsg = Game.time.toString() + " " + getObjectDescription(context) + ": " + text;
   console.log(finalMsg);
   if (email) Game.notify(finalMsg);
 }
@@ -1627,4 +1626,12 @@ function destroyStructuresOutsideClusters(room: Room) {
     return;
   }
   return;
+}
+
+export function getObjectDescription(obj: Destination | undefined | string | Room): string {
+  if (!obj) return "";
+  if (typeof obj === "string") return obj;
+  let description = obj.toString();
+  if ("pos" in obj) description += " @ " + obj.pos.toString();
+  return description;
 }
