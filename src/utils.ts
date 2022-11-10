@@ -725,7 +725,7 @@ export function getNearbyWorkSpotCount(pos: RoomPosition, upgradeSpots: boolean)
   spots.forEach(spot => {
     if (
       pos.getRangeTo(spot.x, spot.y) === 1 &&
-      new RoomPosition(spot.x, spot.y, spot.roomName).lookFor(LOOK_STRUCTURES).length < 1
+      new RoomPosition(spot.x, spot.y, spot.roomName).lookFor(LOOK_STRUCTURES).filter(isObstacle).length < 1
     )
       spotsAround++;
   });

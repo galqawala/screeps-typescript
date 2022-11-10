@@ -1084,7 +1084,7 @@ function handleRoom(room: Room) {
 
   utils.logCpu("handleRoom(" + room.name + ") updates1");
   utils.handleHostilesInRoom(room);
-  if (utils.canOperateInRoom(room) && Math.random() < 0.15 && gotSpareCpu()) utils.constructInRoom(room);
+  if (utils.canOperateInRoom(room) && Math.random() < 0.3 && gotSpareCpu()) utils.constructInRoom(room);
   utils.logCpu("handleRoom(" + room.name + ") updates1");
   utils.logCpu("handleRoom(" + room.name + ") updates2");
   utils.handleLinks(room);
