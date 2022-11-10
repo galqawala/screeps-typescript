@@ -647,12 +647,12 @@ export function getPosOfLinkByTheController(controller: StructureController): Ro
 
 export function getPrimaryPosForLink(room: Room): RoomPosition | undefined {
   // around controller and sources
-  const range = 3;
   const terrain = new Room.Terrain(room.name);
 
   const placesRequiringLink: (StructureStorage | Source)[] = getPlacesRequiringLink(room);
 
   for (const target of placesRequiringLink) {
+    const range = target instanceof Source ? 2 : 1;
     if (target && !hasStructureInRange(target.pos, STRUCTURE_LINK, 6, true)) {
       const targetPos = target.pos;
       let bestScore = Number.NEGATIVE_INFINITY;

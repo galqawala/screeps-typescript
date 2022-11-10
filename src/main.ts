@@ -1282,7 +1282,7 @@ function needTransferers(): boolean {
             creep => creep.memory.role === "transferer" && creep.memory.transferTo === storage.id
           ).length <= 0 &&
           storage.pos
-            .findInRange(FIND_MY_STRUCTURES, 1)
+            .findInRange(FIND_MY_STRUCTURES, 2)
             .filter(utils.isLink)
             .filter(link => utils.getEnergy(link) > 0).length > 0
       ).length > 0;
@@ -1524,7 +1524,7 @@ function spawnTransferer() {
     .filter(utils.isStorage)
     .filter(
       storage =>
-        utils.hasStructureInRange(storage.pos, STRUCTURE_LINK, 1, false) &&
+        utils.hasStructureInRange(storage.pos, STRUCTURE_LINK, 2, false) &&
         Object.values(Game.creeps).filter(
           creep => creep.memory.role === roleToSpawn && creep.memory.transferTo === storage.id
         ).length <= 0
