@@ -341,6 +341,7 @@ export function shouldReserveRoom(room: Room): boolean {
 }
 
 export function isReservationOk(controller: StructureController): boolean {
+  if (controller.my) return true;
   const reservation = controller.reservation;
   if (!reservation) return false;
   if (reservation.username !== Memory.username) return false;
