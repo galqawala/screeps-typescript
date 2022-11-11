@@ -905,7 +905,7 @@ function retrieveEnergy(creep: Creep, destination: Structure | Tombstone | Ruin 
 function handleAttacker(creep: Creep) {
   utils.logCpu("handleAttacker(" + creep.name + ")");
   const flag = Game.flags.attack;
-  const bestTarget = utils.getTarget(creep);
+  const bestTarget = utils.getTarget(creep, undefined);
   if (!flag && !bestTarget) {
     recycleCreep(creep);
   } else if (bestTarget) {
@@ -922,7 +922,7 @@ function handleAttacker(creep: Creep) {
 function handleInfantry(creep: Creep) {
   utils.logCpu("handleInfantry(" + creep.name + ")");
   const flag = Game.flags.attack;
-  const bestTarget = utils.getTarget(creep);
+  const bestTarget = utils.getTarget(creep, undefined);
   if (!flag && !bestTarget) {
     recycleCreep(creep);
   } else if (bestTarget) {
@@ -1076,7 +1076,7 @@ function handleRoom(room: Room) {
   utils.logCpu("handleRoom(" + room.name + ") towers");
   const towers = room.find(FIND_MY_STRUCTURES).filter(utils.isTower);
   for (const t of towers) {
-    const bestTarget = utils.getTarget(t);
+    const bestTarget = utils.getTarget(t, 20);
     if (!bestTarget) break; // no targets in this room for any tower
     utils.engageTarget(t, bestTarget);
   }

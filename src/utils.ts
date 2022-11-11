@@ -881,16 +881,19 @@ export function isWorkerSpot(pos: RoomPosition): boolean {
   return false;
 }
 
-export function getTarget(myUnit: StructureTower | Creep): Creep | PowerCreep | Structure | undefined {
+export function getTarget(
+  myUnit: StructureTower | Creep,
+  maxRange: number | undefined
+): Creep | PowerCreep | Structure | undefined {
   logCpu("getTarget(" + myUnit.toString() + ")");
   logCpu("getTarget(" + myUnit.toString() + ") getTargetCreep");
-  const creep = getTargetCreep(myUnit);
+  const creep = getTargetCreep(myUnit, maxRange);
   logCpu("getTarget(" + myUnit.toString() + ") getTargetCreep");
   logCpu("getTarget(" + myUnit.toString() + ") getTargetPowerCreep");
-  const powerCreep = getTargetPowerCreep(myUnit);
+  const powerCreep = getTargetPowerCreep(myUnit, maxRange);
   logCpu("getTarget(" + myUnit.toString() + ") getTargetPowerCreep");
   logCpu("getTarget(" + myUnit.toString() + ") getTargetStructure");
-  const structure = getTargetStructure(myUnit);
+  const structure = getTargetStructure(myUnit, maxRange);
   logCpu("getTarget(" + myUnit.toString() + ") getTargetStructure");
 
   logCpu("getTarget(" + myUnit.toString() + ") target");
@@ -1209,15 +1212,19 @@ export function canHeal(myUnit: StructureTower | Creep): boolean {
   return false;
 }
 
-export function getTargetCreep(myUnit: StructureTower | Creep): ScoredTarget | undefined {
+export function getTargetCreep(
+  myUnit: StructureTower | Creep,
+  maxRange: number | undefined
+): ScoredTarget | undefined {
   let bestTarget;
   let bestTargetScore = Number.NEGATIVE_INFINITY;
   const creeps = myUnit.room
     .find(FIND_CREEPS)
     .filter(
       target =>
-        (canAttack(myUnit) && target.my === false) ||
-        (canHeal(myUnit) && target.my !== false && target.hits < target.hitsMax)
+        ((canAttack(myUnit) && target.my === false) ||
+          (canHeal(myUnit) && target.my !== false && target.hits < target.hitsMax)) &&
+        (!maxRange || myUnit.pos.getRangeTo(target) <= maxRange)
     );
   for (const targetCreep of creeps) {
     const score = getTargetScore(myUnit.pos, targetCreep);
@@ -1233,15 +1240,19 @@ export function getTargetCreep(myUnit: StructureTower | Creep): ScoredTarget | u
   return;
 }
 
-export function getTargetPowerCreep(myUnit: StructureTower | Creep): ScoredTarget | undefined {
+export function getTargetPowerCreep(
+  myUnit: StructureTower | Creep,
+  maxRange: number | undefined
+): ScoredTarget | undefined {
   let bestTarget;
   let bestTargetScore = Number.NEGATIVE_INFINITY;
   const powerCreeps = myUnit.room
     .find(FIND_POWER_CREEPS)
     .filter(
       target =>
-        (canAttack(myUnit) && target.my === false) ||
-        (canHeal(myUnit) && target.my !== false && target.hits < target.hitsMax)
+        ((canAttack(myUnit) && target.my === false) ||
+          (canHeal(myUnit) && target.my !== false && target.hits < target.hitsMax)) &&
+        (!maxRange || myUnit.pos.getRangeTo(target) <= maxRange)
     );
   for (const targetPowerCreep of powerCreeps) {
     const score = getTargetScore(myUnit.pos, targetPowerCreep);
@@ -1257,11 +1268,16 @@ export function getTargetPowerCreep(myUnit: StructureTower | Creep): ScoredTarge
   return;
 }
 
-export function getTargetStructure(myUnit: StructureTower | Creep): ScoredTarget | undefined {
+export function getTargetStructure(
+  myUnit: StructureTower | Creep,
+  maxRange: number | undefined
+): ScoredTarget | undefined {
   if (!canAttack(myUnit)) return;
   let bestTarget;
   let bestTargetScore = Number.NEGATIVE_INFINITY;
-  const structures = myUnit.room.find(FIND_HOSTILE_STRUCTURES);
+  const structures = myUnit.room
+    .find(FIND_HOSTILE_STRUCTURES)
+    .filter(target => !maxRange || myUnit.pos.getRangeTo(target) <= maxRange);
   for (const targetStructure of structures) {
     const score = getTargetScore(myUnit.pos, targetStructure);
     if (bestTargetScore < score) {
