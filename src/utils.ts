@@ -790,7 +790,7 @@ export function getPosForConstruction(
   } else if (structureType === STRUCTURE_STORAGE) {
     return getPosForStorage(room);
   } else if (isClusterStructureType(structureType)) {
-    return getPosForClusterStructure(room);
+    return getPosForClusterStructure(room, structureType);
   }
 
   let bestScore = Number.NEGATIVE_INFINITY;
@@ -1590,13 +1590,16 @@ function clusterReport(room: Room, clusterCount: number, count: number) {
   msg(room, "planned " + clusterCount.toString() + " clusters with " + count.toString() + " structures");
 }
 
-function getPosForClusterStructure(room: Room): RoomPosition | undefined {
-  const center = room.controller?.pos.findClosestByRange(FIND_SOURCES);
-  if (!center) return;
+function getPosForClusterStructure(room: Room, structureType: StructureConstant): RoomPosition | undefined {
+  const targetPos =
+    structureType === STRUCTURE_TOWER
+      ? new RoomPosition(25, 25, room.name)
+      : room.controller?.pos.findClosestByRange(FIND_SOURCES)?.pos;
+  if (!targetPos) return;
   const flags = room
     .find(FIND_FLAGS)
     .filter(flag => flag.name.startsWith("structure_"))
-    .map(value => ({ value, sort: getGlobalRange(center.pos, value.pos) })) /* persist sort values */
+    .map(value => ({ value, sort: getGlobalRange(targetPos, value.pos) })) /* persist sort values */
     .sort((a, b) => a.sort - b.sort) /* sort */
     .map(({ value }) => value); /* remove sort values */
   for (const flag of flags) {
