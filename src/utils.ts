@@ -525,7 +525,7 @@ export function needRepair(structure: Structure): boolean {
   if (structure.hits >= structure.hitsMax) return false;
   if (isDestructibleWall(structure)) return false;
   if (isRoad(structure)) {
-    if (structure.pos.lookFor(LOOK_STRUCTURES).filter(isObstacle)) return false;
+    if (structure.pos.lookFor(LOOK_STRUCTURES).filter(isObstacle).length) return false;
     if (structure.pos.findInRange(FIND_STRUCTURES, 1).filter(isRoad).length <= 1) return false;
   }
   return true;

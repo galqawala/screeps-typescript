@@ -732,8 +732,12 @@ function phaseMove(creep: Creep, phase: Phase) {
       if (!tgt) return;
       move(creep, tgt);
     }
-  } else if (outcome === OK && isStuck(creep)) {
-    nextPhase(creep); // switch to dynamic navigation to get unstuck
+  } else if (outcome === OK) {
+    if (isStuck(creep)) nextPhase(creep); // switch to dynamic navigation to get unstuck
+    else if (creep.room.memory.hostilesPresent) {
+      utils.msg(creep, "hostiles present, resetting plans");
+      delete creep.memory.phases;
+    }
   }
 }
 
