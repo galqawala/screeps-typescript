@@ -651,28 +651,23 @@ export function getPosOfLinkByTheController(controller: StructureController): Ro
 }
 
 export function getPrimaryPosForLink(room: Room): RoomPosition | undefined {
-  // around controller and sources
-  const terrain = new Room.Terrain(room.name);
-
   const placesRequiringLink: (StructureStorage | Source)[] = getPlacesRequiringLink(room);
 
   for (const target of placesRequiringLink) {
-    const range = target instanceof Source ? 2 : 1;
-    if (target && !hasStructureInRange(target.pos, STRUCTURE_LINK, 6, true)) {
+    if (target && !hasStructureInRange(target.pos, STRUCTURE_LINK, 2, true)) {
       const targetPos = target.pos;
       let bestScore = Number.NEGATIVE_INFINITY;
       let bestPos;
+      const creepSpots = getSurroundingPlains(targetPos, 1, 1, true);
 
-      for (let x = targetPos.x - range; x <= targetPos.x + range; x++) {
-        for (let y = targetPos.y - range; y <= targetPos.y + range; y++) {
-          if (x === targetPos.x && y === targetPos.y) continue;
-          if (terrain.get(x, y) === TERRAIN_MASK_WALL) continue;
-          const pos = new RoomPosition(x, y, room.name);
-          let score = getNearbyWorkSpotCount(pos, target instanceof StructureStorage);
-          if (hasStructureInRange(pos, undefined, 1, true)) score -= 0.1;
+      for (const creepSpot of creepSpots) {
+        const linkSpots = getSurroundingPlains(creepSpot, 1, 1, true);
+        for (const linkSpot of linkSpots) {
+          let score = getNearbyWorkSpotCount(linkSpot, target instanceof StructureStorage);
+          if (hasStructureInRange(linkSpot, undefined, 1, true)) score -= 0.1;
           if (bestScore < score) {
             bestScore = score;
-            bestPos = pos;
+            bestPos = linkSpot;
           }
         }
       }
