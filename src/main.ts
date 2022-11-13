@@ -1275,7 +1275,9 @@ function needCarriers(): boolean {
       const containers = source.pos.findInRange(FIND_STRUCTURES, 3).filter(utils.isContainer);
       for (const container of containers) {
         utils.logCpu("needCarriers()");
-        if (room.memory.stickyEnergy[container.id] > 1000) return true;
+        const energy = room.memory.stickyEnergy[container.id];
+        const carriers = countCarriersByContainer(container.id);
+        if (energy / carriers > 50) return true;
       }
     }
   }
@@ -1881,10 +1883,11 @@ function buildRoadsForCarrier(creep: Creep) {
 function updateStickyEnergy(room: Room) {
   const containers = room.find(FIND_STRUCTURES).filter(utils.isStoreStructure);
   const values: Record<Id<AnyStoreStructure>, number> = {};
+  const rate = 2; // max change per tick
   for (const container of containers) {
     const now = utils.getEnergy(container);
     const then = room.memory.stickyEnergy?.[container.id];
-    values[container.id] = (then || now) - (now < then ? 1 : 0) + (now > then ? 1 : 0);
+    values[container.id] = Math.max(Math.min(now, then + rate), then - rate);
   }
   room.memory.stickyEnergy = values;
 }
@@ -1904,5 +1907,15 @@ function countCarriersByCluster(pos: RoomPosition) {
       carrier.memory.role === "carrier" &&
       carrier.memory.phases &&
       carrier.memory.phases.filter(phase => phase.move && isPosEqual(phase.move[phase.move.length - 1], pos))
+        .length > 0
+  ).length;
+}
+
+function countCarriersByContainer(containerId: Id<StructureContainer>) {
+  return Object.values(Game.creeps).filter(
+    carrier =>
+      carrier.memory.role === "carrier" &&
+      carrier.memory.phases &&
+      carrier.memory.phases.filter(phase => phase.retrieve === containerId).length > 0
   ).length;
 }
