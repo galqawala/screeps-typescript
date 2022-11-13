@@ -791,7 +791,12 @@ function phaseTransfer(creep: Creep, phase: Phase) {
 
 function nextPhase(creep: Creep) {
   if (!creep.memory.phases) return;
+  if (creep.memory.debug) utils.msg(creep, "Next phase");
+  const typeBefore = Object.keys(creep.memory.phases[creep.memory.phaseIndex || 0])[0];
   creep.memory.phaseIndex = ((creep.memory.phaseIndex || 0) + 1) % creep.memory.phases.length;
+  const typeAfter = Object.keys(creep.memory.phases[creep.memory.phaseIndex || 0])[0];
+  // different types can be executed same tick
+  if (typeBefore !== typeAfter) handleCarrier(creep);
 }
 
 function getReserverForClaiming() {
