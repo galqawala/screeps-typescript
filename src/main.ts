@@ -416,6 +416,7 @@ function handleUpgrader(creep: Creep) {
 }
 
 function upgraderRetrieveEnergy(creep: Creep, controller: StructureController) {
+  utils.logCpu("upgraderRetrieveEnergy(" + creep.name + ")");
   const storeId = creep.memory.storage || creep.memory.container;
   let store;
   if (storeId) store = Game.getObjectById(storeId);
@@ -427,13 +428,14 @@ function upgraderRetrieveEnergy(creep: Creep, controller: StructureController) {
         }
       })
     );
+    utils.logCpu("upgraderRetrieveEnergy(" + creep.name + ")");
     if (!store) return;
     if (utils.isStorage(store)) creep.memory.storage = store.id;
     else if (utils.isContainer(store)) creep.memory.container = store.id;
   }
-  utils.logCpu("handleUpgrader(" + creep.name + ")");
   if (creep.withdraw(store, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) move(creep, store);
   if (isStuck(creep)) moveRandomDirection(creep);
+  utils.logCpu("upgraderRetrieveEnergy(" + creep.name + ")");
 }
 
 function moveRandomDirection(creep: Creep) {
