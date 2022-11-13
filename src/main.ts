@@ -639,7 +639,7 @@ function hasEnoughEnergyForAnotherUpgrader(controller: StructureController) {
     .reduce((aggregated, item) => aggregated + item.getActiveBodyparts(WORK), 0 /* initial*/);
   if (assignedWorkParts < 1) return true;
   const energyPerWork = energy / assignedWorkParts;
-  const isEnough = energyPerWork > 50;
+  const isEnough = energyPerWork > 60;
   return isEnough;
 }
 
@@ -1191,6 +1191,7 @@ function spawnCreeps() {
     spawnCreep("worker", budget);
   } else if (Memory.plan.needUpgraders) {
     const upgradeTarget = getControllerToUpgrade();
+    if (!upgradeTarget) return;
     spawnCreep("upgrader", budget, undefined, undefined, upgradeTarget);
   }
   utils.logCpu("spawnCreeps()");
