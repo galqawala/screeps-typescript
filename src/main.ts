@@ -707,7 +707,7 @@ function moveTowardMemory(creep: Creep) {
 
 function handleCarrier(creep: Creep) {
   utils.logCpu("handleCarrier(" + creep.name + ")");
-  if (!creep.memory.phases) planCarrierRoutes(creep);
+  if (!creep.memory.phases || creep.memory.phases.length < 2) planCarrierRoutes(creep);
   if (!creep.memory.phases) return;
   const phase = creep.memory.phases[creep.memory.phaseIndex || 0];
   if (phase.move) phaseMove(creep, phase);
@@ -1275,7 +1275,7 @@ function needCarriers(): boolean {
       const containers = source.pos.findInRange(FIND_STRUCTURES, 3).filter(utils.isContainer);
       for (const container of containers) {
         utils.logCpu("needCarriers()");
-        if (utils.isFull(container)) return true;
+        if (room.memory.stickyEnergy[container.id] > 1000) return true;
       }
     }
   }
@@ -1746,23 +1746,65 @@ function planCarrierRoutes(creep: Creep) {
   let pos = source.pos;
   let firstPos;
   let energy = creep.store.getCapacity(RESOURCE_ENERGY);
-  const transferIds = [];
+  let clusters = getClusters();
   while (energy > 0) {
-    const destination = getCarrierEnergyDestination(pos, transferIds);
-    const path = getPath(pos, destination.pos, 1);
+    clusters = sortClusters(clusters, pos);
+    const destination = clusters.shift();
+    if (!destination) break;
+    const path = getPath(pos, destination.pos, 0);
     if (path.length > 0) {
       if (!firstPos) firstPos = path[0];
       creep.memory.phases.push({ move: path });
       pos = path[path.length - 1];
     }
-    creep.memory.phases.push({ transfer: destination.id });
-    if (!utils.isTower(destination)) energy -= destination.store.getCapacity(RESOURCE_ENERGY);
-    transferIds.push(destination.id);
+    const structures = getClusterStructures(destination.pos);
+    for (const target of structures) {
+      creep.memory.phases.push({ transfer: target.id });
+      if (!utils.isTower(target) && "store" in target) energy -= target.store.getCapacity(RESOURCE_ENERGY);
+    }
   }
   if (!firstPos) return;
   const returnPath = getPath(pos, firstPos, 0);
   if (returnPath.length > 0) creep.memory.phases.push({ move: returnPath });
   if (utils.getConstructionSites().length <= 0) buildRoadsForCarrier(creep);
+}
+
+function sortClusters(clusters: { pos: RoomPosition; carriers: number }[], pos: RoomPosition) {
+  clusters = clusters
+    .map(value => ({
+      value,
+      sort: utils.getGlobalRange(pos, value.pos) + value.carriers * 50
+    })) /* persist sort values */
+    .sort((a, b) => a.sort - b.sort) /* sort */
+    .map(({ value }) => value) /* remove sort values */;
+  return clusters;
+}
+
+function getClusterStructures(clusterPos: RoomPosition) {
+  const structures = clusterPos
+    .findInRange(FIND_MY_STRUCTURES, 1)
+    .map(value => ({
+      value,
+      sort: Math.random()
+    })) /* persist sort values */
+    .sort((a, b) => a.sort - b.sort) /* sort */
+    .map(({ value }) => value) /* remove sort values */
+    .filter(utils.isOwnedStoreStructure);
+  return structures;
+}
+
+function getClusters() {
+  return Object.values(Game.flags)
+    .filter(
+      flag =>
+        flag.name.startsWith("cluster_") &&
+        flag.room &&
+        flag.pos.findInRange(FIND_MY_STRUCTURES, 1).length > 0
+    )
+    .map(flag => ({
+      pos: flag.pos,
+      carriers: countCarriersByCluster(flag.pos)
+    }));
 }
 
 function getPath(from: RoomPosition, to: RoomPosition, range: number) {
@@ -1803,41 +1845,6 @@ function getCarrierEnergySource(creep: Creep) {
         (utils.getGlobalRange(creep.pos, value.pos) / 100)
     })) /* persist sort values */
     .sort((a, b) => b.sort - a.sort) /* sort */
-    .map(({ value }) => value) /* remove sort values */[0];
-}
-
-function getCarrierEnergyDestination(pos: RoomPosition, existingIds: Id<AnyStoreStructure>[]) {
-  let stores: AnyStoreStructure[] = [];
-  for (const room of Object.values(Game.rooms)) {
-    if (room.memory.hostilesPresent) continue;
-    stores = stores.concat(
-      room
-        .find(FIND_STRUCTURES)
-        .filter(utils.isStoreStructure)
-        .filter(
-          store =>
-            (!utils.isContainer(store) || (room.controller && room.controller.pos.getRangeTo(store) < 3)) &&
-            !utils.isLink(store) &&
-            !existingIds.includes(store.id) &&
-            utils.getFillRatio(store) < 1 / 3 &&
-            store.isActive()
-        )
-    );
-  }
-  return stores
-    .map(value => ({
-      value,
-      sort:
-        Object.values(Game.creeps).filter(
-          carrier =>
-            carrier.memory.role === "carrier" &&
-            carrier.memory.phases &&
-            carrier.memory.phases.map(phase => phase.transfer || "").includes(value.id)
-        ).length *
-          100 +
-        utils.getGlobalRange(pos, value.pos)
-    })) /* persist sort values */
-    .sort((a, b) => a.sort - b.sort) /* sort */
     .map(({ value }) => value) /* remove sort values */[0];
 }
 
@@ -1890,4 +1897,13 @@ function checkWipeOut() {
     Memory.wipeOut = wipeOut;
     utils.msg("checkWipeOut()", "We have " + count.toString() + " creeps!", true);
   }
+}
+
+function countCarriersByCluster(pos: RoomPosition) {
+  return Object.values(Game.creeps).filter(
+    carrier =>
+      carrier.memory.role === "carrier" &&
+      carrier.memory.phases &&
+      carrier.memory.phases.filter(phase => phase.move && isPosEqual(phase.move[phase.move.length - 1], pos))
+  ).length;
 }

@@ -63,6 +63,13 @@ export function isStoreStructure(
   return "store" in item;
 }
 
+export function isOwnedStoreStructure(
+  item: AnyOwnedStructure
+): item is AnyOwnedStructure & AnyStoreStructure {
+  if (!item) return false;
+  return "store" in item;
+}
+
 export function isEmpty(object: Structure | Creep | Ruin | Resource | Tombstone): boolean {
   if (!object) return false;
   const store = getStore(object);
