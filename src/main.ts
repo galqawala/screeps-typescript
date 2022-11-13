@@ -463,6 +463,7 @@ function handleWorker(creep: Creep) {
     const result = repair(creep) || dismantle(creep) || build(creep);
     utils.logCpu("handleWorker(" + creep.name + ") work");
     utils.logCpu("handleWorker(" + creep.name + ")");
+    if (!result && isStuck(creep)) moveRandomDirection(creep); // out of others way
     return result;
   }
   utils.logCpu("handleWorker(" + creep.name + ")");
