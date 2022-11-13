@@ -1869,7 +1869,6 @@ function getCostMatrix(roomName: string) {
 }
 
 function buildRoadsForCarrier(creep: Creep) {
-  utils.msg(creep, "building roads for planned paths");
   if (!creep.memory.phases) return;
   for (const phase of creep.memory.phases) {
     if (!phase.move) continue;
