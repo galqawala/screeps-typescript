@@ -656,7 +656,7 @@ function getControllerToUpgrade(pos: RoomPosition | undefined = undefined, urgen
     if (urgentOnly && room.controller.ticksToDowngrade > 4000) continue;
     if (!hasEnoughEnergyForAnotherUpgrader(room.controller)) continue;
     if (isControllerUpgradedEnough(room.controller)) continue;
-    if (countUpgradersAssigned(room.controller.id) >= 7) continue;
+    if (countUpgradersAssigned(room.controller.id) >= 6) continue;
     targets.push(room.controller);
   }
   const destination = targets
