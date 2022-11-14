@@ -1275,7 +1275,7 @@ function needCarriers(): boolean {
       for (const container of containers) {
         utils.logCpu("needCarriers()");
         const energy = room.memory.stickyEnergy[container.id];
-        const carriers = countCarriersByContainer(container.id);
+        const carriers = countCarriersBySource(container.id);
         if (energy / carriers > 50) return true;
       }
     }
@@ -1837,7 +1837,7 @@ function getCarrierEnergySource(creep: Creep) {
         .filter(utils.isContainer)
         .filter(container => !room.controller || room.controller.pos.getRangeTo(container) > 3)
     );
-    if (room.storage && utils.getFillRatio(room.storage) > 2 / 3) containers.push(room.storage);
+    if (room.storage && countCarriersBySource(room.storage.id) <= 0) containers.push(room.storage);
   }
   return containers
     .map(value => ({
@@ -1917,11 +1917,11 @@ function countCarriersByCluster(pos: RoomPosition) {
   ).length;
 }
 
-function countCarriersByContainer(containerId: Id<StructureContainer>) {
+function countCarriersBySource(sourceId: Id<StructureContainer | StructureStorage>) {
   return Object.values(Game.creeps).filter(
     carrier =>
       carrier.memory.role === "carrier" &&
       carrier.memory.phases &&
-      carrier.memory.phases.filter(phase => phase.retrieve === containerId).length > 0
+      carrier.memory.phases.filter(phase => phase.retrieve === sourceId).length > 0
   ).length;
 }
