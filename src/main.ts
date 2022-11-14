@@ -1770,11 +1770,14 @@ function planCarrierRoutes(creep: Creep) {
   if (utils.getConstructionSites().length <= 0) buildRoadsForCarrier(creep);
 }
 
-function sortClusters(clusters: { pos: RoomPosition; carriers: number }[], pos: RoomPosition) {
+function sortClusters(
+  clusters: { pos: RoomPosition; carriers: number; towersLowOnEnergy: number }[],
+  pos: RoomPosition
+) {
   clusters = clusters
     .map(value => ({
       value,
-      sort: utils.getGlobalRange(pos, value.pos) + value.carriers * 50
+      sort: utils.getGlobalRange(pos, value.pos) + value.carriers * 50 - value.towersLowOnEnergy * 50
     })) /* persist sort values */
     .sort((a, b) => a.sort - b.sort) /* sort */
     .map(({ value }) => value) /* remove sort values */;
@@ -1804,7 +1807,11 @@ function getClusters() {
     )
     .map(flag => ({
       pos: flag.pos,
-      carriers: countCarriersByCluster(flag.pos)
+      carriers: countCarriersByCluster(flag.pos),
+      towersLowOnEnergy: flag.pos
+        .findInRange(FIND_MY_STRUCTURES, 1)
+        .filter(utils.isTower)
+        .filter(tower => utils.getFillRatio(tower) < 0.5).length
     }));
 }
 
