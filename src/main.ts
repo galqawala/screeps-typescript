@@ -638,8 +638,7 @@ function hasEnoughEnergyForAnotherUpgrader(controller: StructureController) {
   if (isNaN(energy)) return false;
   const assignedWorkParts = Object.values(Game.creeps)
     .filter(creep => creep.memory.upgrade === controller.id)
-    .reduce((aggregated, item) => aggregated + item.getActiveBodyparts(WORK), 0 /* initial*/);
-  if (assignedWorkParts < 1) return true;
+    .reduce((aggregated, item) => aggregated + item.getActiveBodyparts(WORK), 1 /* initial*/);
   const energyPerWork = energy / assignedWorkParts;
   const isEnough = energyPerWork > 80;
   return isEnough;
