@@ -640,7 +640,7 @@ function hasEnoughEnergyForAnotherUpgrader(controller: StructureController) {
     .filter(creep => creep.memory.upgrade === controller.id)
     .reduce((aggregated, item) => aggregated + item.getActiveBodyparts(WORK), 2 /* initial*/);
   const energyPerWork = energy / assignedWorkParts;
-  const isEnough = energyPerWork > 100;
+  const isEnough = energyPerWork > 150;
   return isEnough;
 }
 
@@ -1889,7 +1889,7 @@ function buildRoadsForCarrier(creep: Creep) {
 function updateStickyEnergy(room: Room) {
   const containers = room.find(FIND_STRUCTURES).filter(utils.isStoreStructure);
   const values: Record<Id<AnyStoreStructure>, number> = {};
-  const rate = 2; // max change per tick
+  const rate = 3; // max change per tick
   for (const container of containers) {
     const now = utils.getEnergy(container);
     const then = room.memory.stickyEnergy?.[container.id];
