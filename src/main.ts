@@ -1761,7 +1761,9 @@ function planCarrierRoutes(creep: Creep) {
     const structures = getClusterStructures(destination.pos);
     for (const target of structures) {
       creep.memory.phases.push({ transfer: target.id });
-      if (!utils.isTower(target) && "store" in target) energy -= target.store.getCapacity(RESOURCE_ENERGY);
+      // target structures are often full, so only decrease some energy
+      if (!utils.isTower(target) && "store" in target)
+        energy -= target.store.getCapacity(RESOURCE_ENERGY) / 2;
     }
   }
   if (!firstPos) return;
