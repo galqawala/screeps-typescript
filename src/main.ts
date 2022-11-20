@@ -1896,7 +1896,7 @@ function buildRoadsForCarrier(creep: Creep) {
 function updateStickyEnergy(room: Room) {
   const containers = room.find(FIND_STRUCTURES).filter(utils.isStoreStructure);
   const values: Record<Id<AnyStoreStructure>, number> = {};
-  const rate = 4; // max change per tick
+  const rate = 5; // max change per tick
   for (const container of containers) {
     const now = utils.getEnergy(container);
     const then = room.memory.stickyEnergy?.[container.id];
