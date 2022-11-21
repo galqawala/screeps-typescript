@@ -634,7 +634,7 @@ function hasEnoughEnergyForAnotherUpgrader(controller: StructureController) {
   );
   if (!store) return false;
   if (!utils.isContainer(store) && !utils.isStorage(store)) return false;
-  const energy = controller.room.memory.stickyEnergy?.[store.id];
+  const energy = utils.getEnergy(store);
   if (isNaN(energy)) return false;
   const assignedWorkParts = Object.values(Game.creeps)
     .filter(creep => creep.memory.upgrade === controller.id)
