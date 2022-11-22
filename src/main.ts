@@ -1841,7 +1841,7 @@ function getCarrierEnergySource(creep: Creep) {
     );
     if (room.storage) {
       const carriersForStorage = Math.ceil(
-        (room.memory.stickyEnergy[room.storage.id] / STORAGE_CAPACITY) * 3
+        (room.memory.stickyEnergy[room.storage.id] / STORAGE_CAPACITY) * 4
       );
       if (countCarriersBySource(room.storage.id) < carriersForStorage) containers.push(room.storage);
     }
