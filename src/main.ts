@@ -1470,10 +1470,9 @@ function needWorkers() {
 }
 
 function getTotalConstructionWork() {
-  return Object.values(Game.constructionSites).reduce(
-    (aggregated, item) => aggregated + item.progressTotal - item.progress,
-    0 /* initial*/
-  );
+  return Object.values(Game.constructionSites)
+    .filter(site => site.room && utils.isRoomSafe(site.room.name))
+    .reduce((aggregated, item) => aggregated + item.progressTotal - item.progress, 0 /* initial*/);
 }
 
 function getSourceToHarvest() {
