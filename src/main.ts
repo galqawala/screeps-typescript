@@ -1268,6 +1268,7 @@ function getRoomToClaim(controlledRooms: Room[]) {
 
 function needCarriers(): boolean {
   utils.logCpu("needCarriers()");
+  if (getStoragesRequiringCarrier().length > 0) return true;
   for (const room of Object.values(Game.rooms)) {
     const sources = room.find(FIND_SOURCES);
     for (const source of sources) {
@@ -1829,20 +1830,16 @@ function getPath(from: RoomPosition, to: RoomPosition, range: number) {
 }
 
 function getCarrierEnergySource(creep: Creep) {
-  let containers: (StructureContainer | StructureStorage)[] = [];
-  for (const room of Object.values(Game.rooms)) {
-    if (room.memory.hostilesPresent) continue;
-    containers = containers.concat(
-      room
-        .find(FIND_STRUCTURES)
-        .filter(utils.isContainer)
-        .filter(container => !room.controller || room.controller.pos.getRangeTo(container) > 3)
-    );
-    if (room.storage) {
-      const carriersForStorage = Math.ceil(
-        (room.memory.stickyEnergy[room.storage.id] / STORAGE_CAPACITY) * 4
+  let containers: (StructureContainer | StructureStorage)[] = getStoragesRequiringCarrier();
+  if (containers.length < 1) {
+    for (const room of Object.values(Game.rooms)) {
+      if (room.memory.hostilesPresent) continue;
+      containers = containers.concat(
+        room
+          .find(FIND_STRUCTURES)
+          .filter(utils.isContainer)
+          .filter(container => !room.controller || room.controller.pos.getRangeTo(container) > 3)
       );
-      if (countCarriersBySource(room.storage.id) < carriersForStorage) containers.push(room.storage);
     }
   }
   return containers
@@ -1860,6 +1857,19 @@ function getCarrierEnergySource(creep: Creep) {
     })) /* persist sort values */
     .sort((a, b) => b.sort - a.sort) /* sort */
     .map(({ value }) => value) /* remove sort values */[0];
+}
+
+function getStoragesRequiringCarrier() {
+  const containers: StructureStorage[] = [];
+  for (const room of Object.values(Game.rooms)) {
+    if (room.storage) {
+      const carriersForStorage = Math.ceil(
+        (room.memory.stickyEnergy[room.storage.id] / STORAGE_CAPACITY) * 4
+      );
+      if (countCarriersBySource(room.storage.id) < carriersForStorage) containers.push(room.storage);
+    }
+  }
+  return containers;
 }
 
 function getCostMatrix(roomName: string) {
