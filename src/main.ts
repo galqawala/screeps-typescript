@@ -1179,7 +1179,9 @@ function gotSpareCpu() {
 function spawnCreeps() {
   utils.logCpu("spawnCreeps()");
   const budget = gotSpareCpu() ? Memory.plan.maxRoomEnergy : Memory.plan.maxRoomEnergyCap;
-  if (Memory.plan.needCarriers) {
+  if (Memory.plan.needTransferers) {
+    spawnTransferer();
+  } else if (Memory.plan.needCarriers) {
     spawnCreep("carrier", budget);
   } else if (Memory.plan.needHarvesters) {
     spawnHarvester();
@@ -1191,8 +1193,6 @@ function spawnCreeps() {
     spawnCreep("attacker", budget);
   } else if (Memory.plan.needExplorers) {
     spawnRole("explorer", 0, [MOVE]);
-  } else if (Memory.plan.needTransferers) {
-    spawnTransferer();
   } else if (Memory.plan.needWorkers) {
     spawnCreep("worker", budget);
   } else if (Memory.plan.needUpgraders) {
