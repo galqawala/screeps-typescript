@@ -640,7 +640,7 @@ function hasEnoughEnergyForAnotherUpgrader(controller: StructureController) {
     .filter(creep => creep.memory.upgrade === controller.id)
     .reduce((aggregated, item) => aggregated + item.getActiveBodyparts(WORK), 14 /* initial*/);
   const energyPerWork = energy / assignedWorkParts;
-  const isEnough = energyPerWork > 600;
+  const isEnough = energyPerWork > 800;
   return isEnough;
 }
 
