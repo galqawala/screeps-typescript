@@ -1463,7 +1463,7 @@ function needWorkers() {
   const workParts = Object.values(Game.creeps)
     .filter(creep => creep.memory.role === "worker")
     .reduce((aggregated, item) => aggregated + item.getActiveBodyparts(WORK), 0 /* initial*/);
-  const partsNeeded = Math.ceil(getTotalConstructionWork() / 400 + utils.getTotalRepairTargetCount() / 2);
+  const partsNeeded = Math.ceil(getTotalConstructionWork() / 400 + utils.getTotalRepairTargetCount() / 1.5);
   const value =
     partsNeeded > workParts && (Memory.plan.minTicksToDowngrade > 4000 || !Memory.plan.needUpgraders);
   utils.logCpu("needWorkers");
