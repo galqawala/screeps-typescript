@@ -1014,6 +1014,7 @@ export function constructInRoom(room: Room): void {
   const structureTypes = [
     STRUCTURE_EXTENSION,
     STRUCTURE_LINK,
+    STRUCTURE_OBSERVER,
     STRUCTURE_SPAWN,
     STRUCTURE_STORAGE,
     STRUCTURE_TOWER
