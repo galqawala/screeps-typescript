@@ -808,11 +808,10 @@ export function getPosForConstruction(
     if (structureType === STRUCTURE_LINK) {
       finalScore = adjustConstructionSiteScoreForLink(score, pos);
     } else if (structureType === STRUCTURE_EXTENSION || structureType === STRUCTURE_SPAWN) {
-      // distance to source decreases the score
-      const extensionPenalty = pos.findClosestByRange(FIND_SOURCES);
-      if (extensionPenalty) {
-        finalScore /= getGlobalRange(pos, extensionPenalty.pos);
-      }
+      const source = pos.findClosestByRange(FIND_SOURCES);
+      if (source) finalScore /= getGlobalRange(pos, source.pos);
+    } else if (structureType === STRUCTURE_OBSERVER) {
+      if (room.storage) finalScore /= getGlobalRange(pos, room.storage.pos);
     }
 
     if (bestScore < finalScore) {
