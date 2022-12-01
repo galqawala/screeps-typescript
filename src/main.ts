@@ -1987,10 +1987,10 @@ function getCostMatrixSafe(roomName: string) {
         for (let x = 0; x <= 49; x++) costs.set(x, y, 0xff);
       } else if (direction === FIND_EXIT_LEFT.toString()) {
         let x = 0;
-        for (let y = 0; y <= 49; y++) costs.set(y, x, 0xff);
+        for (let y = 0; y <= 49; y++) costs.set(x, y, 0xff);
       } else if (direction === FIND_EXIT_RIGHT.toString()) {
         let x = 49;
-        for (let y = 0; y <= 49; y++) costs.set(y, x, 0xff);
+        for (let y = 0; y <= 49; y++) costs.set(x, y, 0xff);
       }
     }
   }
