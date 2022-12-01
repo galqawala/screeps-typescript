@@ -93,7 +93,7 @@ declare global {
     sortedSpawnStructureIds: Id<Structure>[];
     stickyEnergy: Record<Id<AnyStoreStructure>, number>;
     updateEnergyStores: boolean;
-    upgradeSpots: RoomPosition[];
+    upgradeSpots?: RoomPosition[];
   }
 
   interface EnergyStore {
@@ -196,29 +196,26 @@ export const loop = ErrorMapper.wrapLoop(() => {
 
 function updatePlan() {
   utils.logCpu("updatePlan");
-  utils.logCpu("updatePlan vars");
   const storageMin = getStorageMin();
   const allSpawnsFull = areAllSpawnsFull();
   const needHarvesters = getSourceToHarvest() ? true : false;
-  utils.logCpu("updatePlan vars");
-  utils.logCpu("updatePlan c-f");
   Memory.plan.celebrate = shouldCelebrate();
   Memory.plan.controllersToReserve = utils.getControllersToReserve().map(controller => controller.id);
   Memory.plan.fillSpawnsFromStorage = storageMin >= 800000 && !allSpawnsFull;
   Memory.plan.fillStorage = (storageMin < 150000 && !needHarvesters) || allSpawnsFull;
-  utils.logCpu("updatePlan c-f");
-  utils.logCpu("updatePlan need*");
+  utils.logCpu("updatePlan need1");
   Memory.plan.needAttackers = needAttackers();
   Memory.plan.needCarriers = needCarriers();
   Memory.plan.needExplorers = needExplorers();
   Memory.plan.needHarvesters = storageMin < 900000 && needHarvesters;
+  utils.logCpu("updatePlan need1");
+  utils.logCpu("updatePlan need2");
   Memory.plan.needInfantry = needInfantry();
   Memory.plan.needReservers = needReservers();
   Memory.plan.needTransferers = needTransferers();
   Memory.plan.needUpgraders = getControllerToUpgrade(undefined, false) ? true : false;
   Memory.plan.needWorkers = needWorkers();
-  utils.logCpu("updatePlan need*");
-  utils.logCpu("updatePlan min/max");
+  utils.logCpu("updatePlan need2");
   Memory.plan.maxRoomEnergy = Math.max(
     ...Object.values(Game.spawns).map(spawn => spawn.room.energyAvailable)
   );
@@ -226,7 +223,6 @@ function updatePlan() {
     ...Object.values(Game.spawns).map(s => s.room.energyCapacityAvailable)
   );
   Memory.plan.minTicksToDowngrade = getMinTicksToDowngrade();
-  utils.logCpu("updatePlan min/max");
   utils.logCpu("updatePlan");
 }
 
@@ -1093,13 +1089,15 @@ function harvesterSpendEnergy(creep: Creep) {
 
 function handleRoom(room: Room) {
   utils.logCpu("handleRoom(" + room.name + ")");
-  if (!room.memory.costMatrix || Math.random() < 0.1)
+  utils.logCpu("handleRoom(" + room.name + ") costs");
+  if (!room.memory.costMatrix || Math.random() < 0.01)
     room.memory.costMatrix = getCostMatrix(room.name).serialize();
+  utils.logCpu("handleRoom(" + room.name + ") costs");
   utils.logCpu("handleRoom(" + room.name + ") towers");
   handleRoomTowers(room);
   utils.logCpu("handleRoom(" + room.name + ") towers");
   utils.logCpu("handleRoom(" + room.name + ") observers");
-  handleRoomObservers(room);
+  if (Math.random() < 0.1 && gotSpareCpu()) handleRoomObservers(room);
   utils.logCpu("handleRoom(" + room.name + ") observers");
   utils.logCpu("handleRoom(" + room.name + ") updates1");
   utils.handleHostilesInRoom(room);
@@ -1121,21 +1119,23 @@ function handleRoomTowers(room: Room) {
   utils.logCpu("handleRoomTowers(" + room.name + ")");
   const towers = room.find(FIND_MY_STRUCTURES).filter(utils.isTower);
   for (const t of towers) {
-    const bestTarget = utils.getTarget(t, 20);
-    if (!bestTarget) break; // no targets in this room for any tower
-    utils.engageTarget(t, bestTarget);
+    const creep = t.pos.findClosestByRange(FIND_HOSTILE_CREEPS);
+    if (creep) {
+      utils.engageTarget(t, creep);
+      continue;
+    }
+    const powerCreep = t.pos.findClosestByRange(FIND_HOSTILE_POWER_CREEPS);
+    if (powerCreep) {
+      utils.engageTarget(t, powerCreep);
+      continue;
+    }
   }
   utils.logCpu("handleRoomTowers(" + room.name + ")");
 }
 
 function handleRoomObservers(room: Room) {
   utils.logCpu("handleRoomObservers(" + room.name + ")");
-  const observers = room
-    .find(FIND_MY_STRUCTURES)
-    .filter(utils.isObserver)
-    .map(value => ({ value, sort: Math.random() })) /* persist sort values */
-    .sort((a, b) => a.sort - b.sort) /* sort */
-    .map(({ value }) => value); /* remove sort values */
+  const observers = room.find(FIND_MY_STRUCTURES).filter(utils.isObserver);
   for (const o of observers) {
     const rooms = Object.values(Game.rooms)
       .map(value => ({ value, sort: Math.random() })) /* persist sort values */
@@ -1161,7 +1161,7 @@ function handleRoomObservers(room: Room) {
 
 function roomUpdates(room: Room) {
   utils.logCpu("roomUpdates(" + room.name + ")");
-  if (!room.memory.upgradeSpots) utils.updateUpgradeSpots(room);
+  delete room.memory.upgradeSpots;
   if (!room.memory.harvestSpots) utils.updateHarvestSpots(room);
   if (!room.memory.remoteHarvestScore) utils.updateRemoteHarvestScore(room);
   if (!room.memory.score) utils.updateRoomScore(room);

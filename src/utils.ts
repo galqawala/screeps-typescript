@@ -659,7 +659,7 @@ export function getPrimaryPosForLink(room: Room): RoomPosition | undefined {
       for (const creepSpot of creepSpots) {
         const linkSpots = getSurroundingPlains(creepSpot, 1, 1, true);
         for (const linkSpot of linkSpots) {
-          let score = getNearbyWorkSpotCount(linkSpot, target instanceof StructureStorage);
+          let score = getSurroundingPlains(linkSpot, 1, 1, true).length;
           if (hasStructureInRange(linkSpot, undefined, 1, true)) score -= 0.1;
           if (bestScore < score) {
             bestScore = score;
@@ -711,21 +711,6 @@ export function getPlacesRequiringLink(room: Room): (StructureStorage | Source)[
       .map(({ value }) => value) /* remove sort values */
   );
   return placesRequiringLink;
-}
-
-export function getNearbyWorkSpotCount(pos: RoomPosition, upgradeSpots: boolean): number {
-  const spots = upgradeSpots
-    ? Memory.rooms[pos.roomName].upgradeSpots
-    : Memory.rooms[pos.roomName].harvestSpots;
-  let spotsAround = 0;
-  spots.forEach(spot => {
-    if (
-      pos.getRangeTo(spot.x, spot.y) === 1 &&
-      new RoomPosition(spot.x, spot.y, spot.roomName).lookFor(LOOK_STRUCTURES).filter(isObstacle).length < 1
-    )
-      spotsAround++;
-  });
-  return spotsAround;
 }
 
 export function hasStructureInRange(
@@ -862,18 +847,9 @@ export function isPosSuitableForConstruction(pos: RoomPosition): boolean {
     if (hasStructureInRange(pos, STRUCTURE_STORAGE, 2, true)) return false;
     if (hasStructureInRange(pos, STRUCTURE_CONTROLLER, 2, true)) return false;
     if (hasStructureInRange(pos, STRUCTURE_LINK, 2, true)) return false;
-    if (isWorkerSpot(pos)) return false;
   }
   if (pos.findInRange(FIND_SOURCES, 2).length) return false;
   return true;
-}
-
-export function isWorkerSpot(pos: RoomPosition): boolean {
-  const spots = Memory.rooms[pos.roomName].upgradeSpots.concat(Memory.rooms[pos.roomName].harvestSpots);
-  for (const spot of spots) {
-    if (pos.x === spot.x && pos.y === spot.y) return true;
-  }
-  return false;
 }
 
 export function getTarget(
@@ -1087,26 +1063,6 @@ export function getHostileUsernames(hostileCreeps: Creep[], hostilePowerCreeps: 
     .map(creep => creep.owner.username)
     .concat(hostilePowerCreeps.map(creep => creep.owner.username))
     .filter((value, index, self) => self.indexOf(value) === index); // unique
-}
-
-export function updateUpgradeSpots(room: Room): void {
-  if (!room.controller) return;
-  msg(room, "Updating upgrade spots");
-  const targetPos = room.controller.pos;
-  const range = 3;
-  const terrain = new Room.Terrain(room.name);
-  const spots: RoomPosition[] = [];
-
-  for (let x = targetPos.x - range; x <= targetPos.x + range; x++) {
-    for (let y = targetPos.y - range; y <= targetPos.y + range; y++) {
-      if (x === targetPos.x && y === targetPos.y) continue;
-      if (terrain.get(x, y) === TERRAIN_MASK_WALL) continue;
-      const pos = new RoomPosition(x, y, room.name);
-      if (spots.includes(pos)) msg(room, pos.toString() + " already listed");
-      spots.push(pos);
-    }
-  }
-  room.memory.upgradeSpots = spots;
 }
 
 export function updateHarvestSpots(room: Room): void {
