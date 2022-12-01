@@ -1891,7 +1891,7 @@ function getPath(from: RoomPosition, to: RoomPosition, range: number) {
     {
       plainCost: 2,
       swampCost: 10,
-      roomCallback: getCostMatrix
+      roomCallback: getCostMatrixSafe
     }
   ).path;
 }
@@ -1964,22 +1964,26 @@ function getCostMatrix(roomName: string) {
         costs.set(struct.pos.x, struct.pos.y, 0xff);
       }
     });
+    room.find(FIND_CREEPS).forEach(function (creep) {
+      let x = creep.pos.x;
+      let y = creep.pos.y;
+      costs.set(x, y, costs.get(x, y) + 100);
+    });
   }
   return costs;
 }
 
 function getCostMatrixSafe(roomName: string) {
-  if (utils.isRoomSafe(roomName)) {
-    return getCostMatrix(roomName);
-  } else {
+  let costs = getCostMatrix(roomName);
+  if (!utils.isRoomSafe(roomName)) {
     const costs = new PathFinder.CostMatrix();
     for (let x = 0; x <= 49; x++) {
       for (let y = 0; y <= 49; y++) {
-        costs.set(x, y, 0xff);
+        costs.set(x, y, costs.get(x, y) + 100);
       }
     }
-    return costs;
   }
+  return costs;
 }
 
 function buildRoadsForCarrier(creep: Creep) {
