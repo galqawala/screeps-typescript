@@ -541,20 +541,6 @@ export function needRepair(structure: Structure): boolean {
   return true;
 }
 
-export function flagEnergyConsumer(pos: RoomPosition): void {
-  if (Memory.rooms[pos.roomName].lastTimeFlagEnergyConsumerSet >= Game.time) return;
-  logCpu("flagEnergyConsumer(" + pos.toString() + ")");
-  const flagName = pos.roomName + "_EnergyConsumer";
-  if (flagName in Game.flags) {
-    const flag = Game.flags[flagName];
-    flag.setPosition(pos); /* handles the first setColor or setPosition per tick! */
-  } else {
-    pos.createFlag(flagName, COLOR_BLUE, COLOR_PURPLE);
-  }
-  Memory.rooms[pos.roomName].lastTimeFlagEnergyConsumerSet = Game.time;
-  logCpu("flagEnergyConsumer(" + pos.toString() + ")");
-}
-
 export function getConstructionSites(): ConstructionSite[] {
   let sites: ConstructionSite[] = [];
   for (const i in Game.rooms) {
@@ -1044,16 +1030,6 @@ export function constructInRoom(room: Room): void {
     planClusters(room);
   }
   logCpu("constructInRoom(" + room.name + ")");
-}
-
-export function checkRoomStatus(room: Room): void {
-  logCpu("checkRoomStatus(" + room.name + ")");
-  const value = getRoomStatus(room.name);
-  if (room.memory.status && room.memory.status !== value) {
-    msg(room, "Status: " + room.memory.status + " ➤ " + value.toString(), true);
-    room.memory.status = value;
-  }
-  logCpu("checkRoomStatus(" + room.name + ")");
 }
 
 export function checkRoomCanOperate(room: Room): void {

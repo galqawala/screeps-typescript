@@ -91,7 +91,6 @@ declare global {
     repairTargets: Id<Structure>[];
     score: number;
     sortedSpawnStructureIds: Id<Structure>[];
-    status: "normal" | "closed" | "novice" | "respawn";
     stickyEnergy: Record<Id<AnyStoreStructure>, number>;
     updateEnergyStores: boolean;
     upgradeSpots: RoomPosition[];
@@ -197,27 +196,37 @@ export const loop = ErrorMapper.wrapLoop(() => {
 
 function updatePlan() {
   utils.logCpu("updatePlan");
+  utils.logCpu("updatePlan vars");
   const storageMin = getStorageMin();
   const allSpawnsFull = areAllSpawnsFull();
   const needHarvesters = getSourceToHarvest() ? true : false;
-  Memory.plan = {
-    celebrate: shouldCelebrate(),
-    controllersToReserve: utils.getControllersToReserve().map(controller => controller.id),
-    fillSpawnsFromStorage: storageMin >= 800000 && !allSpawnsFull,
-    fillStorage: (storageMin < 150000 && !needHarvesters) || allSpawnsFull,
-    needAttackers: needAttackers(),
-    needCarriers: needCarriers(),
-    needExplorers: needExplorers(),
-    needHarvesters: storageMin < 900000 && needHarvesters,
-    needInfantry: needInfantry(),
-    needReservers: needReservers(),
-    needTransferers: needTransferers(),
-    needUpgraders: getControllerToUpgrade(undefined, false) ? true : false,
-    needWorkers: needWorkers(),
-    maxRoomEnergy: Math.max(...Object.values(Game.spawns).map(spawn => spawn.room.energyAvailable)),
-    maxRoomEnergyCap: Math.max(...Object.values(Game.spawns).map(s => s.room.energyCapacityAvailable)),
-    minTicksToDowngrade: getMinTicksToDowngrade()
-  };
+  utils.logCpu("updatePlan vars");
+  utils.logCpu("updatePlan c-f");
+  Memory.plan.celebrate = shouldCelebrate();
+  Memory.plan.controllersToReserve = utils.getControllersToReserve().map(controller => controller.id);
+  Memory.plan.fillSpawnsFromStorage = storageMin >= 800000 && !allSpawnsFull;
+  Memory.plan.fillStorage = (storageMin < 150000 && !needHarvesters) || allSpawnsFull;
+  utils.logCpu("updatePlan c-f");
+  utils.logCpu("updatePlan need*");
+  Memory.plan.needAttackers = needAttackers();
+  Memory.plan.needCarriers = needCarriers();
+  Memory.plan.needExplorers = needExplorers();
+  Memory.plan.needHarvesters = storageMin < 900000 && needHarvesters;
+  Memory.plan.needInfantry = needInfantry();
+  Memory.plan.needReservers = needReservers();
+  Memory.plan.needTransferers = needTransferers();
+  Memory.plan.needUpgraders = getControllerToUpgrade(undefined, false) ? true : false;
+  Memory.plan.needWorkers = needWorkers();
+  utils.logCpu("updatePlan need*");
+  utils.logCpu("updatePlan min/max");
+  Memory.plan.maxRoomEnergy = Math.max(
+    ...Object.values(Game.spawns).map(spawn => spawn.room.energyAvailable)
+  );
+  Memory.plan.maxRoomEnergyCap = Math.max(
+    ...Object.values(Game.spawns).map(s => s.room.energyCapacityAvailable)
+  );
+  Memory.plan.minTicksToDowngrade = getMinTicksToDowngrade();
+  utils.logCpu("updatePlan min/max");
   utils.logCpu("updatePlan");
 }
 
@@ -408,7 +417,6 @@ function handleUpgrader(creep: Creep) {
   creep.memory.upgrade = controller.id;
   // actions
   if (utils.isEmpty(creep)) upgraderRetrieveEnergy(creep, controller);
-  utils.flagEnergyConsumer(controller.pos);
   if (controller) {
     const outcome = creep.upgradeController(controller);
     if (outcome === ERR_NOT_IN_RANGE) move(creep, controller);
@@ -530,7 +538,6 @@ function build(creep: Creep) {
       utils.logCpu("build(" + creep.name + ") build move");
       move(creep, destination);
       utils.logCpu("build(" + creep.name + ") build move");
-      utils.flagEnergyConsumer(destination.pos);
       utils.logCpu("build(" + creep.name + ") build");
       utils.logCpu("build(" + creep.name + ")");
       return true;
@@ -568,7 +575,6 @@ function repair(creep: Creep) {
   if (repairTarget) {
     utils.logCpu("repair(" + creep.name + ") tgt");
     if (creep.repair(repairTarget) === ERR_NOT_IN_RANGE) move(creep, repairTarget);
-    utils.flagEnergyConsumer(repairTarget.pos);
     utils.setDestination(creep, repairTarget);
     utils.logCpu("repair(" + creep.name + ") tgt");
     utils.logCpu("repair(" + creep.name + ")");
@@ -659,6 +665,7 @@ function getControllerToUpgrade(pos: RoomPosition | undefined = undefined, urgen
     if (!hasEnoughEnergyForAnotherUpgrader(room.controller)) continue;
     if (isControllerUpgradedEnough(room.controller)) continue;
     if (countUpgradersAssigned(room.controller.id) >= 5) continue;
+    utils.msg(room, "controller upgradeable");
     targets.push(room.controller);
   }
   const destination = targets
@@ -1103,7 +1110,6 @@ function handleRoom(room: Room) {
   roomUpdates(room);
   utils.logCpu("handleRoom(" + room.name + ") updates2");
   utils.logCpu("handleRoom(" + room.name + ") updates3");
-  utils.checkRoomStatus(room);
   utils.checkRoomCanOperate(room);
   utils.tryResetSpawnsAndExtensionsSorting(room);
   updateStickyEnergy(room);
@@ -1160,7 +1166,7 @@ function roomUpdates(room: Room) {
   if (!room.memory.remoteHarvestScore) utils.updateRemoteHarvestScore(room);
   if (!room.memory.score) utils.updateRoomScore(room);
   if (room.memory.updateEnergyStores || Math.random() < 0.05) utils.updateRoomEnergyStores(room);
-  if (Math.random() < 0.02) utils.updateRoomRepairTargets(room);
+  if (Math.random() < 0.01) utils.updateRoomRepairTargets(room);
   utils.logCpu("roomUpdates(" + room.name + ")");
 }
 
@@ -1790,6 +1796,7 @@ function isPosEqual(a: RoomPosition, b: RoomPosition) {
 function planCarrierRoutes(creep: Creep) {
   creep.memory.phaseIndex = 0;
   const source = getCarrierEnergySource(creep);
+  creep.memory.retrieve = source.id;
   if (!source) return;
   creep.memory.phases = [{ retrieve: source.id }];
   let pos = source.pos;
@@ -2084,9 +2091,6 @@ function countCarriersByCluster(pos: RoomPosition) {
 
 function countCarriersBySource(sourceId: Id<StructureContainer | StructureStorage>) {
   return Object.values(Game.creeps).filter(
-    carrier =>
-      carrier.memory.role === "carrier" &&
-      carrier.memory.phases &&
-      carrier.memory.phases.filter(phase => phase.retrieve === sourceId).length > 0
+    carrier => carrier.memory.role === "carrier" && carrier.memory.retrieve === sourceId
   ).length;
 }
