@@ -1793,6 +1793,28 @@ function planCarrierRoutes(creep: Creep) {
   let firstPos;
   let energy = creep.store.getCapacity(RESOURCE_ENERGY);
   let clusters = getClusters();
+  if (utils.getStructureCount(source.room, STRUCTURE_LINK, false) < 2 && source?.room?.controller?.my) {
+    //fill storage/container near controller without links
+    let storage = source.room.controller.pos.findClosestByRange(
+      source.room.controller.pos.findInRange(FIND_STRUCTURES, 10, {
+        filter(object) {
+          return utils.isStorage(object) || utils.isContainer(object);
+        }
+      })
+    );
+    if (storage && utils.isStoreStructure(storage)) {
+      utils.msg(creep, "need to fill storage: " + utils.getObjectDescription(storage));
+      const path = getPath(pos, storage.pos, 1);
+      if (path.length > 0) {
+        if (!firstPos) firstPos = path[0];
+        creep.memory.phases.push({ move: path });
+        pos = path[path.length - 1];
+      }
+      creep.memory.phases.push({ transfer: storage.id });
+      // target structures are often full, so only decrease some energy
+      energy -= storage.store.getCapacity(RESOURCE_ENERGY) / 2;
+    }
+  }
   while (energy > 0) {
     clusters = sortClusters(clusters, pos);
     const destination = clusters.shift();
@@ -1926,6 +1948,15 @@ function getCostMatrix(roomName: string) {
         // Favor roads over plain tiles
         costs.set(struct.pos.x, struct.pos.y, 1);
       } else if (
+        struct.structureType !== STRUCTURE_CONTAINER &&
+        (struct.structureType !== STRUCTURE_RAMPART || !struct.my)
+      ) {
+        // Can't walk through non-walkable buildings
+        costs.set(struct.pos.x, struct.pos.y, 0xff);
+      }
+    });
+    room.find(FIND_CONSTRUCTION_SITES).forEach(function (struct) {
+      if (
         struct.structureType !== STRUCTURE_CONTAINER &&
         (struct.structureType !== STRUCTURE_RAMPART || !struct.my)
       ) {
