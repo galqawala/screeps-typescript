@@ -598,7 +598,9 @@ function getRepairTarget(pos: RoomPosition) {
   const sources = [];
   let ids: Id<Structure<StructureConstant>>[] = [];
   for (const room of Object.values(Game.rooms)) {
-    ids = ids.concat(room.memory.repairTargets);
+    if (utils.isRoomSafe(room.name)) {
+      ids = ids.concat(room.memory.repairTargets);
+    }
   }
   if (ids) {
     for (const id of ids) {
@@ -1083,16 +1085,12 @@ function harvesterSpendEnergy(creep: Creep) {
 
 function handleRoom(room: Room) {
   utils.logCpu("handleRoom(" + room.name + ")");
-
   utils.logCpu("handleRoom(" + room.name + ") towers");
-  const towers = room.find(FIND_MY_STRUCTURES).filter(utils.isTower);
-  for (const t of towers) {
-    const bestTarget = utils.getTarget(t, 20);
-    if (!bestTarget) break; // no targets in this room for any tower
-    utils.engageTarget(t, bestTarget);
-  }
+  handleRoomTowers(room);
   utils.logCpu("handleRoom(" + room.name + ") towers");
-
+  utils.logCpu("handleRoom(" + room.name + ") observers");
+  handleRoomObservers(room);
+  utils.logCpu("handleRoom(" + room.name + ") observers");
   utils.logCpu("handleRoom(" + room.name + ") updates1");
   utils.handleHostilesInRoom(room);
   if (utils.canOperateInRoom(room) && Math.random() < 0.3 && gotSpareCpu()) utils.constructInRoom(room);
@@ -1108,6 +1106,48 @@ function handleRoom(room: Room) {
   updateStickyEnergy(room);
   utils.logCpu("handleRoom(" + room.name + ") updates3");
   utils.logCpu("handleRoom(" + room.name + ")");
+}
+
+function handleRoomTowers(room: Room) {
+  utils.logCpu("handleRoomTowers(" + room.name + ")");
+  const towers = room.find(FIND_MY_STRUCTURES).filter(utils.isTower);
+  for (const t of towers) {
+    const bestTarget = utils.getTarget(t, 20);
+    if (!bestTarget) break; // no targets in this room for any tower
+    utils.engageTarget(t, bestTarget);
+  }
+  utils.logCpu("handleRoomTowers(" + room.name + ")");
+}
+
+function handleRoomObservers(room: Room) {
+  utils.logCpu("handleRoomObservers(" + room.name + ")");
+  const observers = room
+    .find(FIND_MY_STRUCTURES)
+    .filter(utils.isObserver)
+    .map(value => ({ value, sort: Math.random() })) /* persist sort values */
+    .sort((a, b) => a.sort - b.sort) /* sort */
+    .map(({ value }) => value); /* remove sort values */
+  for (const o of observers) {
+    const rooms = Object.values(Game.rooms)
+      .map(value => ({ value, sort: Math.random() })) /* persist sort values */
+      .sort((a, b) => a.sort - b.sort) /* sort */
+      .map(({ value }) => value); /* remove sort values */
+    for (const randomRoom of rooms) {
+      const exits = Game.map.describeExits(randomRoom.name);
+      const accessibleRoomNames = Object.values(exits)
+        .map(value => ({ value, sort: Math.random() })) /* persist sort values */
+        .sort((a, b) => a.sort - b.sort) /* sort */
+        .map(({ value }) => value); /* remove sort values */
+      for (const targetRoomName of accessibleRoomNames) {
+        if (!(targetRoomName in Game.rooms)) {
+          o.observeRoom(targetRoomName);
+          utils.logCpu("handleRoomObservers(" + room.name + ")");
+          return;
+        }
+      }
+    }
+  }
+  utils.logCpu("handleRoomObservers(" + room.name + ")");
 }
 
 function roomUpdates(room: Room) {
@@ -1185,8 +1225,6 @@ function spawnCreeps() {
     spawnCreep("carrier", budget);
   } else if (Memory.plan.needHarvesters) {
     spawnHarvester();
-  } else if (Memory.plan.needReservers) {
-    spawnReserver();
   } else if (Memory.plan.needInfantry) {
     spawnRole("infantry");
   } else if (Memory.plan.needAttackers) {
@@ -1195,6 +1233,8 @@ function spawnCreeps() {
     spawnRole("explorer", 0, [MOVE]);
   } else if (Memory.plan.needWorkers) {
     spawnCreep("worker", budget);
+  } else if (Memory.plan.needReservers) {
+    spawnReserver();
   } else if (Memory.plan.needUpgraders) {
     const upgradeTarget = getControllerToUpgrade();
     if (!upgradeTarget) return;
@@ -1248,13 +1288,13 @@ function getRoomToClaim(controlledRooms: Room[]) {
     if (!room.controller) continue;
     if (!room.controller.my) continue;
     const exits = Game.map.describeExits(room.name);
-    const accessibleRooms = Object.values(exits).filter(
+    const accessibleRoomNames = Object.values(exits).filter(
       roomName =>
         utils.isRoomSafe(roomName) &&
         Memory.rooms[roomName]?.canOperate &&
         utils.getRoomStatus(roomName) === utils.getRoomStatus(room.name)
     );
-    for (const nearRoomName of accessibleRooms) {
+    for (const nearRoomName of accessibleRoomNames) {
       if (controlledRooms.filter(controlledRoom => controlledRoom.name === nearRoomName).length > 0) continue;
       const score = Memory.rooms[nearRoomName].score;
       if (bestScore < score) {
@@ -1391,6 +1431,7 @@ function updateFlagDismantle() {
   }
   // no flag, find new targets
   const shuffledRoomNames = Object.keys(Game.rooms)
+    .filter(utils.isRoomSafe)
     .map(value => ({ value, sort: Math.random() })) /* persist sort values */
     .sort((a, b) => a.sort - b.sort) /* sort */
     .map(({ value }) => value); /* remove sort values */
@@ -1862,7 +1903,7 @@ function getCarrierEnergySource(creep: Creep) {
 function getStoragesRequiringCarrier() {
   const containers: StructureStorage[] = [];
   for (const room of Object.values(Game.rooms)) {
-    if (room.storage) {
+    if (room.storage && room.storage.my) {
       const carriersForStorage = Math.ceil(
         (room.memory.stickyEnergy[room.storage.id] / STORAGE_CAPACITY) * 4
       );

@@ -41,6 +41,9 @@ export function isLink(
 export function isTower(structure: Structure): structure is StructureTower {
   return structure.structureType === STRUCTURE_TOWER;
 }
+export function isObserver(structure: Structure): structure is StructureObserver {
+  return structure.structureType === STRUCTURE_OBSERVER;
+}
 export function isSpawnOrExtension(
   structure: Structure | null | undefined | Destination
 ): structure is StructureSpawn | StructureExtension {
@@ -1315,6 +1318,7 @@ export function isEnemy(object: Structure | Creep | PowerCreep): boolean {
 }
 
 export function shouldHarvestRoom(room: Room): boolean {
+  if (!isRoomSafe(room.name)) return false;
   if (!room) return false;
   if (room.controller?.my) return true;
   const exits = Game.map.describeExits(room.name);
