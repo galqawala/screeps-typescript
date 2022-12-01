@@ -1049,7 +1049,7 @@ export function constructInRoom(room: Room): void {
 export function checkRoomStatus(room: Room): void {
   logCpu("checkRoomStatus(" + room.name + ")");
   const value = getRoomStatus(room.name);
-  if (room.memory.status !== value) {
+  if (room.memory.status && room.memory.status !== value) {
     msg(room, "Status: " + room.memory.status + " ➤ " + value.toString(), true);
     room.memory.status = value;
   }
