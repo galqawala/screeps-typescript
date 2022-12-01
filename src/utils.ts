@@ -857,7 +857,12 @@ export function getPotentialConstructionSites(room: Room): ScoredPos[] {
   return sites;
 }
 
-function getSurroundingPlains(pos: RoomPosition, rangeMin: number, rangeMax: number, allowSwamp = false) {
+export function getSurroundingPlains(
+  pos: RoomPosition,
+  rangeMin: number,
+  rangeMax: number,
+  allowSwamp = false
+) {
   const plains = [];
   const positions = getPositionsAround(pos, rangeMin, rangeMax, true);
   const terrain = new Room.Terrain(pos.roomName);
@@ -1492,27 +1497,33 @@ interface ClusterPos {
 }
 
 function getInitialClusterPaths(room: Room) {
-  const center = room.controller?.pos.findClosestByRange(FIND_SOURCES);
-  if (!center) return;
-  const posInfos: ClusterPos[] = [{ pos: center.pos, scanned: false, content: undefined }];
-  const sources = room.find(FIND_SOURCES);
-  if (sources.length === 2) {
-    const path = PathFinder.search(sources[0].pos, { pos: sources[1].pos, range: 1 }).path;
-    for (const step of path) {
-      const stepIndex = posInfos.findIndex(pi => pi.pos.x === step.x && pi.pos.y === step.y);
-      if (stepIndex > -1) {
-        if (posInfos[stepIndex].content !== "cluster") posInfos[stepIndex].content = "path";
-      } else {
-        posInfos.push({ pos: step, scanned: false, content: "path" });
+  let positions: RoomPosition[] = room.find(FIND_SOURCES).map(source => source.pos);
+  if (room.controller) positions.push(room.controller.pos);
+
+  const posInfos: ClusterPos[] = [
+    { pos: positions[Math.floor(Math.random() * positions.length)], scanned: false, content: undefined }
+  ];
+
+  for (const from of positions) {
+    for (const to of positions) {
+      const path = PathFinder.search(from, { pos: to, range: 1 }).path;
+      for (const step of path) {
+        const stepIndex = posInfos.findIndex(pi => pi.pos.x === step.x && pi.pos.y === step.y);
+        if (stepIndex > -1) {
+          if (posInfos[stepIndex].content !== "cluster") posInfos[stepIndex].content = "path";
+        } else {
+          posInfos.push({ pos: step, scanned: false, content: "path" });
+        }
       }
     }
   }
+
   return posInfos;
 }
 
 function isValidClusterPos(structurePosCount: number, pos: RoomPosition, room: Room, posInfos: ClusterPos[]) {
   if (structurePosCount < 8) return false;
-  if (pos.findInRange(FIND_SOURCES, 2).length > 0) return false;
+  if (pos.findInRange(FIND_SOURCES, 3).length > 0) return false;
   if (room.controller && pos.getRangeTo(room.controller.pos) < 5) return false;
   if (posInfos.some(cp => cp.content === "cluster" && cp.pos.getRangeTo(pos) < 3)) return false;
   return true;
@@ -1601,17 +1612,17 @@ function hasClusters(room: Room) {
   return false;
 }
 
-// function clearClusters(room: Room) {
-//   const flags = room.find(FIND_FLAGS);
-//   for (const flag of flags) {
-//     if (
-//       flag.name.startsWith("cluster_") ||
-//       flag.name.startsWith("path_") ||
-//       flag.name.startsWith("structure_")
-//     )
-//       flag.remove();
-//   }
-// }
+export function clearClusters(room: Room) {
+  const flags = room.find(FIND_FLAGS);
+  for (const flag of flags) {
+    if (
+      flag.name.startsWith("cluster_") ||
+      flag.name.startsWith("path_") ||
+      flag.name.startsWith("structure_")
+    )
+      flag.remove();
+  }
+}
 
 function clusterReport(room: Room, clusterCount: number, count: number) {
   msg(room, "planned " + clusterCount.toString() + " clusters with " + count.toString() + " structures");

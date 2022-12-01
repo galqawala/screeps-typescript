@@ -1085,6 +1085,7 @@ function harvesterSpendEnergy(creep: Creep) {
 
 function handleRoom(room: Room) {
   utils.logCpu("handleRoom(" + room.name + ")");
+  //  if (room.name === "E4S42") utils.clearClusters(room);
   utils.logCpu("handleRoom(" + room.name + ") towers");
   handleRoomTowers(room);
   utils.logCpu("handleRoom(" + room.name + ") towers");
@@ -1803,7 +1804,6 @@ function planCarrierRoutes(creep: Creep) {
       })
     );
     if (storage && utils.isStoreStructure(storage)) {
-      utils.msg(creep, "need to fill storage: " + utils.getObjectDescription(storage));
       const path = getPath(pos, storage.pos, 1);
       if (path.length > 0) {
         if (!firstPos) firstPos = path[0];
