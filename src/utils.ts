@@ -1139,7 +1139,6 @@ export function updateUpgradeSpots(room: Room): void {
 }
 
 export function updateHarvestSpots(room: Room): void {
-  msg(room, "Updating harvest spots");
   const range = 1;
   const terrain = new Room.Terrain(room.name);
   const spots: RoomPosition[] = [];
@@ -1156,8 +1155,8 @@ export function updateHarvestSpots(room: Room): void {
         if (!containsPosition(spots, pos)) spots.push(pos);
       }
     }
-    room.memory.harvestSpots = spots;
   });
+  room.memory.harvestSpots = spots;
 }
 
 export function getLinkDownstreamPos(room: Room): RoomPosition | undefined {

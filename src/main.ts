@@ -1975,14 +1975,26 @@ function getCostMatrix(roomName: string) {
 
 function getCostMatrixSafe(roomName: string) {
   let costs = getCostMatrix(roomName);
-  if (!utils.isRoomSafe(roomName)) {
-    const costs = new PathFinder.CostMatrix();
-    for (let x = 0; x <= 49; x++) {
-      for (let y = 0; y <= 49; y++) {
-        costs.set(x, y, costs.get(x, y) + 100);
+
+  const exits = Game.map.describeExits(roomName);
+  for (const [direction, exitRoomName] of Object.entries(exits)) {
+    if (!utils.isRoomSafe(exitRoomName)) {
+      if (direction === FIND_EXIT_TOP.toString()) {
+        let y = 0;
+        for (let x = 0; x <= 49; x++) costs.set(x, y, 0xff);
+      } else if (direction === FIND_EXIT_BOTTOM.toString()) {
+        let y = 49;
+        for (let x = 0; x <= 49; x++) costs.set(x, y, 0xff);
+      } else if (direction === FIND_EXIT_LEFT.toString()) {
+        let x = 0;
+        for (let y = 0; y <= 49; y++) costs.set(y, x, 0xff);
+      } else if (direction === FIND_EXIT_RIGHT.toString()) {
+        let x = 49;
+        for (let y = 0; y <= 49; y++) costs.set(y, x, 0xff);
       }
     }
   }
+
   return costs;
 }
 
