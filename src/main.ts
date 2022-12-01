@@ -1165,7 +1165,7 @@ function roomUpdates(room: Room) {
 function move(creep: Creep, destination: Destination, safe = true) {
   utils.logCpu("move(" + creep.name + ")");
   utils.logCpu("move(" + creep.name + ") moveTo");
-  let options: MoveToOpts = {
+  const options: MoveToOpts = {
     // bit of randomness to prevent creeps from moving the same way at same time to pass each other
     reusePath: Math.round(Memory.maxTickLimit - Game.cpu.tickLimit + Math.random()),
     visualizePathStyle: {
@@ -1793,50 +1793,93 @@ function planCarrierRoutes(creep: Creep) {
   let pos = source.pos;
   let firstPos;
   let energy = creep.store.getCapacity(RESOURCE_ENERGY);
-  let clusters = getClusters();
-  if (utils.getStructureCount(source.room, STRUCTURE_LINK, false) < 2 && source?.room?.controller?.my) {
-    //fill storage/container near controller without links
-    let storage = source.room.controller.pos.findClosestByRange(
-      source.room.controller.pos.findInRange(FIND_STRUCTURES, 10, {
-        filter(object) {
-          return utils.isStorage(object) || utils.isContainer(object);
-        }
-      })
-    );
-    if (storage && utils.isStoreStructure(storage)) {
-      const path = getPath(pos, storage.pos, 1);
-      if (path.length > 0) {
-        if (!firstPos) firstPos = path[0];
-        creep.memory.phases.push({ move: path });
-        pos = path[path.length - 1];
-      }
-      creep.memory.phases.push({ transfer: storage.id });
-      // target structures are often full, so only decrease some energy
-      energy -= storage.store.getCapacity(RESOURCE_ENERGY) / 2;
-    }
+  const storageAdded = addCarrierDestinationStorage(creep, source.room, pos);
+  if (storageAdded) {
+    if (!firstPos) firstPos = storageAdded.firstPos;
+    pos = storageAdded.pos;
+    energy -= storageAdded.energy;
   }
+  const clusters = getClusters();
   while (energy > 0) {
-    clusters = sortClusters(clusters, pos);
-    const destination = clusters.shift();
-    if (!destination) break;
-    const path = getPath(pos, destination.pos, 0);
-    if (path.length > 0) {
-      if (!firstPos) firstPos = path[0];
-      creep.memory.phases.push({ move: path });
-      pos = path[path.length - 1];
-    }
-    const structures = getClusterStructures(destination.pos);
-    for (const target of structures) {
-      creep.memory.phases.push({ transfer: target.id });
-      // target structures are often full, so only decrease some energy
-      if (!utils.isTower(target) && "store" in target)
-        energy -= target.store.getCapacity(RESOURCE_ENERGY) / 2;
+    const targetAdded = addCarrierDestination(creep, source.room, pos, clusters);
+    if (targetAdded) {
+      if (!firstPos) firstPos = targetAdded.firstPos;
+      pos = targetAdded.pos;
+      energy -= targetAdded.energy;
     }
   }
   if (!firstPos) return;
   const returnPath = getPath(pos, firstPos, 0);
   if (returnPath.length > 0) creep.memory.phases.push({ move: returnPath });
   if (utils.getConstructionSites().length <= 0) buildRoadsForCarrier(creep);
+}
+
+function addCarrierDestinationStorage(creep: Creep, room: Room, pos: RoomPosition) {
+  if (!creep) return;
+  if (!creep.memory.phases) return;
+  if (utils.getStructureCount(room, STRUCTURE_LINK, false) < 2 && room?.controller?.my) {
+    // fill storage/container near controller without links
+    const storage = getStorage(room);
+    if (storage && utils.isStoreStructure(storage)) {
+      const path = getPath(pos, storage.pos, 1);
+      let firstPos;
+      if (path.length > 0) {
+        firstPos = path[0];
+        creep.memory.phases.push({ move: path });
+        pos = path[path.length - 1];
+      }
+      creep.memory.phases.push({ transfer: storage.id });
+      // target structures are often full, so only decrease some energy
+      const energy = storage.store.getCapacity(RESOURCE_ENERGY) / 2;
+      return { firstPos, pos, energy };
+    }
+  }
+  return;
+}
+
+function addCarrierDestination(
+  creep: Creep,
+  room: Room,
+  pos: RoomPosition,
+  clusters: {
+    pos: RoomPosition;
+    carriers: number;
+    towersLowOnEnergy: number;
+  }[]
+) {
+  if (!creep) return;
+  if (!creep.memory.phases) return;
+  clusters = sortClusters(clusters, pos);
+  const destination = clusters.shift();
+  if (!destination) return;
+  const path = getPath(pos, destination.pos, 0);
+  let firstPos;
+  if (path.length > 0) {
+    firstPos = path[0];
+    creep.memory.phases.push({ move: path });
+    pos = path[path.length - 1];
+  }
+  const structures = getClusterStructures(destination.pos);
+  let energy = 0;
+  for (const target of structures) {
+    creep.memory.phases.push({ transfer: target.id });
+    // target structures are often full, so only decrease some energy
+    if (!utils.isTower(target) && "store" in target) energy += target.store.getCapacity(RESOURCE_ENERGY) / 2;
+  }
+  return { firstPos, pos, energy };
+}
+
+function getStorage(room: Room) {
+  if (room.controller) {
+    return room.controller.pos.findClosestByRange(
+      room.controller.pos.findInRange(FIND_STRUCTURES, 10, {
+        filter(object) {
+          return utils.isStorage(object) || utils.isContainer(object);
+        }
+      })
+    );
+  }
+  return;
 }
 
 function sortClusters(
@@ -1965,8 +2008,8 @@ function getCostMatrix(roomName: string) {
       }
     });
     room.find(FIND_CREEPS).forEach(function (creep) {
-      let x = creep.pos.x;
-      let y = creep.pos.y;
+      const x = creep.pos.x;
+      const y = creep.pos.y;
       costs.set(x, y, costs.get(x, y) + 100);
     });
   }
@@ -1974,22 +2017,22 @@ function getCostMatrix(roomName: string) {
 }
 
 function getCostMatrixSafe(roomName: string) {
-  let costs = getCostMatrix(roomName);
+  const costs = getCostMatrix(roomName);
 
   const exits = Game.map.describeExits(roomName);
   for (const [direction, exitRoomName] of Object.entries(exits)) {
     if (!utils.isRoomSafe(exitRoomName)) {
       if (direction === FIND_EXIT_TOP.toString()) {
-        let y = 0;
+        const y = 0;
         for (let x = 0; x <= 49; x++) costs.set(x, y, 0xff);
       } else if (direction === FIND_EXIT_BOTTOM.toString()) {
-        let y = 49;
+        const y = 49;
         for (let x = 0; x <= 49; x++) costs.set(x, y, 0xff);
       } else if (direction === FIND_EXIT_LEFT.toString()) {
-        let x = 0;
+        const x = 0;
         for (let y = 0; y <= 49; y++) costs.set(x, y, 0xff);
       } else if (direction === FIND_EXIT_RIGHT.toString()) {
-        let x = 49;
+        const x = 49;
         for (let y = 0; y <= 49; y++) costs.set(x, y, 0xff);
       }
     }

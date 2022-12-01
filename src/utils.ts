@@ -857,12 +857,7 @@ export function getPotentialConstructionSites(room: Room): ScoredPos[] {
   return sites;
 }
 
-export function getSurroundingPlains(
-  pos: RoomPosition,
-  rangeMin: number,
-  rangeMax: number,
-  allowSwamp = false
-) {
+function getSurroundingPlains(pos: RoomPosition, rangeMin: number, rangeMax: number, allowSwamp = false) {
   const plains = [];
   const positions = getPositionsAround(pos, rangeMin, rangeMax, true);
   const terrain = new Room.Terrain(pos.roomName);
@@ -1496,10 +1491,10 @@ interface ClusterPos {
 }
 
 function getInitialClusterPaths(room: Room) {
-  let positions: RoomPosition[] = room.find(FIND_SOURCES).map(source => source.pos);
+  const positions: RoomPosition[] = room.find(FIND_SOURCES).map(source => source.pos);
   if (room.controller) positions.push(room.controller.pos);
 
-  let posInfos: ClusterPos[] = [];
+  const posInfos: ClusterPos[] = [];
 
   for (const from of positions) {
     for (const to of positions) {
@@ -1556,8 +1551,7 @@ function planClusters(room: Room, allowSwamp = false) {
     const structureCount = posInfos.filter(pi => pi.content === "structure").length;
     if (structureCount >= structuresInRoomClusters) {
       flagClusters(room, posInfos);
-      const clusterCount = posInfos.filter(pi => pi.content === "cluster").length;
-      clusterReport(room, clusterCount, structureCount);
+      clusterReport(room, posInfos.filter(pi => pi.content === "cluster").length, structureCount);
       return;
     }
   }
@@ -1610,17 +1604,17 @@ function hasClusters(room: Room) {
   return false;
 }
 
-export function clearClusters(room: Room) {
-  const flags = room.find(FIND_FLAGS);
-  for (const flag of flags) {
-    if (
-      flag.name.startsWith("cluster_") ||
-      flag.name.startsWith("path_") ||
-      flag.name.startsWith("structure_")
-    )
-      flag.remove();
-  }
-}
+// function clearClusters(room: Room) {
+//   const flags = room.find(FIND_FLAGS);
+//   for (const flag of flags) {
+//     if (
+//       flag.name.startsWith("cluster_") ||
+//       flag.name.startsWith("path_") ||
+//       flag.name.startsWith("structure_")
+//     )
+//       flag.remove();
+//   }
+// }
 
 function clusterReport(room: Room, clusterCount: number, count: number) {
   msg(room, "planned " + clusterCount.toString() + " clusters with " + count.toString() + " structures");
