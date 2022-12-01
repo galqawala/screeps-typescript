@@ -81,6 +81,7 @@ declare global {
 
   interface RoomMemory {
     canOperate: boolean;
+    costMatrix: number[];
     energyStores: EnergyStore[];
     harvestSpots: RoomPosition[];
     hostileRangedAttackParts: number;
@@ -1085,7 +1086,8 @@ function harvesterSpendEnergy(creep: Creep) {
 
 function handleRoom(room: Room) {
   utils.logCpu("handleRoom(" + room.name + ")");
-  //  if (room.name === "E4S42") utils.clearClusters(room);
+  if (!room.memory.costMatrix || Math.random() < 0.1)
+    room.memory.costMatrix = getCostMatrix(room.name).serialize();
   utils.logCpu("handleRoom(" + room.name + ") towers");
   handleRoomTowers(room);
   utils.logCpu("handleRoom(" + room.name + ") towers");
@@ -2017,8 +2019,7 @@ function getCostMatrix(roomName: string) {
 }
 
 function getCostMatrixSafe(roomName: string) {
-  const costs = getCostMatrix(roomName);
-
+  const costs = PathFinder.CostMatrix.deserialize(Memory.rooms[roomName].costMatrix);
   const exits = Game.map.describeExits(roomName);
   for (const [direction, exitRoomName] of Object.entries(exits)) {
     if (!utils.isRoomSafe(exitRoomName)) {
@@ -2037,7 +2038,6 @@ function getCostMatrixSafe(roomName: string) {
       }
     }
   }
-
   return costs;
 }
 
