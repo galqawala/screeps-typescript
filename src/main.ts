@@ -1161,10 +1161,10 @@ function roomUpdates(room: Room) {
   utils.logCpu("roomUpdates(" + room.name + ")");
 }
 
-function move(creep: Creep, destination: Destination) {
+function move(creep: Creep, destination: Destination, safe = true) {
   utils.logCpu("move(" + creep.name + ")");
   utils.logCpu("move(" + creep.name + ") moveTo");
-  const outcome = creep.moveTo(destination, {
+  let options: MoveToOpts = {
     // bit of randomness to prevent creeps from moving the same way at same time to pass each other
     reusePath: Math.round(Memory.maxTickLimit - Game.cpu.tickLimit + Math.random()),
     visualizePathStyle: {
@@ -1172,8 +1172,12 @@ function move(creep: Creep, destination: Destination) {
       opacity: 0.6,
       lineStyle: "dotted",
       strokeWidth: creep.memory.strokeWidth
-    }
-  });
+    },
+    plainCost: 2,
+    swampCost: 10
+  };
+  if (safe) options.costCallback = getCostMatrixSafe;
+  const outcome = creep.moveTo(destination, options);
   utils.logCpu("move(" + creep.name + ") moveTo");
   utils.logCpu("move(" + creep.name + ")");
   return outcome;
@@ -1931,6 +1935,20 @@ function getCostMatrix(roomName: string) {
     });
   }
   return costs;
+}
+
+function getCostMatrixSafe(roomName: string) {
+  if (utils.isRoomSafe(roomName)) {
+    return getCostMatrix(roomName);
+  } else {
+    const costs = new PathFinder.CostMatrix();
+    for (let x = 0; x <= 49; x++) {
+      for (let y = 0; y <= 49; y++) {
+        costs.set(x, y, 0xff);
+      }
+    }
+    return costs;
+  }
 }
 
 function buildRoadsForCarrier(creep: Creep) {
