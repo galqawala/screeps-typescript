@@ -1500,9 +1500,7 @@ function getInitialClusterPaths(room: Room) {
   let positions: RoomPosition[] = room.find(FIND_SOURCES).map(source => source.pos);
   if (room.controller) positions.push(room.controller.pos);
 
-  const posInfos: ClusterPos[] = [
-    { pos: positions[Math.floor(Math.random() * positions.length)], scanned: false, content: undefined }
-  ];
+  let posInfos: ClusterPos[] = [];
 
   for (const from of positions) {
     for (const to of positions) {
@@ -1530,8 +1528,9 @@ function isValidClusterPos(structurePosCount: number, pos: RoomPosition, room: R
 }
 
 function planClusters(room: Room, allowSwamp = false) {
+  if (!room.controller) return;
   let posInfos = getInitialClusterPaths(room);
-  if (!posInfos) return;
+  if (!posInfos || posInfos.length < 1) return;
   for (;;) {
     const clusterIndex = posInfos.findIndex(position => !position.scanned);
     if (clusterIndex === -1) break;
