@@ -1895,16 +1895,7 @@ function getStoragesRequiringCarrier() {
       const carriersForStorage = Math.ceil(
         (room.memory.stickyEnergy[room.storage.id] / STORAGE_CAPACITY) * 4
       );
-      if (countCarriersBySource(room.storage.id) < carriersForStorage) {
-        utils.msg(
-          room,
-          countCarriersBySource(room.storage.id).toString() +
-            " / " +
-            carriersForStorage.toString() +
-            " carriers drawing from storage"
-        );
-        containers.push(room.storage);
-      }
+      if (countCarriersBySource(room.storage.id) < carriersForStorage) containers.push(room.storage);
     }
   }
   return containers;
