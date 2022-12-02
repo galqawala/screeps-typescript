@@ -82,7 +82,6 @@ declare global {
   interface RoomMemory {
     canOperate: boolean;
     costMatrix: number[];
-    energyStores: EnergyStore[];
     harvestSpots: RoomPosition[];
     hostileRangedAttackParts: number;
     hostilesPresent: boolean;
@@ -92,7 +91,6 @@ declare global {
     score: number;
     sortedSpawnStructureIds: Id<Structure>[];
     stickyEnergy: Record<Id<AnyStoreStructure>, number>;
-    updateEnergyStores: boolean;
     upgradeSpots?: RoomPosition[];
   }
 
@@ -179,7 +177,7 @@ export const loop = ErrorMapper.wrapLoop(() => {
   if (!Memory.username) utils.setUsername();
   checkWipeOut();
   utils.logCpu("mem");
-  if (Math.random() < 0.1 || Memory.cpuUsedRatio < 0.2) updatePlan();
+  if (Math.random() < 0.01 || gotSpareCpu()) updatePlan();
   for (const r in Game.rooms) handleRoom(Game.rooms[r]);
   spawnCreeps();
   utils.logCpu("update flags");
@@ -330,77 +328,6 @@ function handleExplorer(creep: Creep) {
   utils.logCpu("handleExplorer(" + creep.name + ")");
 }
 
-function getEnergySource(
-  creep: Creep,
-  allowStorageAndLink: boolean,
-  pos: RoomPosition,
-  excludeIds: Id<Structure | Tombstone | Ruin | Resource>[],
-  freeCap: number
-) {
-  utils.logCpu("getEnergySource(" + creep.name + ")");
-  const destination = getRoomEnergySource(pos, allowStorageAndLink, excludeIds, pos.roomName, freeCap);
-  utils.logCpu("getEnergySource(" + creep.name + ")");
-  if (destination) return destination;
-  const sources = [];
-  for (const roomName of Object.keys(Game.rooms)) {
-    if (roomName === pos.roomName) continue; // checked this already in the beginning
-    const source = getRoomEnergySource(pos, allowStorageAndLink, excludeIds, roomName, freeCap);
-    if (source) sources.push(source);
-  }
-  const closest = sources
-    .map(value => ({
-      value,
-      sort: utils.getGlobalRange(pos, utils.getPos(value.store))
-    })) /* persist sort values */
-    .sort((a, b) => a.sort - b.sort) /* sort */
-    .map(({ value }) => value) /* remove sort values */[0];
-  utils.logCpu("getEnergySource(" + creep.name + ")");
-  return closest;
-}
-
-function getRoomEnergySource(
-  pos: RoomPosition,
-  allowStorageAndLink: boolean,
-  excludeIds: Id<Structure | Tombstone | Ruin | Resource>[],
-  roomName: string,
-  freeCap: number
-) {
-  const sources = [];
-  if (!Memory.rooms[roomName].energyStores) Memory.rooms[roomName].energyStores = [];
-  const stores = Memory.rooms[roomName].energyStores.filter(
-    source =>
-      !excludeIds.includes(source.id) &&
-      source.energy > 0 &&
-      // sources that are full or could make us full
-      (source.energy >= freeCap || source.freeCap <= 0)
-  );
-  if (!stores) return;
-  for (const store of stores) {
-    const source = Game.getObjectById(store.id);
-    if (isValidEnergySource(source, allowStorageAndLink)) sources.push(source);
-  }
-  const closest = sources
-    .map(value => ({
-      value,
-      sort: utils.getGlobalRange(pos, utils.getPos(value))
-    })) /* persist sort values */
-    .sort((a, b) => a.sort - b.sort) /* sort */
-    .map(({ value }) => value) /* remove sort values */[0];
-
-  if (closest) return { store: closest, info: stores.filter(store => store.id === closest.id)[0] };
-  return;
-}
-
-function isValidEnergySource(source: EnergySource | AnyStoreStructure | null, allowStorageAndLink: boolean) {
-  return (
-    source &&
-    !(source instanceof StructureExtension) &&
-    !(source instanceof StructureSpawn) &&
-    !(source instanceof StructureTower) &&
-    (allowStorageAndLink || (!utils.isStorage(source) && !utils.isLink(source)))
-  );
-}
-
 function handleUpgrader(creep: Creep) {
   utils.logCpu("handleUpgrader(" + creep.name + ")");
   // controller
@@ -479,35 +406,17 @@ function handleWorker(creep: Creep) {
 
 function workerRetrieveEnergy(creep: Creep) {
   utils.logCpu("workerRetrieveEnergy(" + creep.name + ")");
-  let destination;
-  const oldDestination = creep.memory.retrieve;
-  if (typeof oldDestination === "string") destination = Game.getObjectById(oldDestination);
-  if (!destination) {
-    destination = getEnergySource(creep, true, creep.pos, [], utils.getFreeCap(creep));
-    if (destination && destination.store && "id" in destination.store) {
-      creep.memory.retrieve = destination.store.id;
-      utils.setDestination(creep, destination.store);
-      utils.updateStoreEnergy(
-        destination.store.pos.roomName,
-        destination.store.id,
-        -Math.min(creep.store.getFreeCapacity(RESOURCE_ENERGY), destination.info.energy)
-      );
+  if (creep.room.storage && retrieveEnergy(creep, creep.room.storage) === ERR_NOT_IN_RANGE) {
+    move(creep, creep.room.storage);
+  } else {
+    const container = creep.pos.findClosestByRange(FIND_STRUCTURES, {
+      filter(object) {
+        return utils.isContainer(object);
+      }
+    });
+    if (container && retrieveEnergy(creep, container) === ERR_NOT_IN_RANGE) {
+      move(creep, container);
     }
-  }
-
-  if (destination instanceof RoomPosition) {
-    move(creep, destination);
-  } else if (destination instanceof Source && creep.harvest(destination) === ERR_NOT_IN_RANGE) {
-    move(creep, destination);
-  } else if (
-    (destination instanceof Structure ||
-      destination instanceof Tombstone ||
-      destination instanceof Ruin ||
-      destination instanceof Resource) &&
-    retrieveEnergy(creep, destination) === ERR_NOT_IN_RANGE
-  ) {
-    move(creep, destination);
-    if (retrieveEnergy(creep, destination) === ERR_NOT_IN_RANGE) utils.setDestination(creep, destination);
   }
   utils.logCpu("workerRetrieveEnergy(" + creep.name + ")");
 }
@@ -657,11 +566,13 @@ function getControllerToUpgrade(pos: RoomPosition | undefined = undefined, urgen
     if (room.memory.hostilesPresent) continue;
     if (!room.controller) continue;
     if (!room.controller.my) continue;
-    if (urgentOnly && room.controller.ticksToDowngrade > 4000) continue;
-    if (!hasEnoughEnergyForAnotherUpgrader(room.controller)) continue;
+    const ticksToDowngrade = room.controller.ticksToDowngrade;
+    if (urgentOnly && ticksToDowngrade > 4000) continue;
+    const upgraderCount = countUpgradersAssigned(room.controller.id);
+    if (!hasEnoughEnergyForAnotherUpgrader(room.controller) && (ticksToDowngrade > 4000 || upgraderCount > 0))
+      continue;
     if (isControllerUpgradedEnough(room.controller)) continue;
-    if (countUpgradersAssigned(room.controller.id) >= 5) continue;
-    utils.msg(room, "controller upgradeable");
+    if (upgraderCount >= 5) continue;
     targets.push(room.controller);
   }
   const destination = targets
@@ -1165,8 +1076,7 @@ function roomUpdates(room: Room) {
   if (!room.memory.harvestSpots) utils.updateHarvestSpots(room);
   if (!room.memory.remoteHarvestScore) utils.updateRemoteHarvestScore(room);
   if (!room.memory.score) utils.updateRoomScore(room);
-  if (room.memory.updateEnergyStores || Math.random() < 0.05) utils.updateRoomEnergyStores(room);
-  if (Math.random() < 0.01) utils.updateRoomRepairTargets(room);
+  if (Math.random() < 0.001) utils.updateRoomRepairTargets(room);
   utils.logCpu("roomUpdates(" + room.name + ")");
 }
 
@@ -1666,7 +1576,6 @@ function spawnCreep(
   });
 
   if (outcome === OK) {
-    spawn.room.memory.updateEnergyStores = true;
     const target = task?.destination || upgradeTarget;
     utils.spawnMsg(spawn, roleToSpawn, name, body, utils.getObjectDescription(target));
   } else {
@@ -1988,6 +1897,7 @@ function getStoragesRequiringCarrier() {
       if (countCarriersBySource(room.storage.id) < carriersForStorage) containers.push(room.storage);
     }
   }
+  utils.msg("getStoragesRequiringCarrier", containers.join());
   return containers;
 }
 

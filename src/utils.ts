@@ -60,7 +60,7 @@ export function isRoomPosition(item: RoomPosition): item is RoomPosition {
   return item instanceof RoomPosition;
 }
 export function isStoreStructure(
-  item: Structure | undefined | Ruin | Tombstone | Resource
+  item: Structure | undefined | Ruin | Tombstone | Resource | AnyStructure | null
 ): item is AnyStoreStructure {
   if (!item) return false;
   return "store" in item;
@@ -205,18 +205,6 @@ export function getNameForCreep(role: Role): string {
     name += characters.charAt(Math.floor(Math.random() * characters.length));
   }
   return name;
-}
-
-export function updateStoreEnergy(
-  roomName: string,
-  id: Id<EnergySource | AnyStoreStructure>,
-  amount: number
-): void {
-  const store = Memory.rooms[roomName].energyStores.filter(source => source.id === id)[0];
-  if (amount > store.freeCap) amount = store.freeCap;
-  if (amount < -store.energy) amount = -store.energy;
-  store.energy += amount;
-  store.freeCap -= amount;
 }
 
 export function shouldMaintainStatsFor(pos: RoomPosition): boolean {
@@ -938,38 +926,6 @@ export function updateRoomRepairTargets(room: Room): void {
 export function getHpRatio(obj: Structure): number {
   if ("hits" in obj && "hitsMax" in obj) return obj.hits / obj.hitsMax;
   return 0;
-}
-
-export function updateRoomEnergyStores(room: Room): void {
-  logCpu("updateRoomEnergyStores(" + room.name + ")");
-  room.memory.updateEnergyStores = false;
-  if (room.memory.hostilesPresent) {
-    room.memory.energyStores = [];
-    return;
-  }
-  let stores: (EnergySource | AnyStoreStructure)[] = room.find(FIND_DROPPED_RESOURCES);
-  stores = stores.concat(room.find(FIND_TOMBSTONES));
-  stores = stores.concat(room.find(FIND_RUINS));
-  stores = stores.concat(room.find(FIND_STRUCTURES).filter(isStoreStructure));
-  room.memory.energyStores = stores.map(store => {
-    return {
-      id: store.id,
-      energy: getEnergy(store),
-      freeCap: getFreeCap(store)
-    } as EnergyStore;
-  });
-  logCpu("updateRoomEnergyStores(" + room.name + ") tasks");
-  for (const creep of Object.values(Game.creeps)) {
-    if (!creep.memory.deliveryTasks) continue;
-    for (const task of creep.memory.deliveryTasks) {
-      const taskStore = room.memory.energyStores.filter(store => store.id === task.destination)[0];
-      if (!taskStore) continue;
-      taskStore.energy -= task.energy;
-      taskStore.freeCap += task.energy;
-    }
-  }
-  logCpu("updateRoomEnergyStores(" + room.name + ") tasks");
-  logCpu("updateRoomEnergyStores(" + room.name + ")");
 }
 
 export function constructInRoom(room: Room): void {
