@@ -89,7 +89,6 @@ declare global {
     remoteHarvestScore: number;
     repairTargets: Id<Structure>[];
     score: number;
-    sortedSpawnStructureIds: Id<Structure>[];
     stickyEnergy: Record<Id<AnyStoreStructure>, number>;
     upgradeSpots?: RoomPosition[];
   }
@@ -468,7 +467,8 @@ function build(creep: Creep) {
 }
 
 function getBuildSite(creep: Creep, allowMultipleBuilders: boolean) {
-  return utils
+  utils.logCpu("getBuildSite(" + creep.name + "," + allowMultipleBuilders.toString() + ")");
+  const constructionSite = utils
     .getConstructionSites()
     .filter(
       site =>
@@ -481,6 +481,8 @@ function getBuildSite(creep: Creep, allowMultipleBuilders: boolean) {
     })) /* persist sort values */
     .sort((a, b) => a.sort - b.sort) /* sort */
     .map(({ value }) => value) /* remove sort values */[0];
+  utils.logCpu("getBuildSite(" + creep.name + "," + allowMultipleBuilders.toString() + ")");
+  return constructionSite;
 }
 
 function repair(creep: Creep) {
@@ -819,13 +821,7 @@ function transfer(creep: Creep, destination: Creep | Structure<StructureConstant
     if ("memory" in destination) {
       utils.resetDestination(creep);
     }
-    if (destination instanceof StructureSpawn || destination instanceof StructureExtension) {
-      // First filled spawns/extensions should be used first, as they are probably easier to refill
-      if (!creep.room.memory.sortedSpawnStructureIds) creep.room.memory.sortedSpawnStructureIds = [];
-      if (!creep.room.memory.sortedSpawnStructureIds.includes(destination.id)) {
-        creep.room.memory.sortedSpawnStructureIds.push(destination.id);
-      }
-    } else if (destination instanceof Creep) {
+    if (destination instanceof Creep) {
       // the receiver should reconsider what to do after getting the energy
       utils.resetDestination(destination);
     }
@@ -1034,8 +1030,7 @@ function handleRoom(room: Room) {
   utils.logCpu("handleRoom(" + room.name + ") updates2");
   utils.logCpu("handleRoom(" + room.name + ") updates3");
   utils.checkRoomCanOperate(room);
-  utils.tryResetSpawnsAndExtensionsSorting(room);
-  updateStickyEnergy(room);
+  if (Math.random() < 0.1 && gotSpareCpu()) updateStickyEnergy(room);
   utils.logCpu("handleRoom(" + room.name + ") updates3");
   utils.logCpu("handleRoom(" + room.name + ")");
 }
@@ -1489,9 +1484,6 @@ function spawnHarvester() {
     spawn = getSpawn(cost, source.pos);
     if (!spawn) return;
   }
-  const energyStructures: (StructureSpawn | StructureExtension)[] = utils.getSpawnsAndExtensionsSorted(
-    spawn.room
-  );
   const name = utils.getNameForCreep(roleToSpawn);
   const harvestPos = utils.getHarvestSpotForSource(source);
   if (!harvestPos) return;
@@ -1503,7 +1495,7 @@ function spawnHarvester() {
     strokeWidth: 0.1 + 0.1 * (Math.random() % 4),
     pos: spawn.pos
   };
-  if (spawn.spawnCreep(body, name, { memory, energyStructures }) === OK) {
+  if (spawn.spawnCreep(body, name, { memory }) === OK) {
     utils.setDestinationFlag(name, harvestPos);
     utils.spawnMsg(spawn, roleToSpawn, name, body, utils.getObjectDescription(harvestPos));
   }
@@ -1532,13 +1524,9 @@ function spawnTransferer() {
   const spawn = getSpawn(cost, tgtStorage.pos);
   if (!spawn) return;
   const name = utils.getNameForCreep(roleToSpawn);
-  const energyStructures: (StructureSpawn | StructureExtension)[] = utils.getSpawnsAndExtensionsSorted(
-    spawn.room
-  );
   if (
     spawn.spawnCreep(body, name, {
-      memory: getTransferrerMem(link.id, tgtStorage.id, spawn.pos),
-      energyStructures
+      memory: getTransferrerMem(link.id, tgtStorage.id, spawn.pos)
     }) === OK
   ) {
     utils.spawnMsg(spawn, roleToSpawn, name, body, utils.getObjectDescription(tgtStorage));
@@ -1583,10 +1571,8 @@ function spawnCreep(
   if (!spawn) return;
   if (!body || utils.getBodyCost(body) > spawn.room.energyAvailable) return;
 
-  const energyStructures = utils.getSpawnsAndExtensionsSorted(spawn.room);
   const outcome = spawn.spawnCreep(body, name, {
-    memory: getInitialCreepMem(roleToSpawn, task, spawn.pos, upgradeTarget),
-    energyStructures
+    memory: getInitialCreepMem(roleToSpawn, task, spawn.pos, upgradeTarget)
   });
 
   if (outcome === OK) {
@@ -1983,6 +1969,7 @@ function buildRoadsForCarrier(creep: Creep) {
 }
 
 function updateStickyEnergy(room: Room) {
+  utils.logCpu("updateStickyEnergy(" + room.name + ")");
   const containers = room.find(FIND_STRUCTURES).filter(utils.isStoreStructure);
   const values: Record<Id<AnyStoreStructure>, number> = {};
   const rate = 5; // max change per tick
@@ -1992,6 +1979,7 @@ function updateStickyEnergy(room: Room) {
     values[container.id] = Math.max(Math.min(now, then + rate), then - rate);
   }
   room.memory.stickyEnergy = values;
+  utils.logCpu("updateStickyEnergy(" + room.name + ")");
 }
 
 function checkWipeOut() {

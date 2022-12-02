@@ -411,27 +411,6 @@ export function setDestinationFlag(name: string, pos: RoomPosition): void {
   }
 }
 
-export function getSpawnsAndExtensionsSorted(room: Room): (StructureSpawn | StructureExtension)[] {
-  // First filled spawns/extensions should be used first, as they are probably easier to refill
-  const all = room
-    .find(FIND_MY_STRUCTURES)
-    .filter(
-      structure =>
-        structure.structureType === STRUCTURE_EXTENSION || structure.structureType === STRUCTURE_SPAWN
-    );
-  if (!room.memory.sortedSpawnStructureIds) room.memory.sortedSpawnStructureIds = [];
-  return room.memory.sortedSpawnStructureIds
-    .map(id => Game.getObjectById(id))
-    .concat(
-      all // random sorting
-        .map(value => ({ value, sort: Math.random() }))
-        .sort((a, b) => a.sort - b.sort)
-        .map(({ value }) => value)
-    )
-    .filter((value, index, self) => self.indexOf(value) === index) // unique
-    .filter(isSpawnOrExtension);
-}
-
 export function constructContainerIfNeed(harvestPos: RoomPosition): void {
   if (
     harvestPos.lookFor(LOOK_STRUCTURES).filter(s => s.structureType !== STRUCTURE_ROAD).length <= 0 &&
@@ -551,24 +530,6 @@ export function isUnderRepair(structure: Structure): boolean {
   }).length;
   if (creepsRepairingIt) return true;
   return false;
-}
-
-export function tryResetSpawnsAndExtensionsSorting(room: Room): void {
-  // First filled spawns/extensions should be used first, as they are probably easier to refill
-  // If none are full we can forget the old order and learn a new one
-  logCpu("tryResetSpawnsAndExtensionsSorting(" + room.name + ")");
-  if (
-    room
-      .find(FIND_MY_STRUCTURES)
-      .filter(
-        structure =>
-          (structure.structureType === STRUCTURE_EXTENSION || structure.structureType === STRUCTURE_SPAWN) &&
-          isFull(structure)
-      ).length <= 0
-  ) {
-    room.memory.sortedSpawnStructureIds = [];
-  }
-  logCpu("tryResetSpawnsAndExtensionsSorting(" + room.name + ")");
 }
 
 export function canOperateInRoom(room: Room): boolean {
@@ -1077,8 +1038,6 @@ export function handleLinks(room: Room): void {
     } else {
       upstreamLink.transferEnergy(downstreamLink);
       upstreamIndex++;
-      resetSpecificDestinationFromCreeps(upstreamLink);
-      resetSpecificDestinationFromCreeps(downstreamLink);
     }
   }
   logCpu("handleLinks(" + room.name + ") loop");
