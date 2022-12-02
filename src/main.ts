@@ -411,11 +411,25 @@ function workerRetrieveEnergy(creep: Creep) {
   } else {
     const container = creep.pos.findClosestByRange(FIND_STRUCTURES, {
       filter(object) {
-        return utils.isContainer(object);
+        return utils.isContainer(object) && utils.getEnergy(object) > 0;
       }
     });
     if (container && retrieveEnergy(creep, container) === ERR_NOT_IN_RANGE) {
       move(creep, container);
+    } else {
+      const closestStorage = Object.values(Game.rooms)
+        .filter(room => room.storage && utils.getEnergy(room.storage) > 0)
+        .map(room => ({
+          storage: room.storage,
+          sort: utils.getGlobalRange(creep.pos, utils.getPos(room.storage))
+        })) /* persist sort values */
+        .sort((a, b) => a.sort - b.sort) /* sort */
+        .map(({ storage }) => storage) /* remove sort values */[0];
+      if (closestStorage && retrieveEnergy(creep, closestStorage) === ERR_NOT_IN_RANGE) {
+        move(creep, closestStorage);
+      } else if (isStuck(creep)) {
+        moveRandomDirection(creep);
+      }
     }
   }
   utils.logCpu("workerRetrieveEnergy(" + creep.name + ")");
