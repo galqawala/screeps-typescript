@@ -1705,8 +1705,9 @@ function isPosEqual(a: RoomPosition, b: RoomPosition) {
 function planCarrierRoutes(creep: Creep) {
   creep.memory.phaseIndex = 0;
   const source = getCarrierEnergySource(creep);
-  creep.memory.retrieve = source.id;
   if (!source) return;
+  else if (utils.isContainer(source)) creep.memory.container = source.id;
+  else if (utils.isStorage(source)) creep.memory.storage = source.id;
   creep.memory.phases = [{ retrieve: source.id }];
   let pos = source.pos;
   let firstPos;
@@ -1894,10 +1895,18 @@ function getStoragesRequiringCarrier() {
       const carriersForStorage = Math.ceil(
         (room.memory.stickyEnergy[room.storage.id] / STORAGE_CAPACITY) * 4
       );
-      if (countCarriersBySource(room.storage.id) < carriersForStorage) containers.push(room.storage);
+      if (countCarriersBySource(room.storage.id) < carriersForStorage) {
+        utils.msg(
+          room,
+          countCarriersBySource(room.storage.id).toString() +
+            " / " +
+            carriersForStorage.toString() +
+            " carriers drawing from storage"
+        );
+        containers.push(room.storage);
+      }
     }
   }
-  utils.msg("getStoragesRequiringCarrier", containers.join());
   return containers;
 }
 
@@ -2001,6 +2010,8 @@ function countCarriersByCluster(pos: RoomPosition) {
 
 function countCarriersBySource(sourceId: Id<StructureContainer | StructureStorage>) {
   return Object.values(Game.creeps).filter(
-    carrier => carrier.memory.role === "carrier" && carrier.memory.retrieve === sourceId
+    carrier =>
+      carrier.memory.role === "carrier" &&
+      (carrier.memory.storage === sourceId || carrier.memory.container === sourceId)
   ).length;
 }
