@@ -1011,7 +1011,7 @@ function harvesterSpendEnergy(creep: Creep) {
 function handleRoom(room: Room) {
   utils.logCpu("handleRoom(" + room.name + ")");
   utils.logCpu("handleRoom(" + room.name + ") costs");
-  if (!room.memory.costMatrix || Math.random() < 0.01)
+  if (!room.memory.costMatrix || Math.random() < 0.03)
     room.memory.costMatrix = getCostMatrix(room.name).serialize();
   utils.logCpu("handleRoom(" + room.name + ") costs");
   utils.logCpu("handleRoom(" + room.name + ") towers");
@@ -1433,9 +1433,13 @@ function updateFlagReserve() {
 
 function needWorkers() {
   utils.logCpu("needWorkers");
-  const workParts = Object.values(Game.creeps)
-    .filter(creep => creep.memory.role === "worker")
-    .reduce((aggregated, item) => aggregated + item.getActiveBodyparts(WORK), 0 /* initial*/);
+  const workers = Object.values(Game.creeps).filter(creep => creep.memory.role === "worker");
+  utils.logCpu("needWorkers");
+  if (workers.length >= 15) return false;
+  const workParts = workers.reduce(
+    (aggregated, item) => aggregated + item.getActiveBodyparts(WORK),
+    0 /* initial*/
+  );
   const partsNeeded = Math.ceil(getTotalConstructionWork() / 400 + utils.getTotalRepairTargetCount() / 1.5);
   const value =
     partsNeeded > workParts && (Memory.plan.minTicksToDowngrade > 4000 || !Memory.plan.needUpgraders);
