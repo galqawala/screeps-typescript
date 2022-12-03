@@ -677,7 +677,7 @@ function phaseMove(creep: Creep, phase: Phase) {
 }
 
 function isStuck(creep: Creep) {
-  return (creep.memory.lastMoveTime || 0) < Game.time - 8;
+  return (creep.memory.lastMoveTime || 0) < Game.time - 10;
 }
 
 function phaseRetrieve(creep: Creep, phase: Phase) {
