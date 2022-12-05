@@ -81,7 +81,7 @@ declare global {
 
   interface RoomMemory {
     canOperate: boolean;
-    costMatrix: number[];
+    costMatrix?: number[];
     harvestSpots: RoomPosition[];
     hostileRangedAttackParts: number;
     hostilesPresent: boolean;
@@ -167,6 +167,9 @@ export const loop = ErrorMapper.wrapLoop(() => {
   utils.logCpu("mem");
   if ((Memory.maxTickLimit || 0) < Game.cpu.tickLimit) Memory.maxTickLimit = Game.cpu.tickLimit;
   if (Math.random() < 0.1) {
+    for (const key in Memory.rooms) {
+      if (!Game.rooms[key]) delete Memory.rooms[key].costMatrix;
+    }
     for (const key in Memory.creeps) {
       if (!Game.creeps[key]) delete Memory.creeps[key];
     }
@@ -1941,26 +1944,30 @@ function getCostMatrix(roomName: string) {
 }
 
 function getCostMatrixSafe(roomName: string) {
-  const costs = PathFinder.CostMatrix.deserialize(Memory.rooms[roomName].costMatrix);
-  const exits = Game.map.describeExits(roomName);
-  for (const [direction, exitRoomName] of Object.entries(exits)) {
-    if (!utils.isRoomSafe(exitRoomName)) {
-      if (direction === FIND_EXIT_TOP.toString()) {
-        const y = 0;
-        for (let x = 0; x <= 49; x++) costs.set(x, y, 0xff);
-      } else if (direction === FIND_EXIT_BOTTOM.toString()) {
-        const y = 49;
-        for (let x = 0; x <= 49; x++) costs.set(x, y, 0xff);
-      } else if (direction === FIND_EXIT_LEFT.toString()) {
-        const x = 0;
-        for (let y = 0; y <= 49; y++) costs.set(x, y, 0xff);
-      } else if (direction === FIND_EXIT_RIGHT.toString()) {
-        const x = 49;
-        for (let y = 0; y <= 49; y++) costs.set(x, y, 0xff);
+  const costMem = Memory.rooms[roomName].costMatrix;
+  if (costMem) {
+    const costs = PathFinder.CostMatrix.deserialize(costMem);
+    const exits = Game.map.describeExits(roomName);
+    for (const [direction, exitRoomName] of Object.entries(exits)) {
+      if (!utils.isRoomSafe(exitRoomName)) {
+        if (direction === FIND_EXIT_TOP.toString()) {
+          const y = 0;
+          for (let x = 0; x <= 49; x++) costs.set(x, y, 0xff);
+        } else if (direction === FIND_EXIT_BOTTOM.toString()) {
+          const y = 49;
+          for (let x = 0; x <= 49; x++) costs.set(x, y, 0xff);
+        } else if (direction === FIND_EXIT_LEFT.toString()) {
+          const x = 0;
+          for (let y = 0; y <= 49; y++) costs.set(x, y, 0xff);
+        } else if (direction === FIND_EXIT_RIGHT.toString()) {
+          const x = 49;
+          for (let y = 0; y <= 49; y++) costs.set(x, y, 0xff);
+        }
       }
     }
+    return costs;
   }
-  return costs;
+  return new PathFinder.CostMatrix();
 }
 
 function buildRoadsForCarrier(creep: Creep) {
