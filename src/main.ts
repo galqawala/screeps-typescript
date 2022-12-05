@@ -1726,9 +1726,10 @@ function planCarrierRoutes(creep: Creep) {
     pos = storageAdded.pos;
     energy -= storageAdded.energy;
   }
-  const clusters = getClusters();
+  let clusters = getClusters();
   while (energy > 0) {
-    const targetAdded = addCarrierDestination(creep, source.room, pos, clusters);
+    clusters = sortClusters(clusters, pos);
+    const targetAdded = addCarrierDestination(creep, pos, clusters.shift());
     if (targetAdded) {
       if (!firstPos) firstPos = targetAdded.firstPos;
       pos = targetAdded.pos;
@@ -1766,18 +1767,17 @@ function addCarrierDestinationStorage(creep: Creep, room: Room, pos: RoomPositio
 
 function addCarrierDestination(
   creep: Creep,
-  room: Room,
   pos: RoomPosition,
-  clusters: {
-    pos: RoomPosition;
-    carriers: number;
-    towersLowOnEnergy: number;
-  }[]
+  destination:
+    | {
+        pos: RoomPosition;
+        carriers: number;
+        towersLowOnEnergy: number;
+      }
+    | undefined
 ) {
   if (!creep) return;
   if (!creep.memory.phases) return;
-  clusters = sortClusters(clusters, pos);
-  const destination = clusters.shift();
   if (!destination) return;
   const path = getPath(pos, destination.pos, 0);
   let firstPos;
