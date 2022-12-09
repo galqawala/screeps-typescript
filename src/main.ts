@@ -1724,7 +1724,7 @@ function planCarrierRoutes(creep: Creep) {
   let pos = source.pos;
   let firstPos;
   let energy = creep.store.getCapacity(RESOURCE_ENERGY);
-  const storageAdded = addCarrierDestinationStorage(creep, source.room, pos);
+  const storageAdded = addCarrierDestinationStorage(creep, source, pos);
   if (storageAdded) {
     if (!firstPos) firstPos = storageAdded.firstPos;
     pos = storageAdded.pos;
@@ -1746,13 +1746,18 @@ function planCarrierRoutes(creep: Creep) {
   if (utils.getConstructionSites().length <= 0) buildRoadsForCarrier(creep);
 }
 
-function addCarrierDestinationStorage(creep: Creep, room: Room, pos: RoomPosition) {
+function addCarrierDestinationStorage(
+  creep: Creep,
+  source: StructureContainer | StructureStorage,
+  pos: RoomPosition
+) {
   if (!creep) return;
   if (!creep.memory.phases) return;
+  const room = source.room;
   if (utils.getStructureCount(room, STRUCTURE_LINK, false) < 2 && room?.controller?.my) {
     // fill storage/container near controller without links
     const storage = getStorage(room);
-    if (storage && utils.isStoreStructure(storage)) {
+    if (storage && utils.isStoreStructure(storage) && storage.id !== source.id) {
       const path = getPath(pos, storage.pos, 1);
       let firstPos;
       if (path.length > 0) {
