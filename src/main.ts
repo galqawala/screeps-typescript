@@ -118,6 +118,7 @@ declare global {
     storage?: Id<StructureStorage>;
     stroke: string;
     strokeWidth: number;
+    transfered?: boolean;
     transferTo?: Id<Structure>;
     upgrade?: Id<StructureController>;
   }
@@ -287,6 +288,7 @@ function handleCreeps() {
     if (!Game.creeps[c].spawning) {
       utils.logCpu("creep: " + c);
       const creep = Game.creeps[c];
+      creep.memory.transfered = false;
       if (creep.memory.pos?.roomName !== creep.pos.roomName) delete creep.memory.pathKey;
 
       const role = creep.memory.role;
@@ -709,6 +711,7 @@ function phaseRetrieve(creep: Creep, phase: Phase) {
 function phaseTransfer(creep: Creep, phase: Phase) {
   if (!creep.memory.phases) return;
   if (!phase.transfer) return;
+  if (creep.memory.transfered) return;
   const tgt = Game.getObjectById(phase.transfer);
   if (!tgt) {
     utils.msg(creep, "Trying to transfer to " + phase.transfer + ", but it doesn't exist! Resetting plans!");
@@ -721,6 +724,7 @@ function phaseTransfer(creep: Creep, phase: Phase) {
   if (outcome === ERR_NOT_IN_RANGE) {
     move(creep, tgt);
   } else {
+    creep.memory.transfered = true;
     nextPhase(creep);
   }
 }
