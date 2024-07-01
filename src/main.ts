@@ -1158,7 +1158,7 @@ function gotSpareCpu() {
 
 function spawnCreeps() {
   utils.logCpu("spawnCreeps()");
-  const budget = gotSpareCpu() ? Memory.plan.maxRoomEnergy : Memory.plan.maxRoomEnergyCap;
+  const budget = gotSpareCpu() ? Memory.plan?.maxRoomEnergy : Memory.plan?.maxRoomEnergyCap;
   if (Memory.plan.needTransferers) {
     spawnTransferer();
   } else if (Memory.plan.needCarriers) {
