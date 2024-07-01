@@ -920,7 +920,6 @@ export function constructInRoom(room: Room): void {
   if (hasClusters(room)) {
     if (getConstructionSites().length <= 0) destroyStructuresOutsideClusters(room);
   } else {
-    msg(room, "creating clusters plans");
     planClusters(room);
   }
   logCpu("constructInRoom(" + room.name + ")");
