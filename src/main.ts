@@ -200,30 +200,24 @@ function updatePlan() {
   const storageMin = getStorageMin();
   const allSpawnsFull = areAllSpawnsFull();
   const needHarvesters = getSourceToHarvest() ? true : false;
-  Memory.plan.celebrate = shouldCelebrate();
-  Memory.plan.controllersToReserve = utils.getControllersToReserve().map(controller => controller.id);
-  Memory.plan.fillSpawnsFromStorage = storageMin >= 800000 && !allSpawnsFull;
-  Memory.plan.fillStorage = (storageMin < 150000 && !needHarvesters) || allSpawnsFull;
-  utils.logCpu("updatePlan need1");
-  Memory.plan.needAttackers = needAttackers();
-  Memory.plan.needCarriers = needCarriers();
-  Memory.plan.needExplorers = needExplorers();
-  Memory.plan.needHarvesters = storageMin < 900000 && needHarvesters;
-  utils.logCpu("updatePlan need1");
-  utils.logCpu("updatePlan need2");
-  Memory.plan.needInfantry = needInfantry();
-  Memory.plan.needReservers = needReservers();
-  Memory.plan.needTransferers = needTransferers();
-  Memory.plan.needUpgraders = getControllerToUpgrade(undefined, false) ? true : false;
-  Memory.plan.needWorkers = needWorkers();
-  utils.logCpu("updatePlan need2");
-  Memory.plan.maxRoomEnergy = Math.max(
-    ...Object.values(Game.spawns).map(spawn => spawn.room.energyAvailable)
-  );
-  Memory.plan.maxRoomEnergyCap = Math.max(
-    ...Object.values(Game.spawns).map(s => s.room.energyCapacityAvailable)
-  );
-  Memory.plan.minTicksToDowngrade = getMinTicksToDowngrade();
+  Memory.plan = {
+    celebrate: shouldCelebrate(),
+    controllersToReserve: utils.getControllersToReserve().map(controller => controller.id),
+    fillSpawnsFromStorage: storageMin >= 800000 && !allSpawnsFull,
+    fillStorage: (storageMin < 150000 && !needHarvesters) || allSpawnsFull,
+    needAttackers: needAttackers(),
+    needCarriers: needCarriers(),
+    needExplorers: needExplorers(),
+    needHarvesters: storageMin < 900000 && needHarvesters,
+    needInfantry: needInfantry(),
+    needReservers: needReservers(),
+    needTransferers: needTransferers(),
+    needUpgraders: getControllerToUpgrade(undefined, false) ? true : false,
+    needWorkers: needWorkers(),
+    maxRoomEnergy: Math.max(...Object.values(Game.spawns).map(spawn => spawn.room.energyAvailable)),
+    maxRoomEnergyCap: Math.max(...Object.values(Game.spawns).map(s => s.room.energyCapacityAvailable)),
+    minTicksToDowngrade: getMinTicksToDowngrade()
+  };
   utils.logCpu("updatePlan");
 }
 
@@ -302,7 +296,7 @@ function handleCreeps() {
       else if (role === "upgrader") handleUpgrader(creep);
       else if (role === "worker") handleWorker(creep);
 
-      if (Memory.plan.celebrate && Math.random() < 0.3) celebrate(Game.creeps[c]);
+      if (Memory.plan?.celebrate && Math.random() < 0.3) celebrate(Game.creeps[c]);
       if (!isPosEqual(creep.memory.pos, creep.pos)) creep.memory.lastMoveTime = Game.time;
       creep.memory.pos = creep.pos;
       utils.logCpu("creep: " + c);
@@ -770,7 +764,7 @@ function handleReserver(creep: Creep) {
       recycleCreep(creep);
     }
   } else {
-    const destinations = Memory.plan.controllersToReserve.map(id => Game.getObjectById(id));
+    const destinations = Memory.plan?.controllersToReserve.map(id => Game.getObjectById(id));
     if (destinations.length && destinations[0]) {
       utils.setDestination(creep, destinations[0]);
       move(creep, destinations[0]);
@@ -1159,23 +1153,23 @@ function gotSpareCpu() {
 function spawnCreeps() {
   utils.logCpu("spawnCreeps()");
   const budget = gotSpareCpu() ? Memory.plan?.maxRoomEnergy : Memory.plan?.maxRoomEnergyCap;
-  if (Memory.plan.needTransferers) {
+  if (Memory.plan?.needTransferers) {
     spawnTransferer();
-  } else if (Memory.plan.needCarriers) {
+  } else if (Memory.plan?.needCarriers) {
     spawnCreep("carrier", budget);
-  } else if (Memory.plan.needHarvesters) {
+  } else if (Memory.plan?.needHarvesters) {
     spawnHarvester();
-  } else if (Memory.plan.needInfantry) {
+  } else if (Memory.plan?.needInfantry) {
     spawnRole("infantry");
-  } else if (Memory.plan.needAttackers) {
+  } else if (Memory.plan?.needAttackers) {
     spawnCreep("attacker", budget);
-  } else if (Memory.plan.needExplorers) {
+  } else if (Memory.plan?.needExplorers) {
     spawnRole("explorer", 0, [MOVE]);
-  } else if (Memory.plan.needWorkers) {
+  } else if (Memory.plan?.needWorkers) {
     spawnCreep("worker", budget);
-  } else if (Memory.plan.needReservers) {
+  } else if (Memory.plan?.needReservers) {
     spawnReserver();
-  } else if (Memory.plan.needUpgraders) {
+  } else if (Memory.plan?.needUpgraders) {
     const upgradeTarget = getControllerToUpgrade();
     if (!upgradeTarget) return;
     spawnCreep("upgrader", budget, undefined, undefined, upgradeTarget);
@@ -1185,7 +1179,7 @@ function spawnCreeps() {
 
 function needReservers() {
   return (
-    Memory.plan.controllersToReserve.length > 0 ||
+    Memory.plan?.controllersToReserve.length > 0 ||
     ("claim" in Game.flags && utils.getCreepCountByRole("reserver") < 1)
   );
 }
@@ -1289,7 +1283,7 @@ function spawnRole(roleToSpawn: Role, minBudget = 0, body: undefined | BodyPartC
   const budget = Math.floor(
     Math.min(
       Math.max(utils.getCostOfCurrentCreepsInTheRole(roleToSpawn), minBudget),
-      Memory.plan.maxRoomEnergyCap
+      Memory.plan?.maxRoomEnergyCap
     )
   );
   spawnCreep(roleToSpawn, budget, body, undefined);
@@ -1306,14 +1300,14 @@ function needAttackers() {
 
 function spawnReserver() {
   let task: Task | undefined;
-  const controller = Game.getObjectById(Memory.plan.controllersToReserve[0]);
+  const controller = Game.getObjectById(Memory.plan?.controllersToReserve[0]);
   if (controller) {
     task = {
       destination: controller,
       action: "reserveController"
     };
   }
-  const energy = Math.min(Math.max(1300, Memory.plan.maxRoomEnergy), 3800);
+  const energy = Math.min(Math.max(1300, Memory.plan?.maxRoomEnergy), 3800);
   spawnCreep("reserver", energy, undefined, task);
 }
 
@@ -1434,8 +1428,10 @@ function updateFlagReserve() {
       return; // current flag is still valid
     }
   }
-  const targets = Memory.plan.controllersToReserve.map(id => Game.getObjectById(id));
-  if (targets.length && targets[0]) targets[0].pos.createFlag("reserve", COLOR_ORANGE, COLOR_WHITE);
+  const targets = Memory.plan?.controllersToReserve.map(id => Game.getObjectById(id));
+  if (targets?.length && targets[0]) {
+    targets[0].pos.createFlag("reserve", COLOR_ORANGE, COLOR_WHITE);
+  }
   utils.logCpu("updateFlagReserve()");
 }
 
@@ -1450,7 +1446,7 @@ function needWorkers() {
   );
   const partsNeeded = Math.ceil(getTotalConstructionWork() / 400 + utils.getTotalRepairTargetCount() / 1.5);
   const value =
-    partsNeeded > workParts && (Memory.plan.minTicksToDowngrade > 4000 || !Memory.plan.needUpgraders);
+    partsNeeded > workParts && (Memory.plan?.minTicksToDowngrade > 4000 || !Memory.plan?.needUpgraders);
   utils.logCpu("needWorkers");
   return value;
 }
