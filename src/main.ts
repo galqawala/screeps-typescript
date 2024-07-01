@@ -243,8 +243,10 @@ function getMinTicksToDowngrade() {
 
 function getStorageMin() {
   utils.logCpu("getStorageMin");
-  let storageMin = Number.POSITIVE_INFINITY;
   const storages = Object.values(Game.structures).filter(utils.isStorage);
+  if (storages.length < 1) return 0;
+
+  let storageMin = Number.POSITIVE_INFINITY;
   for (const storage of storages) {
     storageMin = Math.min(storageMin, storage.store.getUsedCapacity(RESOURCE_ENERGY));
   }
