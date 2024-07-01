@@ -75,7 +75,7 @@ export function isOwnedStoreStructure(
 
 export function isEmpty(object: Structure | Creep | Ruin | Resource | Tombstone): boolean {
   if (!object) return false;
-  const store = getStore(object);
+  const store = getStore(object) as StoreBase<RESOURCE_ENERGY, false>;
   if (!store) return false;
   return store.getUsedCapacity(RESOURCE_ENERGY) <= 0;
 }
@@ -88,28 +88,28 @@ function getStore(object: Creep | AnyStructure | Resource | Ruin | Tombstone | S
 
 export function isFull(object: Structure | Creep | Ruin | Resource | Tombstone): boolean {
   if (!object) return false;
-  const store = getStore(object);
+  const store = getStore(object) as StoreBase<RESOURCE_ENERGY, false>;
   if (!store) return false;
   return store.getFreeCapacity(RESOURCE_ENERGY) <= 0;
 }
 
 export function hasSpace(object: Structure | Creep | Ruin | Resource | Tombstone): boolean {
   if (!object) return false;
-  const store = getStore(object);
+  const store = getStore(object) as StoreBase<RESOURCE_ENERGY, false>;
   if (!store) return false;
   return store.getFreeCapacity(RESOURCE_ENERGY) > 0;
 }
 
 export function getFillRatio(object: Structure | Creep): number {
   if (!object) return 0;
-  const store = getStore(object);
+  const store = getStore(object) as StoreBase<RESOURCE_ENERGY, false>;
   if (!store) return 0;
   return store.getUsedCapacity(RESOURCE_ENERGY) / store.getCapacity(RESOURCE_ENERGY);
 }
 
 export function getEnergy(object: Creep | AnyStructure | Resource | Ruin | Tombstone | Structure): number {
   if (!object) return 0;
-  const store = getStore(object);
+  const store = getStore(object) as StoreBase<RESOURCE_ENERGY, false>;
   if (store) return store.getUsedCapacity(RESOURCE_ENERGY);
   if ("energy" in object) return object.energy;
   return 0;
@@ -117,7 +117,7 @@ export function getEnergy(object: Creep | AnyStructure | Resource | Ruin | Tombs
 
 export function getFreeCap(object: Creep | AnyStructure | Resource | Ruin | Tombstone | Structure): number {
   if (!object) return Number.NEGATIVE_INFINITY;
-  const store = getStore(object);
+  const store = getStore(object) as StoreBase<RESOURCE_ENERGY, false>;
   if (store) return store.getFreeCapacity(RESOURCE_ENERGY);
   return Number.NEGATIVE_INFINITY;
 }

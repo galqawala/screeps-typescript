@@ -1949,7 +1949,7 @@ function getCostMatrix(roomName: string) {
 }
 
 function getCostMatrixSafe(roomName: string) {
-  const costMem = Memory.rooms[roomName].costMatrix;
+  const costMem = Memory.rooms[roomName]?.costMatrix;
   if (costMem) {
     const costs = PathFinder.CostMatrix.deserialize(costMem);
     const exits = Game.map.describeExits(roomName);
