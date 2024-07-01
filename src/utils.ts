@@ -857,6 +857,7 @@ export function setDestination(creep: Creep, destination: Destination): void {
       creep.memory.destination = destination.id;
     } else if (destination instanceof RoomPosition) {
       creep.memory.destination = destination;
+      setDestinationFlag(creep.name, destination);
     }
   }
   logCpu("setDestination(" + creep.name + ")");
