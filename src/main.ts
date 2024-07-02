@@ -979,7 +979,7 @@ function handleHarvester(creep: Creep) {
 
 function harvesterSpendEnergy(creep: Creep) {
   utils.logCpu("harvesterSpendEnergy(" + creep.name + ")");
-  if (Memory.plan.minTicksToDowngrade > 1000) {
+  if (Memory.plan?.minTicksToDowngrade > 1000) {
     utils.logCpu("harvesterSpendEnergy(" + creep.name + ") repair");
     const target = creep.pos.lookFor(LOOK_STRUCTURES).filter(utils.needRepair)[0];
     if (target) creep.repair(target);
@@ -1157,7 +1157,11 @@ function gotSpareCpu() {
 function spawnCreeps() {
   utils.logCpu("spawnCreeps()");
   const budget = gotSpareCpu() ? Memory.plan?.maxRoomEnergy : Memory.plan?.maxRoomEnergyCap;
-  if (Memory.plan?.needTransferers) {
+  if (Memory.plan?.minTicksToDowngrade < 1000) {
+    const upgradeTarget = getControllerToUpgrade();
+    if (!upgradeTarget || countUpgradersAssigned(upgradeTarget.id) > 0) return;
+    spawnCreep("upgrader", budget, undefined, undefined, upgradeTarget);
+  } else if (Memory.plan?.needTransferers) {
     spawnTransferer();
   } else if (Memory.plan?.needCarriers) {
     spawnCreep("carrier", budget);
@@ -1996,7 +2000,7 @@ function updateStickyEnergy(room: Room) {
   utils.logCpu("updateStickyEnergy(" + room.name + ")");
   const containers = room.find(FIND_STRUCTURES).filter(utils.isStoreStructure);
   const values: Record<Id<AnyStoreStructure>, number> = {};
-  const rate = 8; // max change per tick
+  const rate = 9; // max change per tick
   for (const container of containers) {
     const now = utils.getEnergy(container);
     const then = room.memory.stickyEnergy?.[container.id] || 0;
