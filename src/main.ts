@@ -1309,7 +1309,7 @@ function spawnReserver() {
       action: "reserveController"
     };
   }
-  const energy = Math.min(Math.max(1300, Memory.plan?.maxRoomEnergy), 3800);
+  const energy = Math.min(Memory.plan?.maxRoomEnergy, 3800);
   spawnCreep("reserver", energy, undefined, task);
 }
 
