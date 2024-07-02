@@ -1519,7 +1519,6 @@ export function getObjectDescription(obj: Destination | undefined | string | Roo
 }
 
 function addClusterForExistingSpawn(posInfos: ClusterPos[], room: Room): ClusterPos[] {
-  console.log(posInfos);
   const orphanSpawns = room
     .find(FIND_MY_STRUCTURES)
     .filter(
