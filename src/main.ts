@@ -1723,12 +1723,6 @@ function planCarrierRoutes(creep: Creep) {
   let pos = source.pos;
   let firstPos;
   let energy = creep.store.getCapacity(RESOURCE_ENERGY);
-  const storageAdded = addCarrierDestinationStorage(creep, source, pos);
-  if (storageAdded) {
-    if (!firstPos) firstPos = storageAdded.firstPos;
-    pos = storageAdded.pos;
-    energy -= storageAdded.energy;
-  }
   let clusters = getClusters();
   if (clusters.length < 1) {
     utils.msg(creep, "Couldn't find clusters for carrier!", true);
@@ -1741,6 +1735,12 @@ function planCarrierRoutes(creep: Creep) {
       pos = targetAdded.pos;
       energy -= targetAdded.energy;
     }
+  }
+  const storageAdded = addCarrierDestinationStorage(creep, source, pos);
+  if (storageAdded) {
+    if (!firstPos) firstPos = storageAdded.firstPos;
+    pos = storageAdded.pos;
+    energy -= storageAdded.energy;
   }
   if (!firstPos) return;
   const returnPath = getPath(pos, firstPos, 0);
