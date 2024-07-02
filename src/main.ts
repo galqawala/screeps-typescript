@@ -1715,7 +1715,6 @@ function isPosEqual(a: RoomPosition, b: RoomPosition) {
 function planCarrierRoutes(creep: Creep) {
   creep.memory.phaseIndex = 0;
   const source = getCarrierEnergySource(creep);
-  console.log(creep, source);
   if (!source) return;
   else if (utils.isContainer(source)) creep.memory.container = source.id;
   else if (utils.isStorage(source)) creep.memory.storage = source.id;
@@ -1995,7 +1994,7 @@ function updateStickyEnergy(room: Room) {
   utils.logCpu("updateStickyEnergy(" + room.name + ")");
   const containers = room.find(FIND_STRUCTURES).filter(utils.isStoreStructure);
   const values: Record<Id<AnyStoreStructure>, number> = {};
-  const rate = 5; // max change per tick
+  const rate = 8; // max change per tick
   for (const container of containers) {
     const now = utils.getEnergy(container);
     const then = room.memory.stickyEnergy?.[container.id] || 0;
