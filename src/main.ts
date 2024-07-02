@@ -163,7 +163,6 @@ declare global {
 // Main loop
 export const loop = ErrorMapper.wrapLoop(() => {
   Memory.cpuLog = {}; // before everything!
-  console.log(Game.time);
   utils.logCpu("main");
   utils.logCpu("mem");
   if ((Memory.maxTickLimit || 0) < Game.cpu.tickLimit) Memory.maxTickLimit = Game.cpu.tickLimit;
