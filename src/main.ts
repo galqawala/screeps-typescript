@@ -979,14 +979,16 @@ function handleHarvester(creep: Creep) {
 
 function harvesterSpendEnergy(creep: Creep) {
   utils.logCpu("harvesterSpendEnergy(" + creep.name + ")");
-  utils.logCpu("harvesterSpendEnergy(" + creep.name + ") repair");
-  const target = creep.pos.lookFor(LOOK_STRUCTURES).filter(utils.needRepair)[0];
-  if (target) creep.repair(target);
-  utils.logCpu("harvesterSpendEnergy(" + creep.name + ") repair");
-  utils.logCpu("harvesterSpendEnergy(" + creep.name + ") build");
-  const site = creep.pos.lookFor(LOOK_CONSTRUCTION_SITES)[0];
-  if (site) creep.build(site);
-  utils.logCpu("harvesterSpendEnergy(" + creep.name + ") build");
+  if (Memory.plan.minTicksToDowngrade > 1000) {
+    utils.logCpu("harvesterSpendEnergy(" + creep.name + ") repair");
+    const target = creep.pos.lookFor(LOOK_STRUCTURES).filter(utils.needRepair)[0];
+    if (target) creep.repair(target);
+    utils.logCpu("harvesterSpendEnergy(" + creep.name + ") repair");
+    utils.logCpu("harvesterSpendEnergy(" + creep.name + ") build");
+    const site = creep.pos.lookFor(LOOK_CONSTRUCTION_SITES)[0];
+    if (site) creep.build(site);
+    utils.logCpu("harvesterSpendEnergy(" + creep.name + ") build");
+  }
   utils.logCpu("harvesterSpendEnergy(" + creep.name + ") unloadCreep");
   if (utils.getFillRatio(creep) > 0.9) {
     const storeId = creep.memory.link || creep.memory.container;
