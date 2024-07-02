@@ -1862,6 +1862,7 @@ function getClusters() {
 }
 
 function getPath(from: RoomPosition, to: RoomPosition, range: number) {
+  console.log("getPath", from, to, range);
   return PathFinder.search(
     from,
     { pos: to, range },
