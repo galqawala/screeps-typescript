@@ -118,7 +118,7 @@ declare global {
     storage?: Id<StructureStorage>;
     stroke: string;
     strokeWidth: number;
-    transfered?: boolean;
+    transferred?: boolean;
     transferTo?: Id<Structure>;
     upgrade?: Id<StructureController>;
   }
@@ -284,7 +284,7 @@ function handleCreeps() {
     if (!Game.creeps[c].spawning) {
       utils.logCpu("creep: " + c);
       const creep = Game.creeps[c];
-      creep.memory.transfered = false;
+      creep.memory.transferred = false;
       if (creep.memory.pos?.roomName !== creep.pos.roomName) delete creep.memory.pathKey;
 
       const role = creep.memory.role;
@@ -707,7 +707,7 @@ function phaseRetrieve(creep: Creep, phase: Phase) {
 function phaseTransfer(creep: Creep, phase: Phase) {
   if (!creep.memory.phases) return;
   if (!phase.transfer) return;
-  if (creep.memory.transfered) return;
+  if (creep.memory.transferred) return;
   const tgt = Game.getObjectById(phase.transfer);
   if (!tgt) {
     utils.msg(creep, "Trying to transfer to " + phase.transfer + ", but it doesn't exist! Resetting plans!");
@@ -720,7 +720,7 @@ function phaseTransfer(creep: Creep, phase: Phase) {
   if (outcome === ERR_NOT_IN_RANGE) {
     move(creep, tgt);
   } else {
-    creep.memory.transfered = true;
+    creep.memory.transferred = true;
     nextPhase(creep);
   }
 }
@@ -1715,6 +1715,7 @@ function isPosEqual(a: RoomPosition, b: RoomPosition) {
 function planCarrierRoutes(creep: Creep) {
   creep.memory.phaseIndex = 0;
   const source = getCarrierEnergySource(creep);
+  console.log(creep, source);
   if (!source) return;
   else if (utils.isContainer(source)) creep.memory.container = source.id;
   else if (utils.isStorage(source)) creep.memory.storage = source.id;
@@ -1729,7 +1730,10 @@ function planCarrierRoutes(creep: Creep) {
     energy -= storageAdded.energy;
   }
   let clusters = getClusters();
-  while (energy > 0) {
+  if (clusters.length < 1) {
+    utils.msg(creep, "Couldn't find clusters for carrier!", true);
+  }
+  while (energy > 0 && clusters.length) {
     clusters = sortClusters(clusters, pos);
     const targetAdded = addCarrierDestination(creep, pos, clusters.shift());
     if (targetAdded) {
@@ -1883,7 +1887,7 @@ function getCarrierEnergySource(creep: Creep) {
         room
           .find(FIND_STRUCTURES)
           .filter(utils.isContainer)
-          .filter(container => !room.controller || room.controller.pos.getRangeTo(container) > 3)
+          .filter(container => !utils.isStorageSubstitute(container))
       );
     }
   }

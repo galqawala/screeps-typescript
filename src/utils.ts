@@ -1399,6 +1399,7 @@ function planClusters(room: Room, allowSwamp = false) {
     posInfos[clusterIndex].content = "cluster";
     const structureCount = posInfos.filter(pi => pi.content === "structure").length;
     if (structureCount >= structuresInRoomClusters) {
+      posInfos = addClusterForExistingSpawn(posInfos, room);
       flagClusters(room, posInfos);
       clusterReport(room, posInfos.filter(pi => pi.content === "cluster").length, structureCount);
       return;
@@ -1453,17 +1454,17 @@ function hasClusters(room: Room) {
   return false;
 }
 
-// function clearClusters(room: Room) {
-//   const flags = room.find(FIND_FLAGS);
-//   for (const flag of flags) {
-//     if (
-//       flag.name.startsWith("cluster_") ||
-//       flag.name.startsWith("path_") ||
-//       flag.name.startsWith("structure_")
-//     )
-//       flag.remove();
-//   }
-// }
+export function clearClusters(room: Room): void {
+  const flags = room.find(FIND_FLAGS);
+  for (const flag of flags) {
+    if (
+      flag.name.startsWith("cluster_") ||
+      flag.name.startsWith("path_") ||
+      flag.name.startsWith("structure_")
+    )
+      flag.remove();
+  }
+}
 
 function clusterReport(room: Room, clusterCount: number, count: number) {
   msg(room, "planned " + clusterCount.toString() + " clusters with " + count.toString() + " structures");
@@ -1515,4 +1516,27 @@ export function getObjectDescription(obj: Destination | undefined | string | Roo
   let description = obj.toString();
   if ("pos" in obj) description += " @ " + obj.pos.toString();
   return description;
+}
+
+function addClusterForExistingSpawn(posInfos: ClusterPos[], room: Room): ClusterPos[] {
+  console.log(posInfos);
+  const orphanSpawns = room
+    .find(FIND_MY_STRUCTURES)
+    .filter(
+      spawn =>
+        isSpawn(spawn) &&
+        posInfos.findIndex(pi => pi.content === "cluster" && pi.pos.inRangeTo(spawn.pos.x, spawn.pos.y, 1)) <
+          0
+    );
+  orphanSpawns.forEach(spawn => {
+    const clusterPos = getSurroundingPlains(spawn.pos, 1, 1, false)[0];
+    if (!clusterPos) msg(spawn, "Failed to plan cluster for existing spawn");
+    const index = posInfos.findIndex(pi => pi.pos.x === clusterPos.x && pi.pos.y === clusterPos.y);
+    if (index) {
+      posInfos[index].content = "cluster";
+    } else {
+      posInfos.push({ content: "cluster", pos: clusterPos, scanned: false });
+    }
+  });
+  return posInfos;
 }
