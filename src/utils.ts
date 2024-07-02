@@ -514,11 +514,7 @@ export function getConstructionSites(): ConstructionSite[] {
   for (const i in Game.rooms) {
     const room = Game.rooms[i];
     if (room.memory.hostilesPresent) continue;
-    sites = sites.concat(
-      room
-        .find(FIND_MY_CONSTRUCTION_SITES)
-        .filter(target => target.structureType !== STRUCTURE_CONTAINER || isStorageSubstitute(target))
-    );
+    sites = sites.concat(room.find(FIND_MY_CONSTRUCTION_SITES));
   }
   return sites;
 }
