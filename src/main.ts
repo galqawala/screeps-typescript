@@ -1169,7 +1169,7 @@ function spawnCreeps() {
     spawnRole("explorer", 0, [MOVE]);
   } else if (Memory.plan?.needWorkers) {
     spawnCreep("worker", budget);
-  } else if (Memory.plan?.needReservers) {
+  } else if (Memory.plan?.needReservers && budget >= utils.getBodyCost(["claim", "move"])) {
     spawnReserver();
   } else if (Memory.plan?.needUpgraders) {
     const upgradeTarget = getControllerToUpgrade();
