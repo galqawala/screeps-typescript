@@ -399,18 +399,23 @@ function workerRetrieveEnergy(creep: Creep) {
     if (container && retrieveEnergy(creep, container) === ERR_NOT_IN_RANGE) {
       move(creep, container);
     } else {
-      const closestStorage = Object.values(Game.rooms)
-        .filter(room => room.storage && utils.getEnergy(room.storage) > 0)
-        .map(room => ({
-          storage: room.storage,
-          sort: utils.getGlobalRange(creep.pos, utils.getPos(room.storage))
-        })) /* persist sort values */
-        .sort((a, b) => a.sort - b.sort) /* sort */
-        .map(({ storage }) => storage) /* remove sort values */[0];
-      if (closestStorage && retrieveEnergy(creep, closestStorage) === ERR_NOT_IN_RANGE) {
-        move(creep, closestStorage);
-      } else if (isStuck(creep)) {
-        moveRandomDirection(creep);
+      const resource = creep.pos.findClosestByRange(FIND_DROPPED_RESOURCES);
+      if (resource && retrieveEnergy(creep, resource) === ERR_NOT_IN_RANGE) {
+        move(creep, resource);
+      } else {
+        const closestStorage = Object.values(Game.rooms)
+          .filter(room => room.storage && utils.getEnergy(room.storage) > 0)
+          .map(room => ({
+            storage: room.storage,
+            sort: utils.getGlobalRange(creep.pos, utils.getPos(room.storage))
+          })) /* persist sort values */
+          .sort((a, b) => a.sort - b.sort) /* sort */
+          .map(({ storage }) => storage) /* remove sort values */[0];
+        if (closestStorage && retrieveEnergy(creep, closestStorage) === ERR_NOT_IN_RANGE) {
+          move(creep, closestStorage);
+        } else if (isStuck(creep)) {
+          moveRandomDirection(creep);
+        }
       }
     }
   }
@@ -961,7 +966,7 @@ function handleHarvester(creep: Creep) {
 
 function harvesterSpendEnergy(creep: Creep) {
   utils.logCpu("harvesterSpendEnergy(" + creep.name + ")");
-  if (Memory.plan?.minTicksToDowngrade > 1000) {
+  if ((creep.room.controller?.level || 0) < 1) {
     utils.logCpu("harvesterSpendEnergy(" + creep.name + ") repair");
     const target = creep.pos.lookFor(LOOK_STRUCTURES).filter(utils.needRepair)[0];
     if (target) creep.repair(target);
