@@ -106,6 +106,7 @@ declare global {
     deliveryTasks?: DeliveryTask[];
     destination?: DestinationId | RoomPosition;
     lastMoveTime?: number;
+    lastActiveTime?: number;
     link?: Id<StructureLink>;
     pathKey?: string;
     phaseIndex?: number;
@@ -371,6 +372,7 @@ function handleWorker(creep: Creep) {
   const repairTarget = creep.pos.findInRange(FIND_STRUCTURES, 3).filter(utils.needRepair)[0];
   utils.logCpu("handleWorker(" + creep.name + ") repairTarget");
   if (repairTarget) {
+    creep.memory.lastActiveTime = Game.time;
     creep.repair(repairTarget);
   } else if (creep.memory.build) {
     build(creep);
@@ -439,6 +441,7 @@ function build(creep: Creep) {
   utils.logCpu("build(" + creep.name + ") find");
   utils.logCpu("build(" + creep.name + ") build");
   if (destination instanceof ConstructionSite) {
+    creep.memory.lastActiveTime = Game.time;
     creep.memory.build = destination.id;
     if (creep.build(destination) === ERR_NOT_IN_RANGE) {
       utils.logCpu("build(" + creep.name + ") build move");
@@ -483,6 +486,7 @@ function repair(creep: Creep) {
   if (!repairTarget) repairTarget = getRepairTarget(creep.pos);
   if (repairTarget) {
     utils.logCpu("repair(" + creep.name + ") tgt");
+    creep.memory.lastActiveTime = Game.time;
     if (creep.repair(repairTarget) === ERR_NOT_IN_RANGE) move(creep, repairTarget);
     utils.setDestination(creep, repairTarget);
     utils.logCpu("repair(" + creep.name + ") tgt");
@@ -500,6 +504,7 @@ function dismantle(creep: Creep) {
   const targets = flag.pos.lookFor(LOOK_STRUCTURES);
   if (targets.length < 1) return false;
   const target = targets[0];
+  creep.memory.lastActiveTime = Game.time;
   if (creep.dismantle(target) === ERR_NOT_IN_RANGE) {
     move(creep, target);
     utils.logCpu("dismantle(" + creep.name + ")");
@@ -1432,6 +1437,7 @@ function updateFlagReserve() {
 
 function needWorkers() {
   utils.logCpu("needWorkers");
+  if (utils.isAnyoneIdle("worker")) return false;
   const workers = Object.values(Game.creeps).filter(creep => creep.memory.role === "worker");
   utils.logCpu("needWorkers");
   if (workers.length >= 15) return false;

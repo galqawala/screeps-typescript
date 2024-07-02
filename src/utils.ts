@@ -1535,3 +1535,11 @@ function addClusterForExistingSpawn(posInfos: ClusterPos[], room: Room): Cluster
   });
   return posInfos;
 }
+
+export function isAnyoneIdle(role: Role): boolean {
+  return (
+    Object.values(Game.creeps).filter(
+      c => (!role || c.memory.role === role) && (c.memory.lastActiveTime || 0) < Game.time - 10
+    ).length > 0
+  );
+}
