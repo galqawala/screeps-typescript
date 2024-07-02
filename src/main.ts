@@ -1251,7 +1251,7 @@ function needCarriers(): boolean {
       const containers = source.pos.findInRange(FIND_STRUCTURES, 3).filter(utils.isContainer);
       for (const container of containers) {
         utils.logCpu("needCarriers()");
-        const energy = room.memory.stickyEnergy[container.id];
+        const energy = room.memory.stickyEnergy?.[container.id] || 0;
         const carriers = countCarriersBySource(container.id);
         if (energy / carriers > 50) return true;
       }
@@ -1808,7 +1808,7 @@ function getStorage(room: Room) {
     return room.controller.pos.findClosestByRange(
       room.controller.pos.findInRange(FIND_STRUCTURES, 10, {
         filter(object) {
-          return utils.isStorage(object) || utils.isContainer(object);
+          return utils.isStorage(object) || utils.isStorageSubstitute(object);
         }
       })
     );
@@ -1908,7 +1908,7 @@ function getStoragesRequiringCarrier() {
   for (const room of Object.values(Game.rooms)) {
     if (room.storage && room.storage.my) {
       const carriersForStorage = Math.ceil(
-        (room.memory.stickyEnergy[room.storage.id] / STORAGE_CAPACITY) * 4
+        (room.memory.stickyEnergy?.[room.storage.id] / STORAGE_CAPACITY) * 4
       );
       if (countCarriersBySource(room.storage.id) < carriersForStorage) containers.push(room.storage);
     }
@@ -1994,7 +1994,7 @@ function updateStickyEnergy(room: Room) {
   const rate = 5; // max change per tick
   for (const container of containers) {
     const now = utils.getEnergy(container);
-    const then = room.memory.stickyEnergy?.[container.id];
+    const then = room.memory.stickyEnergy?.[container.id] || 0;
     values[container.id] = Math.max(Math.min(now, then + rate), then - rate);
   }
   room.memory.stickyEnergy = values;

@@ -478,11 +478,12 @@ export function getTotalEnergyToHaul(): number {
   return energy;
 }
 
-export function isStorageSubstitute(container: EnergySource | AnyStoreStructure | ConstructionSite): boolean {
+export function isStorageSubstitute(container: AnyStructure | ConstructionSite): boolean {
   return (
     "structureType" in container &&
     container.structureType === STRUCTURE_CONTAINER &&
-    container.pos.findInRange(FIND_MY_STRUCTURES, 3).filter(isController).length > 0
+    container.pos.findInRange(FIND_MY_STRUCTURES, 3).filter(isController).length > 0 &&
+    container.pos.findInRange(FIND_SOURCES, 1).length < 1
   );
 }
 
@@ -647,6 +648,7 @@ export function getPosForStorage(room: Room): RoomPosition | undefined {
       bestPos = pos;
     }
   }
+  console.log("Position for storage: ", bestPos);
   return bestPos;
 }
 
