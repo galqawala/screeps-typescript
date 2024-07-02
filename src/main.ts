@@ -56,7 +56,6 @@ declare global {
   }
 
   interface Plan {
-    celebrate: boolean;
     controllersToReserve: Id<StructureController>[];
     fillSpawnsFromStorage: boolean;
     fillStorage: boolean;
@@ -201,7 +200,6 @@ function updatePlan() {
   const allSpawnsFull = areAllSpawnsFull();
   const needHarvesters = getSourceToHarvest() ? true : false;
   Memory.plan = {
-    celebrate: shouldCelebrate(),
     controllersToReserve: utils.getControllersToReserve().map(controller => controller.id),
     fillSpawnsFromStorage: storageMin >= 800000 && !allSpawnsFull,
     fillStorage: (storageMin < 150000 && !needHarvesters) || allSpawnsFull,
@@ -219,15 +217,6 @@ function updatePlan() {
     minTicksToDowngrade: getMinTicksToDowngrade()
   };
   utils.logCpu("updatePlan");
-}
-
-function shouldCelebrate() {
-  utils.logCpu("shouldCelebrate");
-  const value =
-    Object.values(Game.rooms).filter(room => room.controller?.my && room.controller?.progressTotal).length <=
-    0;
-  utils.logCpu("shouldCelebrate");
-  return value;
 }
 
 function getMinTicksToDowngrade() {
@@ -298,19 +287,12 @@ function handleCreeps() {
       else if (role === "upgrader") handleUpgrader(creep);
       else if (role === "worker") handleWorker(creep);
 
-      if (Memory.plan?.celebrate && Math.random() < 0.3) celebrate(Game.creeps[c]);
       if (!isPosEqual(creep.memory.pos, creep.pos)) creep.memory.lastMoveTime = Game.time;
       creep.memory.pos = creep.pos;
       utils.logCpu("creep: " + c);
     }
   }
   utils.logCpu("handleCreeps()");
-}
-
-function celebrate(creep: Creep) {
-  const emojis = "☺✨❤🌺🌼🍉🍌🍔🍦🍨🍩🍭🎂🎇🎈🎉🎯🎶🏁🏅🏆👌💕💖💙💚💛💜🔈🗣😂😋😍😎😛🙌";
-  const symbols = [...emojis];
-  creep.say(symbols[Math.floor(Math.random() * symbols.length)], true);
 }
 
 function handleExplorer(creep: Creep) {
