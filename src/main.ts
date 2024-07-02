@@ -971,7 +971,9 @@ function handleHarvester(creep: Creep) {
 
 function harvesterSpendEnergy(creep: Creep) {
   utils.logCpu("harvesterSpendEnergy(" + creep.name + ")");
-  if ((creep.room.controller?.level || 0) < 1) {
+  if (
+    !creep.pos.findInRange(FIND_MY_CREEPS, 10).filter(nearbyCreep => nearbyCreep.memory.role === "worker")
+  ) {
     utils.logCpu("harvesterSpendEnergy(" + creep.name + ") repair");
     const target = creep.pos.lookFor(LOOK_STRUCTURES).filter(utils.needRepair)[0];
     if (target) creep.repair(target);
