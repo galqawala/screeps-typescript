@@ -1302,7 +1302,8 @@ function needAttackers() {
 
 function spawnReserver() {
   let task: Task | undefined;
-  const controller = Game.getObjectById(Memory.plan?.controllersToReserve[0]);
+  const controller =
+    Game.getObjectById(Memory.plan?.controllersToReserve[0]) || Game.flags.claim.room?.controller;
   if (controller) {
     task = {
       destination: controller,
