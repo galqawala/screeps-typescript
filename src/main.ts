@@ -1250,10 +1250,12 @@ function needCarriers(): boolean {
     for (const source of sources) {
       const containers = source.pos.findInRange(FIND_STRUCTURES, 3).filter(utils.isContainer);
       for (const container of containers) {
-        utils.logCpu("needCarriers()");
         const energy = room.memory.stickyEnergy?.[container.id] || 0;
-        const carriers = countCarriersBySource(container.id);
-        if (energy / carriers > 50) return true;
+        const assignedCapacity = getCarryCapacityBySource(container.id) || 0;
+        if (energy > assignedCapacity) {
+          utils.logCpu("needCarriers()");
+          return true;
+        }
       }
     }
   }
@@ -2031,4 +2033,17 @@ function countCarriersBySource(sourceId: Id<StructureContainer | StructureStorag
       carrier.memory.role === "carrier" &&
       (carrier.memory.storage === sourceId || carrier.memory.container === sourceId)
   ).length;
+}
+
+function getCarryCapacityBySource(sourceId: Id<StructureContainer | StructureStorage>) {
+  return Object.values(Game.creeps).reduce((totalCapacity, creep) => {
+    if (
+      creep.memory.role === "carrier" &&
+      (creep.memory.storage === sourceId || creep.memory.container === sourceId)
+    ) {
+      const creepCapacity = creep.store.getCapacity(RESOURCE_ENERGY);
+      totalCapacity += creepCapacity || 0;
+    }
+    return totalCapacity;
+  }, 0);
 }
