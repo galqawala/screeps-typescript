@@ -1756,7 +1756,7 @@ function addCarrierDestinationStorage(
 ) {
   if (!creep) return;
   if (!creep.memory.phases) return;
-  const room = source.room;
+  const room = Game.rooms[pos.roomName];
   if (utils.getStructureCount(room, STRUCTURE_LINK, false) < 2 && room?.controller?.my) {
     // fill storage/container near controller without links
     const storage = getStorage(room);
