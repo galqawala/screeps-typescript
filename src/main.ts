@@ -1486,18 +1486,16 @@ function spawnHarvester() {
   const roleToSpawn: Role = "harvester";
   const source = getSourceToHarvest();
   if (!source || !(source instanceof Source)) return;
-  const body: BodyPartConstant[] = utils.getBodyForHarvester(source);
+  let body: BodyPartConstant[] | null = utils.getBodyForHarvester(source);
   let cost = utils.getBodyCost(body);
   let spawn = getSpawn(cost, source.pos);
-  while (!spawn && body.filter(part => part === "work").length > 1) {
-    console.log("No spawn available for harvester costing", cost, body);
-    const index = body.indexOf("work");
-    if (index > -1) body.splice(index, 1);
+  while (!spawn && body) {
+    body = downscaleHarvester(body);
+    if (!body) return;
     cost = utils.getBodyCost(body);
     spawn = getSpawn(cost, source.pos);
   }
-  if (!spawn) return;
-  console.log("Spawning harvester costing", cost, body);
+  if (!spawn || !body) return;
   const name = utils.getNameForCreep(roleToSpawn);
   const harvestPos = utils.getHarvestSpotForSource(source);
   if (!harvestPos) return;
@@ -2055,4 +2053,16 @@ function needUpgraders(): boolean {
   const storage = getStorage(controller.room);
   if (!storage) return false;
   return utils.getFillRatio(storage) >= 0.5;
+}
+
+function downscaleHarvester(body: BodyPartConstant[]): BodyPartConstant[] | null {
+  if (body.filter(part => part === "move").length > 1) {
+    body.splice(body.indexOf("move"), 1);
+    return body;
+  } else if (body.filter(part => part === "work").length > 1) {
+    body.splice(body.indexOf("work"), 1);
+    return body;
+  } else {
+    return null;
+  }
 }
