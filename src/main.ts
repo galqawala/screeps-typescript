@@ -972,16 +972,13 @@ function handleHarvester(creep: Creep) {
 function harvesterSpendEnergy(creep: Creep) {
   utils.logCpu("harvesterSpendEnergy(" + creep.name + ")");
   if (
-    !creep.pos.findInRange(FIND_MY_CREEPS, 10).filter(nearbyCreep => nearbyCreep.memory.role === "worker")
+    creep.pos.findInRange(FIND_MY_CREEPS, 10).filter(nearbyCreep => nearbyCreep.memory.role === "worker")
+      .length < 1
   ) {
-    utils.logCpu("harvesterSpendEnergy(" + creep.name + ") repair");
     const target = creep.pos.lookFor(LOOK_STRUCTURES).filter(utils.needRepair)[0];
     if (target) creep.repair(target);
-    utils.logCpu("harvesterSpendEnergy(" + creep.name + ") repair");
-    utils.logCpu("harvesterSpendEnergy(" + creep.name + ") build");
     const site = creep.pos.lookFor(LOOK_CONSTRUCTION_SITES)[0];
     if (site) creep.build(site);
-    utils.logCpu("harvesterSpendEnergy(" + creep.name + ") build");
   }
   utils.logCpu("harvesterSpendEnergy(" + creep.name + ") unloadCreep");
   if (utils.getFillRatio(creep) > 0.9) {
