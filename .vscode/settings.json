@@ -18,6 +18,7 @@
     "eslint.enable": true,
     "cSpell.words": [
         "Bodyparts",
+        "REGEN",
         "upgrader",
         "Upgraders"
     ]

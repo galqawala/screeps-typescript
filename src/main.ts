@@ -1493,6 +1493,7 @@ function spawnHarvester() {
   let cost = utils.getBodyCost(body);
   let spawn = getSpawn(cost, source.pos);
   if (!spawn) {
+    console.log("No spawn available for harvester costing", cost);
     body = body.filter((value, index, self) => self.indexOf(value) === index); /* unique */
     cost = utils.getBodyCost(body);
     spawn = getSpawn(cost, source.pos);
@@ -1559,9 +1560,9 @@ function getTransferrerMem(retrieve: Id<StructureLink>, transferTo: Id<Structure
   };
 }
 
-function getSpawn(energyAvailable: number, targetPos: RoomPosition | undefined) {
+function getSpawn(energyRequired: number, targetPos: RoomPosition | undefined) {
   return Object.values(Game.spawns)
-    .filter(spawn => spawn.room.energyAvailable >= energyAvailable && !spawn.spawning)
+    .filter(spawn => spawn.room.energyAvailable >= energyRequired && !spawn.spawning)
     .map(value => ({
       value,
       sort: targetPos
