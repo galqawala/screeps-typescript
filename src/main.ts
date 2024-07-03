@@ -1489,16 +1489,18 @@ function spawnHarvester() {
   const roleToSpawn: Role = "harvester";
   const source = getSourceToHarvest();
   if (!source || !(source instanceof Source)) return;
-  let body: BodyPartConstant[] = utils.getBodyForHarvester(source);
+  const body: BodyPartConstant[] = utils.getBodyForHarvester(source);
   let cost = utils.getBodyCost(body);
   let spawn = getSpawn(cost, source.pos);
-  if (!spawn) {
-    console.log("No spawn available for harvester costing", cost);
-    body = body.filter((value, index, self) => self.indexOf(value) === index); /* unique */
+  while (!spawn && body.filter(part => part === "work").length > 1) {
+    console.log("No spawn available for harvester costing", cost, body);
+    const index = body.indexOf("work");
+    if (index > -1) body.splice(index, 1);
     cost = utils.getBodyCost(body);
     spawn = getSpawn(cost, source.pos);
-    if (!spawn) return;
   }
+  if (!spawn) return;
+  console.log("Spawning harvester costing", cost, body);
   const name = utils.getNameForCreep(roleToSpawn);
   const harvestPos = utils.getHarvestSpotForSource(source);
   if (!harvestPos) return;
