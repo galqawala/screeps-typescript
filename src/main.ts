@@ -211,7 +211,7 @@ function updatePlan() {
     needInfantry: needInfantry(),
     needReservers: needReservers(),
     needTransferers: needTransferers(),
-    needUpgraders: getControllerToUpgrade(undefined, false) ? true : false,
+    needUpgraders: needUpgraders(),
     needWorkers: needWorkers(),
     maxRoomEnergy: Math.max(...Object.values(Game.spawns).map(spawn => spawn.room.energyAvailable)),
     maxRoomEnergyCap: Math.max(...Object.values(Game.spawns).map(s => s.room.energyCapacityAvailable)),
@@ -2046,4 +2046,13 @@ function getCarryCapacityBySource(sourceId: Id<StructureContainer | StructureSto
     }
     return totalCapacity;
   }, 0);
+}
+
+function needUpgraders(): boolean {
+  const controller = getControllerToUpgrade(undefined, false);
+  if (!controller) return false;
+  if (controller.ticksToDowngrade < 1000 && countUpgradersAssigned(controller.id) < 1) return true;
+  const storage = getStorage(controller.room);
+  if (!storage) return false;
+  return utils.getFillRatio(storage) >= 0.5;
 }
