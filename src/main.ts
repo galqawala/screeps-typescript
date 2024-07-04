@@ -89,6 +89,7 @@ declare global {
     repairTargets: Id<Structure>[];
     score: number;
     stickyEnergy: Record<Id<AnyStoreStructure>, number>;
+    stickyEnergyDelta: Record<Id<AnyStoreStructure>, number>;
     upgradeSpots?: RoomPosition[];
   }
 
@@ -366,7 +367,11 @@ function moveRandomDirection(creep: Creep) {
 }
 
 function handleWorker(creep: Creep) {
-  utils.logCpu("handleWorker(" + creep.name + ")");
+  if (isStuck(creep)) {
+    moveRandomDirection(creep);
+    return;
+  }
+
   if (utils.isEmpty(creep)) delete creep.memory.build;
   else if (utils.isFull(creep)) delete creep.memory.retrieve;
 
@@ -374,23 +379,16 @@ function handleWorker(creep: Creep) {
     workerRetrieveEnergy(creep);
     return;
   }
-  utils.logCpu("handleWorker(" + creep.name + ") repairTarget");
   const repairTarget = creep.pos.findInRange(FIND_STRUCTURES, 3).filter(utils.needRepair)[0];
-  utils.logCpu("handleWorker(" + creep.name + ") repairTarget");
   if (repairTarget) {
     creep.memory.lastActiveTime = Game.time;
     creep.repair(repairTarget);
   } else if (creep.memory.build) {
     build(creep);
   } else {
-    utils.logCpu("handleWorker(" + creep.name + ") work");
     const result = repair(creep) || dismantle(creep) || build(creep);
-    utils.logCpu("handleWorker(" + creep.name + ") work");
-    utils.logCpu("handleWorker(" + creep.name + ")");
-    if (!result && isStuck(creep)) moveRandomDirection(creep); // out of others way
     return result;
   }
-  utils.logCpu("handleWorker(" + creep.name + ")");
   return;
 }
 
@@ -639,6 +637,13 @@ function moveTowardMemory(creep: Creep) {
 
 function handleCarrier(creep: Creep) {
   utils.logCpu("handleCarrier(" + creep.name + ")");
+  if (Math.random() < 0.1 && gotSpareCpu() && !isCarrierPlanValid(creep)) {
+    utils.msg(creep, "Plan is invalid, replanning");
+    planCarrierRoutes(creep);
+  } else if (isStuck(creep)) {
+    moveRandomDirection(creep);
+    return;
+  }
   if (!creep.memory.phases || creep.memory.phases.length < 2) planCarrierRoutes(creep);
   if (!creep.memory.phases) return;
   const phase = creep.memory.phases[creep.memory.phaseIndex || 0];
@@ -668,8 +673,9 @@ function phaseMove(creep: Creep, phase: Phase) {
       move(creep, tgt);
     }
   } else if (outcome === OK) {
-    if (isStuck(creep)) nextPhase(creep); // switch to dynamic navigation to get unstuck
-    else if (creep.room.memory.hostilesPresent) {
+    if (isStuck(creep)) {
+      nextPhase(creep); // switch to dynamic navigation to get unstuck
+    } else if (creep.room.memory.hostilesPresent) {
       utils.msg(creep, "hostiles present, resetting plans");
       delete creep.memory.phases;
     }
@@ -1254,8 +1260,10 @@ function needCarriers(): boolean {
       const containers = source.pos.findInRange(FIND_STRUCTURES, 3).filter(utils.isContainer);
       for (const container of containers) {
         const energy = room.memory.stickyEnergy?.[container.id] || 0;
+        const delta = room.memory.stickyEnergyDelta?.[container.id] || 0;
         const assignedCapacity = getCarryCapacityBySource(container.id) || 0;
-        if (energy > assignedCapacity) {
+        if (energy > assignedCapacity && delta >= 0) {
+          console.log(container, container.pos, "needs carriers", energy, delta, assignedCapacity);
           utils.logCpu("needCarriers()");
           return true;
         }
@@ -1723,6 +1731,7 @@ function isPosEqual(a: RoomPosition, b: RoomPosition) {
 function planCarrierRoutes(creep: Creep) {
   creep.memory.phaseIndex = 0;
   const source = getCarrierEnergySource(creep);
+  console.log(creep, "retrieving", source, source.pos);
   if (!source) return;
   else if (utils.isContainer(source)) creep.memory.container = source.id;
   else if (utils.isStorage(source)) creep.memory.storage = source.id;
@@ -1933,14 +1942,21 @@ function getCostMatrix(roomName: string) {
   if (room) {
     room.find(FIND_STRUCTURES).forEach(function (struct) {
       const cost = getStructurePathCost(struct);
-      if (cost) costs.set(struct.pos.x, struct.pos.y, 1);
+      if (cost) costs.set(struct.pos.x, struct.pos.y, cost);
     });
     room.find(FIND_CONSTRUCTION_SITES).forEach(function (struct) {
       // consider construction sites as complete structures
       // same structure types block or don't block movement as complete buildings
       // incomplete roads don't give the speed bonus, but we should still prefer them to avoid planning for additional roads
       const cost = getStructurePathCost(struct);
-      if (cost) costs.set(struct.pos.x, struct.pos.y, 1);
+      if (cost) costs.set(struct.pos.x, struct.pos.y, cost);
+    });
+    room.find(FIND_SOURCES).forEach(function (source) {
+      // avoid routing around sources
+      const positions = utils.getPositionsAround(source.pos, 1, 1, true);
+      for (const pos of positions) {
+        if (costs.get(pos.x, pos.y) < 20) costs.set(pos.x, pos.y, 20);
+      }
     });
   }
   return costs;
@@ -1987,13 +2003,16 @@ function updateStickyEnergy(room: Room) {
   utils.logCpu("updateStickyEnergy(" + room.name + ")");
   const containers = room.find(FIND_STRUCTURES).filter(utils.isStoreStructure);
   const values: Record<Id<AnyStoreStructure>, number> = {};
-  const rate = 9; // max change per tick
+  const deltas: Record<Id<AnyStoreStructure>, number> = {};
+  const rate = 20; // max change per tick
   for (const container of containers) {
     const now = utils.getEnergy(container);
     const then = room.memory.stickyEnergy?.[container.id] || 0;
     values[container.id] = Math.max(Math.min(now, then + rate), then - rate);
+    deltas[container.id] = now - then;
   }
   room.memory.stickyEnergy = values;
+  room.memory.stickyEnergyDelta = deltas;
   utils.logCpu("updateStickyEnergy(" + room.name + ")");
 }
 
@@ -2070,4 +2089,37 @@ function getStructurePathCost(struct: AnyStructure | ConstructionSite) {
     return 0xff;
   }
   return null;
+}
+
+function isCarrierPlanValid(creep: Creep) {
+  if (!creep.memory.phases) {
+    utils.msg(creep, "Invalid plan, phases missing");
+    return false;
+  }
+  let costs;
+  let roomName = "";
+  for (const phase of creep.memory.phases) {
+    if (!phase.move) continue;
+    for (const posObj of phase.move) {
+      const pos = new RoomPosition(posObj.x, posObj.y, posObj.roomName);
+      if (roomName !== posObj.roomName) {
+        roomName = posObj.roomName;
+        const costMem = Memory.rooms[roomName]?.costMatrix;
+        if (!costMem) {
+          utils.msg(creep, "Invalid plan, missing costs for room " + roomName);
+          return false;
+        }
+        costs = PathFinder.CostMatrix.deserialize(costMem);
+      }
+      const cost = costs?.get(pos.x, pos.y);
+      if ((cost || 0) > 100) {
+        utils.msg(
+          creep,
+          "Invalid plan, pos " + pos.toString() + " travel cost is " + (cost || "-").toString()
+        );
+        return false;
+      }
+    }
+  }
+  return true;
 }
