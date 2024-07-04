@@ -1932,31 +1932,15 @@ function getCostMatrix(roomName: string) {
   const costs = new PathFinder.CostMatrix();
   if (room) {
     room.find(FIND_STRUCTURES).forEach(function (struct) {
-      if (struct.structureType === STRUCTURE_ROAD) {
-        // Favor roads over plain tiles
-        costs.set(struct.pos.x, struct.pos.y, 1);
-      } else if (
-        struct.structureType !== STRUCTURE_CONTAINER &&
-        (struct.structureType !== STRUCTURE_RAMPART || !struct.my)
-      ) {
-        // Can't walk through non-walkable buildings
-        costs.set(struct.pos.x, struct.pos.y, 0xff);
-      }
+      const cost = getStructurePathCost(struct);
+      if (cost) costs.set(struct.pos.x, struct.pos.y, 1);
     });
     room.find(FIND_CONSTRUCTION_SITES).forEach(function (struct) {
-      if (
-        struct.structureType !== STRUCTURE_CONTAINER &&
-        struct.structureType !== STRUCTURE_ROAD &&
-        (struct.structureType !== STRUCTURE_RAMPART || !struct.my)
-      ) {
-        // Can't walk through non-walkable buildings
-        costs.set(struct.pos.x, struct.pos.y, 0xff);
-      }
-    });
-    room.find(FIND_CREEPS).forEach(function (creep) {
-      const x = creep.pos.x;
-      const y = creep.pos.y;
-      costs.set(x, y, costs.get(x, y) + 100);
+      // consider construction sites as complete structures
+      // same structure types block or don't block movement as complete buildings
+      // incomplete roads don't give the speed bonus, but we should still prefer them to avoid planning for additional roads
+      const cost = getStructurePathCost(struct);
+      if (cost) costs.set(struct.pos.x, struct.pos.y, 1);
     });
   }
   return costs;
@@ -2072,4 +2056,18 @@ function downscaleHarvester(body: BodyPartConstant[]): BodyPartConstant[] | null
   } else {
     return null;
   }
+}
+
+function getStructurePathCost(struct: AnyStructure | ConstructionSite) {
+  if (struct.structureType === STRUCTURE_ROAD) {
+    // Favor roads over plain tiles
+    return 1;
+  } else if (
+    struct.structureType !== STRUCTURE_CONTAINER &&
+    (struct.structureType !== STRUCTURE_RAMPART || !struct.my)
+  ) {
+    // Can't walk through non-walkable buildings
+    return 0xff;
+  }
+  return null;
 }
