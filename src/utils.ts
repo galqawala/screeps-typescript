@@ -18,6 +18,9 @@ export function isContainer(
   if (!("structureType" in structure)) return false;
   return structure.structureType === STRUCTURE_CONTAINER;
 }
+export function isResource(object: Resource | Structure): object is Resource {
+  return object instanceof Resource;
+}
 export function isRoad(structure: Structure): structure is StructureRoad {
   if (!("structureType" in structure)) return false;
   return structure.structureType === STRUCTURE_ROAD;

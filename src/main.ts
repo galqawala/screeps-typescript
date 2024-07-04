@@ -331,11 +331,10 @@ function handleUpgrader(creep: Creep) {
 }
 
 function upgraderRetrieveEnergy(creep: Creep, controller: StructureController) {
-  utils.logCpu("upgraderRetrieveEnergy(" + creep.name + ")");
   const storeId = creep.memory.storage || creep.memory.container;
   let store;
   if (storeId) store = Game.getObjectById(storeId);
-  if (!store) {
+  if (!store || utils.getEnergy(store) < 1) {
     store = controller.pos.findClosestByRange(
       controller.pos.findInRange(FIND_STRUCTURES, 10, {
         filter(object) {
@@ -343,14 +342,21 @@ function upgraderRetrieveEnergy(creep: Creep, controller: StructureController) {
         }
       })
     );
-    utils.logCpu("upgraderRetrieveEnergy(" + creep.name + ")");
-    if (!store) return;
+    if (!store || utils.getEnergy(store) < 1) {
+      store = controller.pos.findClosestByRange(controller.pos.findInRange(FIND_DROPPED_RESOURCES, 10));
+      if (!store || utils.getEnergy(store) < 1) return;
+    }
     if (utils.isStorage(store)) creep.memory.storage = store.id;
     else if (utils.isContainer(store)) creep.memory.container = store.id;
   }
-  if (creep.withdraw(store, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) move(creep, store);
+  let withdrawOutcome;
+  if (utils.isResource(store)) {
+    withdrawOutcome = creep.pickup(store);
+  } else {
+    withdrawOutcome = creep.withdraw(store, RESOURCE_ENERGY);
+  }
+  if (withdrawOutcome === ERR_NOT_IN_RANGE) move(creep, store);
   if (isStuck(creep)) moveRandomDirection(creep);
-  utils.logCpu("upgraderRetrieveEnergy(" + creep.name + ")");
 }
 
 function moveRandomDirection(creep: Creep) {
