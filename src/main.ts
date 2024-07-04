@@ -1946,6 +1946,7 @@ function getCostMatrix(roomName: string) {
     room.find(FIND_CONSTRUCTION_SITES).forEach(function (struct) {
       if (
         struct.structureType !== STRUCTURE_CONTAINER &&
+        struct.structureType !== STRUCTURE_ROAD &&
         (struct.structureType !== STRUCTURE_RAMPART || !struct.my)
       ) {
         // Can't walk through non-walkable buildings
