@@ -345,7 +345,10 @@ function upgraderRetrieveEnergy(creep: Creep, controller: StructureController) {
     );
     if (!store || utils.getEnergy(store) < 1) {
       store = controller.pos.findClosestByRange(controller.pos.findInRange(FIND_DROPPED_RESOURCES, 10));
-      if (!store || utils.getEnergy(store) < 1) return;
+      if (!store || utils.getEnergy(store) < 1) {
+        moveRandomDirection(creep); // get out of the way
+        return;
+      }
     }
     if (utils.isStorage(store)) creep.memory.storage = store.id;
     else if (utils.isContainer(store)) creep.memory.container = store.id;
