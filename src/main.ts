@@ -1264,7 +1264,6 @@ function needCarriers(): boolean {
         const delta = room.memory.stickyEnergyDelta?.[container.id] || 0;
         const assignedCapacity = getCarryCapacityBySource(container.id) || 0;
         if (energy > assignedCapacity && delta >= 0) {
-          console.log(container, container.pos, "needs carriers", energy, delta, assignedCapacity);
           utils.logCpu("needCarriers()");
           return true;
         }
@@ -2058,12 +2057,20 @@ function getCarryCapacityBySource(sourceId: Id<StructureContainer | StructureSto
 }
 
 function needUpgraders(): boolean {
-  const controller = getControllerToUpgrade(undefined, false);
-  if (!controller) return false;
-  if (controller.ticksToDowngrade < 1000 && countUpgradersAssigned(controller.id) < 1) return true;
-  const storage = getStorage(controller.room);
-  if (!storage) return false;
-  return utils.getFillRatio(storage) >= 0.5;
+  for (const roomName in Game.rooms) {
+    const room = Game.rooms[roomName];
+    if (room.memory.hostilesPresent) continue;
+    if (!room.controller) continue;
+    if (!room.controller.my) continue;
+    const ticksToDowngrade = room.controller.ticksToDowngrade;
+    const upgraderCount = countUpgradersAssigned(room.controller.id);
+    if (!hasEnoughEnergyForAnotherUpgrader(room.controller) && (ticksToDowngrade > 4000 || upgraderCount > 0))
+      continue;
+    if (isControllerUpgradedEnough(room.controller)) continue;
+    if (upgraderCount >= 5) continue;
+    return true;
+  }
+  return false;
 }
 
 function downscaleHarvester(body: BodyPartConstant[]): BodyPartConstant[] | null {
