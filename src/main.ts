@@ -1255,6 +1255,7 @@ function needCarriers(): boolean {
   utils.logCpu("needCarriers()");
   if (getStoragesRequiringCarrier().length > 0) return true;
   for (const room of Object.values(Game.rooms)) {
+    if (room.memory.hostilesPresent || !room.memory.canOperate) continue;
     const sources = room.find(FIND_SOURCES);
     for (const source of sources) {
       const containers = source.pos.findInRange(FIND_STRUCTURES, 3).filter(utils.isContainer);
