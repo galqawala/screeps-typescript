@@ -335,7 +335,7 @@ function upgraderRetrieveEnergy(creep: Creep) {
   const storeId = creep.memory.storage || creep.memory.container;
   let store;
   if (storeId) store = Game.getObjectById(storeId);
-  if (!store || utils.getEnergy(store) < 1) {
+  if (!store || utils.getEnergy(store) < 1 || utils.getGlobalRange(creep.pos, store.pos) > 5) {
     const findRange = gotSpareCpu() ? 40 : 10;
     store = creep.pos.findClosestByRange(
       creep.pos.findInRange(FIND_STRUCTURES, findRange, {
