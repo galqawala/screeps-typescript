@@ -337,7 +337,7 @@ function upgraderRetrieveEnergy(creep: Creep, controller: StructureController) {
   if (storeId) store = Game.getObjectById(storeId);
   if (!store || utils.getEnergy(store) < 1) {
     store = controller.pos.findClosestByRange(
-      controller.pos.findInRange(FIND_STRUCTURES, 10, {
+      controller.pos.findInRange(FIND_STRUCTURES, gotSpareCpu() ? 30 : 10, {
         filter(object) {
           return utils.isStorage(object) || utils.isContainer(object);
         }
