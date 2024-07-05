@@ -1117,7 +1117,7 @@ function move(creep: Creep, destination: Destination, safe = true) {
     plainCost: 2,
     swampCost: 10
   };
-  if (safe) options.costCallback = getCostMatrixSafe;
+  if (safe) options.costCallback = getCostMatrixSafeCreeps;
   const outcome = creep.moveTo(destination, options);
   utils.logCpu("move(" + creep.name + ") moveTo");
   utils.logCpu("move(" + creep.name + ")");
@@ -1991,6 +1991,15 @@ function getCostMatrixSafe(roomName: string) {
     return costs;
   }
   return new PathFinder.CostMatrix();
+}
+
+function getCostMatrixSafeCreeps(roomName: string) {
+  const costs = getCostMatrixSafe(roomName);
+  if (gotSpareCpu()) {
+    const room = Game.rooms[roomName];
+    if (room) room.find(FIND_CREEPS).forEach(c => costs.set(c.pos.x, c.pos.y, 0xff));
+  }
+  return costs;
 }
 
 function buildRoadsForCarrier(creep: Creep) {
