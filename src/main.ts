@@ -1178,8 +1178,8 @@ function spawnCreeps() {
     spawnRole("infantry");
   } else if (Memory.plan?.needAttackers) {
     spawnCreep("attacker", budget);
-  } else if (Memory.plan?.needExplorers) {
-    spawnRole("explorer", 0, [MOVE]);
+  } else if (Memory.plan?.needExplorers && spawnRole("explorer", 0, [MOVE])) {
+    Memory.plan.needExplorers = false;
   } else if (Memory.plan?.needWorkers) {
     spawnCreep("worker", budget);
   } else if (Memory.plan?.needReservers && budget >= utils.getBodyCost(["claim", "move"])) {
@@ -1305,7 +1305,7 @@ function spawnRole(roleToSpawn: Role, minBudget = 0, body: undefined | BodyPartC
       Memory.plan?.maxRoomEnergyCap
     )
   );
-  spawnCreep(roleToSpawn, budget, body, undefined);
+  return spawnCreep(roleToSpawn, budget, body, undefined);
 }
 
 function needInfantry() {
@@ -1598,8 +1598,8 @@ function spawnCreep(
   if (!body) body = getBody(roleToSpawn, energyAvailable);
   const name = utils.getNameForCreep(roleToSpawn);
   const spawn = getSpawn(energyAvailable, utils.getPos(task?.destination));
-  if (!spawn) return;
-  if (!body || utils.getBodyCost(body) > spawn.room.energyAvailable) return;
+  if (!spawn) return false;
+  if (!body || utils.getBodyCost(body) > spawn.room.energyAvailable) return false;
 
   const outcome = spawn.spawnCreep(body, name, {
     memory: getInitialCreepMem(roleToSpawn, task, spawn.pos, upgradeTarget)
@@ -1608,8 +1608,10 @@ function spawnCreep(
   if (outcome === OK) {
     const target = task?.destination || upgradeTarget;
     utils.spawnMsg(spawn, roleToSpawn, name, body, utils.getObjectDescription(target));
+    return true;
   } else {
     utils.msg(spawn, "Failed to spawn creep: " + outcome.toString());
+    return false;
   }
 }
 
