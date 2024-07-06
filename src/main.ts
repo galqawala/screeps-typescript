@@ -1170,8 +1170,8 @@ function spawnCreeps() {
     spawnCreep("upgrader", budget, undefined, undefined, upgradeTarget);
   } else if (Memory.plan?.needTransferers) {
     spawnTransferer();
-  } else if (Memory.plan?.needCarriers) {
-    spawnCreep("carrier", budget);
+  } else if (Memory.plan?.needCarriers && spawnCreep("carrier", budget)) {
+    Memory.plan.needCarriers = false;
   } else if (Memory.plan?.needHarvesters) {
     spawnHarvester();
   } else if (Memory.plan?.needInfantry) {
