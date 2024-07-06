@@ -110,8 +110,6 @@ declare global {
     lastActiveTime?: number;
     link?: Id<StructureLink>;
     pathKey?: string;
-    phaseIndex?: number;
-    phases?: Phase[];
     pos: RoomPosition;
     retrieve?: Id<Structure | Tombstone | Ruin | Resource>;
     role: Role;
@@ -645,6 +643,10 @@ function handleCarrier(creep: Creep) {
   if (utils.isEmpty(creep)) {
     utils.logCpu("handleCarrier(" + creep.name + ") fetch");
     const tgt = getCarrierEnergySource(creep);
+    if (!tgt) {
+      recycleCreep(creep);
+      return;
+    }
     const outcome = retrieveEnergy(creep, tgt);
     if (outcome === ERR_NOT_IN_RANGE) move(creep, tgt);
     utils.logCpu("handleCarrier(" + creep.name + ") fetch");
@@ -658,8 +660,9 @@ function handleCarrier(creep: Creep) {
 
       for (const tgt of structures) {
         if (!utils.isFull(tgt)) {
+          if (creep.name === "CZ") console.log(creep, creep.pos, cluster, cluster.pos, tgt, tgt.pos);
           const outcome = transfer(creep, tgt);
-          if (outcome === ERR_NOT_IN_RANGE) move(creep, tgt);
+          if (outcome === ERR_NOT_IN_RANGE) move(creep, cluster);
           utils.logCpu("handleCarrier(" + creep.name + ") transfer");
           return;
         }
@@ -1694,7 +1697,8 @@ function getClusterStructures(clusterPos: RoomPosition) {
 }
 
 function getCarrierEnergySource(creep: Creep) {
-  let containers: (StructureContainer | StructureStorage)[] = getStoragesRequiringCarrier();
+  let containers: (StructureContainer | StructureStorage | Resource | Tombstone)[] =
+    getStoragesRequiringCarrier();
   if (containers.length < 1) {
     for (const room of Object.values(Game.rooms)) {
       if (room.memory.hostilesPresent) continue;
@@ -1703,21 +1707,18 @@ function getCarrierEnergySource(creep: Creep) {
           .find(FIND_STRUCTURES)
           .filter(utils.isContainer)
           .filter(container => !utils.isStorageSubstitute(container))
+          .filter(container => !utils.isEmpty(container))
       );
+      if (gotSpareCpu()) {
+        containers = containers.concat(room.find(FIND_DROPPED_RESOURCES));
+        containers = containers.concat(room.find(FIND_TOMBSTONES));
+      }
     }
   }
   return containers
     .map(value => ({
       value,
-      sort:
-        utils.getFillRatio(value) /
-        (Object.values(Game.creeps).filter(
-          carrier =>
-            carrier.memory.role === "carrier" &&
-            carrier.memory.phases &&
-            carrier.memory.phases.map(phase => phase.retrieve || "").includes(value.id)
-        ).length || 0.1) /
-        (utils.getGlobalRange(creep.pos, value.pos) / 100)
+      sort: utils.getEnergy(value) / (utils.getGlobalRange(creep.pos, value.pos) / 100)
     })) /* persist sort values */
     .sort((a, b) => b.sort - a.sort) /* sort */
     .map(({ value }) => value) /* remove sort values */[0];
