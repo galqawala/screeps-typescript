@@ -1795,7 +1795,9 @@ function getCostMatrixSafeCreeps(roomName: string) {
   const costs = getCostMatrixSafe(roomName);
   if (gotSpareCpu()) {
     const room = Game.rooms[roomName];
-    if (room) room.find(FIND_CREEPS).forEach(c => costs.set(c.pos.x, c.pos.y, 0xff));
+    // we can't go through creeps, but they might move out of the way
+    // so consider them hard but possible to pass
+    if (room) room.find(FIND_CREEPS).forEach(c => costs.set(c.pos.x, c.pos.y, 100));
   }
   return costs;
 }
