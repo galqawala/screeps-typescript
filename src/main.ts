@@ -640,7 +640,10 @@ function moveTowardMemory(creep: Creep) {
 function handleCarrier(creep: Creep) {
   // maybe we could add some route/target caching even with these dynamic targets?
   utils.logCpu("handleCarrier(" + creep.name + ")");
-  if (utils.isEmpty(creep)) {
+  const destination = creep.memory.destination;
+  if (destination instanceof RoomPosition && destination !== creep.pos) {
+    move(creep, destination);
+  } else if (utils.isEmpty(creep)) {
     utils.logCpu("handleCarrier(" + creep.name + ") fetch");
     const tgt = getCarrierEnergySource(creep);
     if (!tgt) {
@@ -652,21 +655,11 @@ function handleCarrier(creep: Creep) {
     utils.logCpu("handleCarrier(" + creep.name + ") fetch");
   } else {
     utils.logCpu("handleCarrier(" + creep.name + ") transfer");
-    const clusters = getClustersToFill(creep.pos);
-    const storage = getStorage(creep.room);
-    for (const cluster of clusters) {
-      const structures: AnyStructure[] = getClusterStructures(cluster.pos);
-      if (storage && cluster.pos.roomName !== creep.pos.roomName) structures.unshift(storage);
-
-      for (const tgt of structures) {
-        if (!utils.isFull(tgt)) {
-          if (creep.name === "CZ") console.log(creep, creep.pos, cluster, cluster.pos, tgt, tgt.pos);
-          const outcome = transfer(creep, tgt);
-          if (outcome === ERR_NOT_IN_RANGE) move(creep, cluster);
-          utils.logCpu("handleCarrier(" + creep.name + ") transfer");
-          return;
-        }
-      }
+    const tgt = getStructureToFillHere(creep.pos);
+    if (tgt) {
+      transfer(creep, tgt);
+    } else {
+      creep.memory.destination = getTransferDestination(creep.pos);
     }
     utils.logCpu("handleCarrier(" + creep.name + ") transfer");
   }
@@ -1892,4 +1885,35 @@ function getClustersToFill(pos: RoomPosition) {
     })) /* persist sort values */
     .sort((a, b) => a.sort - b.sort) /* sort */
     .map(({ value }) => value); /* remove sort values */
+}
+
+function getStructureToFillHere(pos: RoomPosition) {
+  const structures: AnyStructure[] = getClusterStructures(pos);
+  for (const tgt of structures) {
+    if (!utils.isFull(tgt)) return tgt;
+  }
+  const room = Game.rooms[pos.roomName];
+  if (room) {
+    const storage = getStorage(room);
+    if (storage && pos.getRangeTo(storage.pos) < 2 && !utils.isFull(storage)) return storage;
+  }
+  return null;
+}
+
+function getTransferDestination(pos: RoomPosition): RoomPosition | DestinationId | undefined {
+  const clusters = getClustersToFill(pos);
+  const room = Game.rooms[pos.roomName];
+  if (!room) return;
+  const storage = getStorage(room);
+  for (const cluster of clusters) {
+    const store = getStructureToFillHere(cluster.pos);
+    if (!store) continue;
+    if (storage && cluster.pos.roomName !== pos.roomName && !utils.isFull(storage)) {
+      return storage.pos;
+    } else if (!utils.isFull(store)) {
+      return cluster.pos;
+    }
+  }
+  if (storage && !utils.isFull(storage)) return storage.pos;
+  return;
 }
