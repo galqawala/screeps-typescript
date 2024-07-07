@@ -398,7 +398,11 @@ function handleWorker(creep: Creep) {
 
 function workerRetrieveEnergy(creep: Creep) {
   utils.logCpu("workerRetrieveEnergy(" + creep.name + ")");
-  if (creep.room.storage && retrieveEnergy(creep, creep.room.storage) === ERR_NOT_IN_RANGE) {
+  if (
+    creep.room.storage &&
+    !utils.isEmpty(creep.room.storage) &&
+    retrieveEnergy(creep, creep.room.storage) === ERR_NOT_IN_RANGE
+  ) {
     move(creep, creep.room.storage);
   } else {
     const container = creep.pos.findClosestByRange(FIND_STRUCTURES, {
