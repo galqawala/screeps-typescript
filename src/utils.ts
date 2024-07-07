@@ -159,10 +159,19 @@ export function getGlobalRange(from: RoomPosition | undefined, to: RoomPosition 
 }
 
 export function cpuInfo(): void {
-  if (Game.cpu.tickLimit - Game.cpu.getUsed() < Memory.maxTickLimit / 2) {
+  if (Memory.printCpuInfo) {
     msg(
       "cpuInfo()",
       Game.cpu.getUsed().toString() + "/" + Game.cpu.limit.toString() + " CPU used!\n" + getCpuLog()
+    );
+    Memory.printCpuInfo = false;
+  } else if (Game.cpu.tickLimit - Game.cpu.getUsed() < Memory.maxTickLimit / 2) {
+    msg(
+      "cpuInfo()",
+      Game.cpu.getUsed().toString() +
+        "/" +
+        Game.cpu.limit.toString() +
+        " CPU used! To get detailed log use: Memory.printCpuInfo=true;"
     );
   }
 }
@@ -778,7 +787,12 @@ export function getPotentialConstructionSites(room: Room): ScoredPos[] {
   return sites;
 }
 
-function getSurroundingPlains(pos: RoomPosition, rangeMin: number, rangeMax: number, allowSwamp = false) {
+export function getSurroundingPlains(
+  pos: RoomPosition,
+  rangeMin: number,
+  rangeMax: number,
+  allowSwamp = false
+): RoomPosition[] {
   const plains = [];
   const positions = getPositionsAround(pos, rangeMin, rangeMax, true);
   const terrain = new Room.Terrain(pos.roomName);
