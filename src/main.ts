@@ -109,6 +109,7 @@ declare global {
     destination?: DestinationId | RoomPosition;
     lastActiveTime?: number;
     lastMoveTime?: number;
+    lastTimeFull?: number;
     link?: Id<StructureLink>;
     path?: RoomPosition[];
     pathKey?: string;
@@ -181,14 +182,14 @@ export const loop = ErrorMapper.wrapLoop(() => {
   if (!Memory.username) utils.setUsername();
   checkWipeOut();
   utils.logCpu("mem");
-  if (Math.random() < 0.01 || gotSpareCpu()) updatePlan();
+  if (Math.random() < 0.01 || utils.gotSpareCpu()) updatePlan();
   for (const r in Game.rooms) handleRoom(Game.rooms[r]);
   spawnCreeps();
   utils.logCpu("update flags");
   updateFlagAttack();
   updateFlagClaim();
   updateFlagReserve();
-  if (gotSpareCpu()) updateFlagDismantle();
+  if (utils.gotSpareCpu()) updateFlagDismantle();
   utils.logCpu("update flags");
   handleCreeps();
   Memory.cpuUsedRatio = Game.cpu.getUsed() / Game.cpu.limit;
@@ -290,6 +291,7 @@ function handleCreeps() {
       else if (role === "worker") handleWorker(creep);
 
       if (!isPosEqual(creep.memory.pos, creep.pos)) creep.memory.lastMoveTime = Game.time;
+      if (utils.isFull(creep)) creep.memory.lastTimeFull = Game.time;
       creep.memory.pos = creep.pos;
       utils.logCpu("creep: " + c);
     }
@@ -336,7 +338,7 @@ function upgraderRetrieveEnergy(creep: Creep) {
   let store;
   if (storeId) store = Game.getObjectById(storeId);
   if (!store || utils.getEnergy(store) < 1 || utils.getGlobalRange(creep.pos, store.pos) > 5) {
-    const findRange = gotSpareCpu() ? 40 : 10;
+    const findRange = utils.gotSpareCpu() ? 40 : 10;
     store = creep.pos.findClosestByRange(
       creep.pos.findInRange(FIND_STRUCTURES, findRange, {
         filter(object) {
@@ -978,11 +980,11 @@ function handleRoom(room: Room) {
   handleRoomTowers(room);
   utils.logCpu("handleRoom(" + room.name + ") towers");
   utils.logCpu("handleRoom(" + room.name + ") observers");
-  if (Math.random() < 0.1 && gotSpareCpu()) handleRoomObservers(room);
+  if (Math.random() < 0.1 && utils.gotSpareCpu()) handleRoomObservers(room);
   utils.logCpu("handleRoom(" + room.name + ") observers");
   utils.logCpu("handleRoom(" + room.name + ") updates1");
   utils.handleHostilesInRoom(room);
-  if (utils.canOperateInRoom(room) && Math.random() < 0.3 && gotSpareCpu()) utils.constructInRoom(room);
+  if (utils.canOperateInRoom(room) && Math.random() < 0.3 && utils.gotSpareCpu()) utils.constructInRoom(room);
   utils.logCpu("handleRoom(" + room.name + ") updates1");
   utils.logCpu("handleRoom(" + room.name + ") updates2");
   utils.handleLinks(room);
@@ -990,7 +992,7 @@ function handleRoom(room: Room) {
   utils.logCpu("handleRoom(" + room.name + ") updates2");
   utils.logCpu("handleRoom(" + room.name + ") updates3");
   utils.checkRoomCanOperate(room);
-  if (Math.random() < 0.1 && gotSpareCpu()) updateStickyEnergy(room);
+  if (Math.random() < 0.1 && utils.gotSpareCpu()) updateStickyEnergy(room);
   utils.logCpu("handleRoom(" + room.name + ") updates3");
   utils.logCpu("handleRoom(" + room.name + ")");
 }
@@ -1071,21 +1073,6 @@ function move(creep: Creep, destination: Destination, safe = true) {
   return outcome;
 }
 
-function hslToHex(h: number /* deg */, s: number /* % */, l: number /* % */) {
-  //  https://stackoverflow.com/a/44134328
-  //  hslToHex(360, 100, 50)  // "#ff0000" -> red
-  l /= 100;
-  const a = (s * Math.min(l, 1 - l)) / 100;
-  const f = (n: number) => {
-    const k = (n + h / 30) % 12;
-    const color = l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1);
-    return Math.round(255 * color)
-      .toString(16)
-      .padStart(2, "0"); // convert to Hex and prefix "0" if needed
-  };
-  return `#${f(0)}${f(8)}${f(4)}`;
-}
-
 function withdraw(creep: Creep, destination: Destination) {
   if (destination instanceof Structure || destination instanceof Tombstone || destination instanceof Ruin) {
     const actionOutcome = creep.withdraw(destination, RESOURCE_ENERGY);
@@ -1104,13 +1091,9 @@ function pickup(creep: Creep, destination: Destination) {
   return ERR_INVALID_TARGET;
 }
 
-function gotSpareCpu() {
-  return Game.cpu.tickLimit >= Memory.maxTickLimit && Memory.cpuUsedRatio < 0.9;
-}
-
 function spawnCreeps() {
   utils.logCpu("spawnCreeps()");
-  const budget = gotSpareCpu() ? Memory.plan?.maxRoomEnergy : Memory.plan?.maxRoomEnergyCap;
+  const budget = utils.gotSpareCpu() ? Memory.plan?.maxRoomEnergy : Memory.plan?.maxRoomEnergyCap;
   if (Memory.plan?.minTicksToDowngrade < 1000) {
     const upgradeTarget = getControllerToUpgrade();
     if (!upgradeTarget || countUpgradersAssigned(upgradeTarget.id) > 0) return;
@@ -1401,7 +1384,7 @@ function updateFlagReserve() {
 
 function needWorkers() {
   utils.logCpu("needWorkers");
-  if (utils.isAnyoneIdle("worker")) return false;
+  if (utils.isAnyoneIdle("worker") || utils.isAnyoneLackingEnergy("worker")) return false;
   const workers = Object.values(Game.creeps).filter(creep => creep.memory.role === "worker");
   utils.logCpu("needWorkers");
   if (workers.length >= 15) return false;
@@ -1465,7 +1448,7 @@ function spawnHarvester() {
   const memory = {
     role: roleToSpawn,
     sourceId: source.id,
-    stroke: hslToHex(Math.random() * 360, 100, 50),
+    stroke: utils.hslToHex(Math.random() * 360, 100, 50),
     strokeWidth: 0.1 + 0.1 * (Math.random() % 4),
     pos: spawn.pos
   };
@@ -1513,7 +1496,7 @@ function getTransferrerMem(retrieve: Id<StructureLink>, transferTo: Id<Structure
     retrieve,
     role: "transferer" as Role,
     transferTo,
-    stroke: hslToHex(Math.random() * 360, 100, 50),
+    stroke: utils.hslToHex(Math.random() * 360, 100, 50),
     strokeWidth: 0.1 + 0.1 * (Math.random() % 4),
     pos
   };
@@ -1570,7 +1553,7 @@ function getInitialCreepMem(
     destination: task?.destination && "id" in task?.destination ? task?.destination?.id : undefined,
     pos,
     role: roleToSpawn,
-    stroke: hslToHex(Math.random() * 360, 100, 50),
+    stroke: utils.hslToHex(Math.random() * 360, 100, 50),
     strokeWidth: 0.1 + 0.1 * (Math.random() % 4),
     upgrade: upgradeTarget?.id
   };
@@ -1720,7 +1703,7 @@ function getCarrierEnergySource(pos: RoomPosition) {
           .filter(container => !utils.isStorageSubstitute(container))
           .filter(container => !utils.isEmpty(container))
       );
-      if (gotSpareCpu()) {
+      if (utils.gotSpareCpu()) {
         containers = containers.concat(room.find(FIND_DROPPED_RESOURCES));
         containers = containers.concat(room.find(FIND_TOMBSTONES));
       }
@@ -1790,7 +1773,7 @@ function getCostMatrixSafe(roomName: string) {
 
 function getCostMatrixSafeCreeps(roomName: string) {
   const costs = getCostMatrixSafe(roomName);
-  if (gotSpareCpu()) {
+  if (utils.gotSpareCpu()) {
     const room = Game.rooms[roomName];
     // we can't go through creeps, but they might move out of the way
     // so consider them hard but possible to pass
@@ -1935,6 +1918,10 @@ function getNearbyEnergySource(pos: RoomPosition) {
 
 function getPosNextToEnergySource(pos: RoomPosition) {
   const tgt = getCarrierEnergySource(pos);
+  if (!tgt) {
+    utils.msg(pos, "Can't find energy source for carrier around " + pos.toString());
+    return;
+  }
   let positionsAroundTgt = utils.getSurroundingPlains(tgt.pos, 1, 1, false);
   if (positionsAroundTgt.length < 1) positionsAroundTgt = utils.getSurroundingPlains(tgt.pos, 1, 1, true);
   if (positionsAroundTgt.length < 1) {
