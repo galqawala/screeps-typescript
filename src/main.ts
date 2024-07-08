@@ -249,7 +249,7 @@ function getStorageMin() {
 function needExplorers() {
   utils.logCpu("needExplorers()");
   const value =
-    utils.getCreepCountByRole("explorer") < 2 &&
+    utils.getCreepCountByRole("explorer") < 1 &&
     Object.values(Game.rooms).filter(
       room =>
         room.controller &&
