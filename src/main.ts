@@ -1182,6 +1182,7 @@ function needCarriers(): boolean {
         const delta = room.memory.stickyEnergyDelta?.[container.id] || 0;
         if (utils.isFull(container) || (utils.getFillRatio(container) > 0.5 && delta > 0)) {
           utils.logCpu("needCarriers()");
+          console.log(container, container.pos, "requires a carrier");
           return true;
         }
       }
@@ -1513,6 +1514,7 @@ function spawnCreep(
   const name = utils.getNameForCreep(roleToSpawn);
   if (!spawn) spawn = getSpawn(energyAvailable, utils.getPos(task?.destination));
   if (!spawn) return false;
+  if (spawn.spawning) return false;
   if (!body || utils.getBodyCost(body) > spawn.room.energyAvailable) return false;
 
   const outcome = spawn.spawnCreep(body, name, {
@@ -1746,9 +1748,11 @@ function getCostMatrixSafeCreeps(roomName: string) {
   const costs = utils.getCostMatrixSafe(roomName);
   if (utils.gotSpareCpu()) {
     const room = Game.rooms[roomName];
-    // we can't go through creeps, but they might move out of the way
-    // so consider them hard but possible to pass
-    if (room) room.find(FIND_CREEPS).forEach(c => costs.set(c.pos.x, c.pos.y, 100));
+    // longer the creep has stayed there, less likely it is to move out of the way
+    if (room)
+      room
+        .find(FIND_CREEPS)
+        .forEach(c => costs.set(c.pos.x, c.pos.y, Game.time - (c.memory.lastMoveTime || Game.time)));
   }
   return costs;
 }
