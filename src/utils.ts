@@ -934,6 +934,7 @@ export function constructInRoom(room: Room): void {
   } else {
     planClusters(room);
   }
+  destroyUnnecessaryContainers(room);
   logCpu("constructInRoom(" + room.name + ")");
 }
 
@@ -1217,15 +1218,6 @@ export function construct(room: Room, structureType: BuildableStructureConstant)
     }
     const outcome = pos.createConstructionSite(structureType);
     if (structureType !== STRUCTURE_ROAD) constructMsg(room, structureType, pos, outcome);
-    if (structureType === STRUCTURE_LINK) {
-      pos
-        .findInRange(FIND_STRUCTURES, 3)
-        .filter(target => isContainer(target) && !isStorageSubstitute(target))
-        .forEach(structure => {
-          msg(structure, "This container is being replaced by a link");
-          structure.destroy();
-        });
-    }
   }
 }
 
@@ -1583,4 +1575,17 @@ export function hslToHex(h: number /* deg */, s: number /* % */, l: number /* % 
       .padStart(2, "0"); // convert to Hex and prefix "0" if needed
   };
   return `#${f(0)}${f(8)}${f(4)}`;
+}
+function destroyUnnecessaryContainers(room: Room) {
+  room.find(FIND_SOURCES).forEach(source => {
+    if (source.pos.findInRange(FIND_MY_STRUCTURES, 2).filter(s => isLink(s)).length > 0) {
+      source.pos
+        .findInRange(FIND_STRUCTURES, 2)
+        .filter(target => isContainer(target) && !isStorageSubstitute(target) && isEmpty(target))
+        .forEach(structure => {
+          msg(structure, "Removing this container as there's a link");
+          structure.destroy();
+        });
+    }
+  });
 }
