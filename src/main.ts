@@ -1782,7 +1782,7 @@ function needUpgraders(): boolean {
     if (!hasEnoughEnergyForAnotherUpgrader(room.controller) && (ticksToDowngrade > 4000 || upgraderCount > 0))
       continue;
     if (isControllerUpgradedEnough(room.controller)) continue;
-    if (upgraderCount >= 5) continue;
+    if (upgraderCount >= 4) continue;
     return true;
   }
   return false;
