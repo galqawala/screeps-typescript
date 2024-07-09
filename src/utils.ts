@@ -1219,8 +1219,8 @@ export function construct(room: Room, structureType: BuildableStructureConstant)
     if (structureType !== STRUCTURE_ROAD) constructMsg(room, structureType, pos, outcome);
     if (structureType === STRUCTURE_LINK) {
       pos
-        .findInRange(FIND_STRUCTURES, 1)
-        .filter(target => target.structureType === STRUCTURE_CONTAINER)
+        .findInRange(FIND_STRUCTURES, 3)
+        .filter(target => isContainer(target) && !isStorageSubstitute(target))
         .forEach(structure => {
           msg(structure, "This container is being replaced by a link");
           structure.destroy();
