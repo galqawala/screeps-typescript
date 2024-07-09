@@ -1704,6 +1704,7 @@ function getCarrierEnergySource(pos: RoomPosition) {
           containers = containers.concat(
             room
               .find(FIND_STRUCTURES)
+              .filter(utils.isStoreStructure)
               .filter(s => utils.isContainer(s) || utils.isStorage(s) || utils.isLink(s))
               .filter(container => !utils.isEmpty(container))
           );
@@ -1893,6 +1894,7 @@ function getNearbyEnergySource(pos: RoomPosition) {
   if (room.energyAvailable < room.energyCapacityAvailable) {
     source = pos
       .findInRange(FIND_STRUCTURES, 1)
+      .filter(utils.isStoreStructure)
       .filter(s => utils.isContainer(s) || utils.isStorage(s) || utils.isLink(s))
       .filter(container => !utils.isEmpty(container))[0];
     if (source) return source;
