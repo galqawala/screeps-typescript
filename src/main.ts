@@ -349,7 +349,7 @@ function upgraderRetrieveEnergy(creep: Creep) {
     if (!store) {
       store = creep.pos.findClosestByRange(creep.pos.findInRange(FIND_DROPPED_RESOURCES, findRange));
       if (!store) {
-        moveRandomDirection(creep); // get out of the way
+        utils.moveRandomDirection(creep); // get out of the way
         return;
       }
     }
@@ -363,18 +363,12 @@ function upgraderRetrieveEnergy(creep: Creep) {
     withdrawOutcome = creep.withdraw(store, RESOURCE_ENERGY);
   }
   if (withdrawOutcome === ERR_NOT_IN_RANGE) move(creep, store);
-  if (utils.isStuck(creep)) moveRandomDirection(creep);
-}
-
-function moveRandomDirection(creep: Creep) {
-  const directions = [TOP, TOP_RIGHT, RIGHT, BOTTOM_RIGHT, BOTTOM, BOTTOM_LEFT, LEFT, TOP_LEFT];
-  const direction = directions[Math.floor(Math.random() * directions.length)];
-  creep.move(direction);
+  if (utils.isStuck(creep)) utils.moveRandomDirection(creep);
 }
 
 function handleWorker(creep: Creep) {
   if (utils.isStuck(creep)) {
-    moveRandomDirection(creep);
+    utils.moveRandomDirection(creep);
     return;
   }
 
@@ -430,7 +424,7 @@ function workerRetrieveEnergy(creep: Creep) {
         if (closestStorage && retrieveEnergy(creep, closestStorage) === ERR_NOT_IN_RANGE) {
           move(creep, closestStorage);
         } else if (utils.isStuck(creep)) {
-          moveRandomDirection(creep);
+          utils.moveRandomDirection(creep);
         }
       }
     }
@@ -1690,7 +1684,7 @@ function getClusterStructures(clusterPos: RoomPosition) {
 }
 
 function getCarrierEnergySource(pos: RoomPosition) {
-  let containers: (StructureContainer | StructureStorage | Resource | Tombstone)[] = [];
+  let containers: (AnyStoreStructure | Resource | Tombstone)[] = [];
   if (containers.length < 1) {
     for (const room of Object.values(Game.rooms)) {
       if (room.memory.hostilesPresent) continue;
@@ -1703,7 +1697,17 @@ function getCarrierEnergySource(pos: RoomPosition) {
       );
       if (utils.gotSpareCpu()) {
         containers = containers.concat(room.find(FIND_DROPPED_RESOURCES));
-        containers = containers.concat(room.find(FIND_TOMBSTONES));
+        containers = containers.concat(
+          room.find(FIND_TOMBSTONES).filter(container => !utils.isEmpty(container))
+        );
+        if (room.energyAvailable < room.energyCapacityAvailable) {
+          containers = containers.concat(
+            room
+              .find(FIND_STRUCTURES)
+              .filter(s => utils.isContainer(s) || utils.isStorage(s) || utils.isLink(s))
+              .filter(container => !utils.isEmpty(container))
+          );
+        }
       }
     }
   }
@@ -1742,35 +1746,8 @@ function getCostMatrix(roomName: string) {
   return costs;
 }
 
-function getCostMatrixSafe(roomName: string) {
-  const costMem = Memory.rooms[roomName]?.costMatrix;
-  if (costMem) {
-    const costs = PathFinder.CostMatrix.deserialize(costMem);
-    const exits = Game.map.describeExits(roomName);
-    for (const [direction, exitRoomName] of Object.entries(exits)) {
-      if (!utils.isRoomSafe(exitRoomName)) {
-        if (direction === FIND_EXIT_TOP.toString()) {
-          const y = 0;
-          for (let x = 0; x <= 49; x++) costs.set(x, y, 0xff);
-        } else if (direction === FIND_EXIT_BOTTOM.toString()) {
-          const y = 49;
-          for (let x = 0; x <= 49; x++) costs.set(x, y, 0xff);
-        } else if (direction === FIND_EXIT_LEFT.toString()) {
-          const x = 0;
-          for (let y = 0; y <= 49; y++) costs.set(x, y, 0xff);
-        } else if (direction === FIND_EXIT_RIGHT.toString()) {
-          const x = 49;
-          for (let y = 0; y <= 49; y++) costs.set(x, y, 0xff);
-        }
-      }
-    }
-    return costs;
-  }
-  return new PathFinder.CostMatrix();
-}
-
 function getCostMatrixSafeCreeps(roomName: string) {
-  const costs = getCostMatrixSafe(roomName);
+  const costs = utils.getCostMatrixSafe(roomName);
   if (utils.gotSpareCpu()) {
     const room = Game.rooms[roomName];
     // we can't go through creeps, but they might move out of the way
@@ -1901,7 +1878,7 @@ function getTransferDestination(pos: RoomPosition): RoomPosition | undefined {
 }
 
 function getNearbyEnergySource(pos: RoomPosition) {
-  let source: StructureContainer | Resource | Tombstone = pos
+  let source: AnyStoreStructure | Resource | Tombstone = pos
     .findInRange(FIND_STRUCTURES, 1)
     .filter(utils.isContainer)
     .filter(container => !utils.isStorageSubstitute(container))
@@ -1911,6 +1888,15 @@ function getNearbyEnergySource(pos: RoomPosition) {
   if (source && !utils.isEmpty(source)) return source;
   source = pos.findInRange(FIND_TOMBSTONES, 1)[0];
   if (source && !utils.isEmpty(source)) return source;
+  const room = Game.rooms[pos.roomName];
+  if (!room) return;
+  if (room.energyAvailable < room.energyCapacityAvailable) {
+    source = pos
+      .findInRange(FIND_STRUCTURES, 1)
+      .filter(s => utils.isContainer(s) || utils.isStorage(s) || utils.isLink(s))
+      .filter(container => !utils.isEmpty(container))[0];
+    if (source) return source;
+  }
   return;
 }
 
@@ -1963,7 +1949,7 @@ function getPath(from: RoomPosition, to: RoomPosition, range = 0) {
     {
       plainCost: 2,
       swampCost: 10,
-      roomCallback: getCostMatrixSafe
+      roomCallback: utils.getCostMatrixSafe
     }
   ).path;
 }
@@ -1986,7 +1972,7 @@ function followMemorizedPath(creep: Creep) {
   } else if (outcome === OK) {
     if (utils.isStuck(creep)) {
       delete creep.memory.path; // replan
-      moveRandomDirection(creep);
+      utils.moveRandomDirection(creep);
     } else if (creep.room.memory.hostilesPresent) {
       utils.msg(creep, "hostiles present, resetting plans");
       delete creep.memory.path; // replan

@@ -1601,3 +1601,36 @@ export function isPosEqual(a: RoomPosition, b: RoomPosition): boolean {
 export function isStuck(creep: Creep): boolean {
   return (creep.memory.lastMoveTime || 0) < Game.time - 10;
 }
+
+export function moveRandomDirection(creep: Creep): void {
+  const directions = [TOP, TOP_RIGHT, RIGHT, BOTTOM_RIGHT, BOTTOM, BOTTOM_LEFT, LEFT, TOP_LEFT];
+  const direction = directions[Math.floor(Math.random() * directions.length)];
+  creep.move(direction);
+}
+
+export function getCostMatrixSafe(roomName: string): CostMatrix {
+  const costMem = Memory.rooms[roomName]?.costMatrix;
+  if (costMem) {
+    const costs = PathFinder.CostMatrix.deserialize(costMem);
+    const exits = Game.map.describeExits(roomName);
+    for (const [direction, exitRoomName] of Object.entries(exits)) {
+      if (!isRoomSafe(exitRoomName)) {
+        if (direction === FIND_EXIT_TOP.toString()) {
+          const y = 0;
+          for (let x = 0; x <= 49; x++) costs.set(x, y, 0xff);
+        } else if (direction === FIND_EXIT_BOTTOM.toString()) {
+          const y = 49;
+          for (let x = 0; x <= 49; x++) costs.set(x, y, 0xff);
+        } else if (direction === FIND_EXIT_LEFT.toString()) {
+          const x = 0;
+          for (let y = 0; y <= 49; y++) costs.set(x, y, 0xff);
+        } else if (direction === FIND_EXIT_RIGHT.toString()) {
+          const x = 49;
+          for (let y = 0; y <= 49; y++) costs.set(x, y, 0xff);
+        }
+      }
+    }
+    return costs;
+  }
+  return new PathFinder.CostMatrix();
+}
