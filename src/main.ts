@@ -1103,10 +1103,8 @@ function pickup(creep: Creep, destination: Destination) {
 function spawnCreeps() {
   utils.logCpu("spawnCreeps()");
   const budget = utils.gotSpareCpu() ? Memory.plan?.maxRoomEnergy : Memory.plan?.maxRoomEnergyCap;
-  if (Memory.plan?.minTicksToDowngrade < 1000) {
-    const upgradeTarget = getControllerToUpgrade();
-    if (!upgradeTarget || countUpgradersAssigned(upgradeTarget.id) > 0) return;
-    spawnCreep("upgrader", budget, undefined, undefined, upgradeTarget);
+  if (spawnUpgrader(true)) {
+    return; // spawning upgrader for urgent need
   } else if (Memory.plan?.needTransferers) {
     spawnTransferer();
   } else if (Memory.plan?.needCarriers && spawnCreep("carrier", budget)) {
@@ -1527,11 +1525,12 @@ function spawnCreep(
   energyAvailable: number,
   body: undefined | BodyPartConstant[] = undefined,
   task: Task | undefined = undefined,
-  upgradeTarget: StructureController | undefined = undefined
+  upgradeTarget: StructureController | undefined = undefined,
+  spawn: StructureSpawn | undefined = undefined
 ) {
   if (!body) body = getBody(roleToSpawn, energyAvailable);
   const name = utils.getNameForCreep(roleToSpawn);
-  const spawn = getSpawn(energyAvailable, utils.getPos(task?.destination));
+  if (!spawn) spawn = getSpawn(energyAvailable, utils.getPos(task?.destination));
   if (!spawn) return false;
   if (!body || utils.getBodyCost(body) > spawn.room.energyAvailable) return false;
 
@@ -1998,8 +1997,8 @@ function followMemorizedPath(creep: Creep) {
   return;
 }
 
-function spawnUpgrader() {
-  const upgradeTarget = getControllerToUpgrade();
+function spawnUpgrader(urgentOnly = false) {
+  const upgradeTarget = getControllerToUpgrade(undefined, urgentOnly);
   if (!upgradeTarget) return;
   const spawn = Object.values(Game.spawns)
     .map(value => ({
@@ -2009,5 +2008,5 @@ function spawnUpgrader() {
     .sort((a, b) => a.sort - b.sort) /* sort */
     .map(({ value }) => value) /* remove sort values */[0];
   if (!spawn) return;
-  spawnCreep("upgrader", spawn.room.energyAvailable, undefined, undefined, upgradeTarget);
+  return spawnCreep("upgrader", spawn.room.energyAvailable, undefined, undefined, upgradeTarget, spawn);
 }
