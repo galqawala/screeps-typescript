@@ -1658,6 +1658,8 @@ function getStorage(room: Room): StructureContainer | StructureStorage | undefin
 }
 
 function getClusterStructures(clusterPos: RoomPosition) {
+  const room = Game.rooms[clusterPos.roomName];
+  if (!room) return [];
   const structures = clusterPos
     .findInRange(FIND_MY_STRUCTURES, 1)
     .map(value => ({
@@ -1666,7 +1668,13 @@ function getClusterStructures(clusterPos: RoomPosition) {
     })) /* persist sort values */
     .sort((a, b) => a.sort - b.sort) /* sort */
     .map(({ value }) => value) /* remove sort values */
-    .filter(utils.isOwnedStoreStructure);
+    .filter(utils.isOwnedStoreStructure)
+    .filter(
+      /* only fill storage when spawns/extensions are full */
+      s =>
+        (!utils.isStorage(s) && !utils.isStorageSubstitute(s)) ||
+        room.energyAvailable >= room.energyCapacityAvailable
+    );
   return structures;
 }
 
@@ -1838,7 +1846,7 @@ function getStructureToFillHere(pos: RoomPosition) {
     if (!utils.isFull(tgt)) return tgt;
   }
   const room = Game.rooms[pos.roomName];
-  if (room) {
+  if (room && room.energyAvailable >= room.energyCapacityAvailable) {
     const storage = getStorage(room);
     if (storage && pos.getRangeTo(storage.pos) < 2 && !utils.isFull(storage)) {
       utils.logCpu("getStructureToFillHere(" + pos.toString() + ")");
