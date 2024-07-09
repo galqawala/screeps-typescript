@@ -1088,7 +1088,7 @@ function spawnCreeps() {
     return; // spawning upgrader for urgent need
   } else if (Memory.plan?.needTransferers) {
     spawnTransferer();
-  } else if (Memory.plan?.needCarriers && spawnCreep("carrier", budget)) {
+  } else if (Memory.plan?.needCarriers && spawnCarrier()) {
     Memory.plan.needCarriers = false;
   } else if (Memory.plan?.needHarvesters) {
     spawnHarvester();
@@ -1681,35 +1681,7 @@ function getClusterStructures(clusterPos: RoomPosition) {
 }
 
 function getCarrierEnergySource(pos: RoomPosition) {
-  let containers: (AnyStoreStructure | Resource | Tombstone)[] = [];
-  if (containers.length < 1) {
-    for (const room of Object.values(Game.rooms)) {
-      if (room.memory.hostilesPresent) continue;
-      containers = containers.concat(
-        room
-          .find(FIND_STRUCTURES)
-          .filter(utils.isContainer)
-          .filter(container => !utils.isStorageSubstitute(container))
-          .filter(container => !utils.isEmpty(container))
-      );
-      if (utils.gotSpareCpu()) {
-        containers = containers.concat(room.find(FIND_DROPPED_RESOURCES));
-        containers = containers.concat(
-          room.find(FIND_TOMBSTONES).filter(container => !utils.isEmpty(container))
-        );
-        if (room.energyAvailable < room.energyCapacityAvailable) {
-          containers = containers.concat(
-            room
-              .find(FIND_STRUCTURES)
-              .filter(utils.isStoreStructure)
-              .filter(s => utils.isContainer(s) || utils.isStorage(s) || utils.isLink(s))
-              .filter(container => !utils.isEmpty(container))
-          );
-        }
-      }
-    }
-  }
-  return containers
+  return getCarrierEnergySources()
     .map(value => ({
       value,
       sort: utils.getEnergy(value) / (utils.getGlobalRange(pos, value.pos) / 100)
@@ -1996,4 +1968,55 @@ function spawnUpgrader(urgentOnly = false) {
     .map(({ value }) => value) /* remove sort values */[0];
   if (!spawn) return;
   return spawnCreep("upgrader", spawn.room.energyAvailable, undefined, undefined, upgradeTarget, spawn);
+}
+
+function spawnCarrier() {
+  const energySource = getCarrierEnergySources()
+    .map(value => ({
+      value,
+      sort: 1 - utils.getFillRatio(value)
+    })) /* persist sort values */
+    .sort((a, b) => a.sort - b.sort) /* sort */
+    .map(({ value }) => value) /* remove sort values */[0];
+  if (!energySource) return false;
+  const spawn = Object.values(Game.spawns)
+    .map(value => ({
+      value,
+      sort: utils.getGlobalRange(value.pos, energySource.pos)
+    })) /* persist sort values */
+    .sort((a, b) => a.sort - b.sort) /* sort */
+    .map(({ value }) => value) /* remove sort values */[0];
+  if (!spawn) return false;
+  console.log("Spawning carrier for", energySource, energySource.pos);
+  return spawnCreep("carrier", spawn.room.energyAvailable, undefined, undefined, undefined, spawn);
+}
+
+function getCarrierEnergySources(): (Resource<ResourceConstant> | Tombstone | AnyStoreStructure)[] {
+  let containers: (AnyStoreStructure | Resource | Tombstone)[] = [];
+  for (const room of Object.values(Game.rooms)) {
+    if (room.memory.hostilesPresent) continue;
+    containers = containers.concat(
+      room
+        .find(FIND_STRUCTURES)
+        .filter(utils.isContainer)
+        .filter(container => !utils.isStorageSubstitute(container))
+        .filter(container => !utils.isEmpty(container))
+    );
+    if (utils.gotSpareCpu()) {
+      containers = containers.concat(room.find(FIND_DROPPED_RESOURCES));
+      containers = containers.concat(
+        room.find(FIND_TOMBSTONES).filter(container => !utils.isEmpty(container))
+      );
+      if (room.energyAvailable < room.energyCapacityAvailable) {
+        containers = containers.concat(
+          room
+            .find(FIND_STRUCTURES)
+            .filter(utils.isStoreStructure)
+            .filter(s => utils.isContainer(s) || utils.isStorage(s) || utils.isLink(s))
+            .filter(container => !utils.isEmpty(container))
+        );
+      }
+    }
+  }
+  return containers;
 }
