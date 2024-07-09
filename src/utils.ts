@@ -1589,3 +1589,15 @@ function destroyUnnecessaryContainers(room: Room) {
     }
   });
 }
+
+export function isPosEqual(a: RoomPosition, b: RoomPosition): boolean {
+  if (!a || !b) return false;
+  if (a.x !== b.x) return false;
+  if (a.y !== b.y) return false;
+  if (a.roomName !== b.roomName) return false;
+  return true;
+}
+
+export function isStuck(creep: Creep): boolean {
+  return (creep.memory.lastMoveTime || 0) < Game.time - 10;
+}

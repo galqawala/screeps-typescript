@@ -290,7 +290,7 @@ function handleCreeps() {
       else if (role === "upgrader") handleUpgrader(creep);
       else if (role === "worker") handleWorker(creep);
 
-      if (!isPosEqual(creep.memory.pos, creep.pos)) creep.memory.lastMoveTime = Game.time;
+      if (!utils.isPosEqual(creep.memory.pos, creep.pos)) creep.memory.lastMoveTime = Game.time;
       if (utils.isFull(creep)) creep.memory.lastTimeFull = Game.time;
       creep.memory.pos = creep.pos;
       utils.logCpu("creep: " + c);
@@ -363,7 +363,7 @@ function upgraderRetrieveEnergy(creep: Creep) {
     withdrawOutcome = creep.withdraw(store, RESOURCE_ENERGY);
   }
   if (withdrawOutcome === ERR_NOT_IN_RANGE) move(creep, store);
-  if (isStuck(creep)) moveRandomDirection(creep);
+  if (utils.isStuck(creep)) moveRandomDirection(creep);
 }
 
 function moveRandomDirection(creep: Creep) {
@@ -373,7 +373,7 @@ function moveRandomDirection(creep: Creep) {
 }
 
 function handleWorker(creep: Creep) {
-  if (isStuck(creep)) {
+  if (utils.isStuck(creep)) {
     moveRandomDirection(creep);
     return;
   }
@@ -429,7 +429,7 @@ function workerRetrieveEnergy(creep: Creep) {
           .map(({ storage }) => storage) /* remove sort values */[0];
         if (closestStorage && retrieveEnergy(creep, closestStorage) === ERR_NOT_IN_RANGE) {
           move(creep, closestStorage);
-        } else if (isStuck(creep)) {
+        } else if (utils.isStuck(creep)) {
           moveRandomDirection(creep);
         }
       }
@@ -701,10 +701,6 @@ function handleCarrier(creep: Creep) {
   utils.logCpu("handleCarrier(" + creep.name + ")");
 }
 
-function isStuck(creep: Creep) {
-  return (creep.memory.lastMoveTime || 0) < Game.time - 10;
-}
-
 function getReserverForClaiming() {
   return Object.values(Game.creeps)
     .filter(creep => creep.memory.role === "reserver")
@@ -931,7 +927,7 @@ function handleHarvester(creep: Creep) {
   }
   // move
   const flag = Game.flags[flagName];
-  if (!isPosEqual(creep.pos, flag.pos)) move(creep, flag);
+  if (!utils.isPosEqual(creep.pos, flag.pos)) move(creep, flag);
   if (!utils.isEmpty(creep)) harvesterSpendEnergy(creep);
   // harvest
   const sourceId = creep.memory.sourceId;
@@ -1128,9 +1124,7 @@ function spawnCreeps() {
   } else if (Memory.plan?.needReservers && budget >= utils.getBodyCost(["claim", "move"])) {
     spawnReserver();
   } else if (Memory.plan?.needUpgraders) {
-    const upgradeTarget = getControllerToUpgrade();
-    if (!upgradeTarget) return;
-    spawnCreep("upgrader", budget, undefined, undefined, upgradeTarget);
+    spawnUpgrader();
   }
   utils.logCpu("spawnCreeps()");
 }
@@ -1666,14 +1660,6 @@ function purgeFlags() {
   utils.logCpu("purgeFlags()");
 }
 
-function isPosEqual(a: RoomPosition, b: RoomPosition) {
-  if (!a || !b) return false;
-  if (a.x !== b.x) return false;
-  if (a.y !== b.y) return false;
-  if (a.roomName !== b.roomName) return false;
-  return true;
-}
-
 function getStorage(room: Room): StructureContainer | StructureStorage | undefined | null {
   if (room.controller) {
     const storage = room.controller.pos.findClosestByRange(
@@ -1990,7 +1976,7 @@ function followMemorizedPath(creep: Creep) {
   const outcome = creep.moveByPath(path);
   if (outcome === ERR_NOT_FOUND) {
     const end = path[path.length - 1];
-    if (isPosEqual(creep.pos, end)) {
+    if (utils.isPosEqual(creep.pos, end)) {
       delete creep.memory.path;
       return;
     } else {
@@ -1999,7 +1985,7 @@ function followMemorizedPath(creep: Creep) {
       move(creep, tgt);
     }
   } else if (outcome === OK) {
-    if (isStuck(creep)) {
+    if (utils.isStuck(creep)) {
       delete creep.memory.path; // replan
       moveRandomDirection(creep);
     } else if (creep.room.memory.hostilesPresent) {
@@ -2010,4 +1996,18 @@ function followMemorizedPath(creep: Creep) {
     }
   }
   return;
+}
+
+function spawnUpgrader() {
+  const upgradeTarget = getControllerToUpgrade();
+  if (!upgradeTarget) return;
+  const spawn = Object.values(Game.spawns)
+    .map(value => ({
+      value,
+      sort: utils.getGlobalRange(value.pos, upgradeTarget.pos)
+    })) /* persist sort values */
+    .sort((a, b) => a.sort - b.sort) /* sort */
+    .map(({ value }) => value) /* remove sort values */[0];
+  if (!spawn) return;
+  spawnCreep("upgrader", spawn.room.energyAvailable, undefined, undefined, upgradeTarget);
 }
