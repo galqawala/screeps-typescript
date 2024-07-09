@@ -579,6 +579,19 @@ function hasEnoughEnergyForAnotherUpgrader(controller: StructureController) {
   if (utils.getFreeCap(store) < 1 && assignedWorkParts < 1) return true;
   const energyPerWork = energy / assignedWorkParts;
   const isEnough = energyPerWork > 160;
+  if (isEnough)
+    console.log(
+      "Got energy to upgrade:",
+      controller,
+      "in",
+      controller.room,
+      "energy:",
+      energy,
+      "assignedWorkParts:",
+      assignedWorkParts,
+      "energyPerWork:",
+      energyPerWork
+    );
   return isEnough;
 }
 

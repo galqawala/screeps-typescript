@@ -448,7 +448,7 @@ export function getHarvestSpotForSource(source: Source): RoomPosition | undefine
       const pos = new RoomPosition(x, y, room.name);
       if (blockedByStructure(pos)) continue;
       const score =
-        (hasStructureInRange(pos, STRUCTURE_LINK, 1, true) ? 1 : 0) +
+        (hasStructureInRange(pos, STRUCTURE_LINK, 1, true) ? 2 : 0) +
         pos.lookFor(LOOK_STRUCTURES).filter(structure => structure.structureType === STRUCTURE_CONTAINER)
           .length +
         pos.findInRange(FIND_SOURCES, 1).length;
@@ -740,11 +740,8 @@ export function getPosForConstruction(
     let finalScore = score;
     if (structureType === STRUCTURE_LINK) {
       finalScore = adjustConstructionSiteScoreForLink(score, pos);
-    } else if (structureType === STRUCTURE_EXTENSION || structureType === STRUCTURE_SPAWN) {
-      const source = pos.findClosestByRange(FIND_SOURCES);
-      if (source) finalScore /= getGlobalRange(pos, source.pos);
-    } else if (structureType === STRUCTURE_OBSERVER) {
-      if (room.storage) finalScore /= getGlobalRange(pos, room.storage.pos);
+    } else if (structureType === STRUCTURE_OBSERVER && room.storage) {
+      finalScore /= getGlobalRange(pos, room.storage.pos);
     }
 
     if (bestScore < finalScore) {
