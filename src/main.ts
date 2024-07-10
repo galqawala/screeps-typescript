@@ -1182,7 +1182,6 @@ function needCarriers(): boolean {
         const delta = room.memory.stickyEnergyDelta?.[container.id] || 0;
         if (utils.isFull(container) || (utils.getFillRatio(container) > 0.5 && delta > 0)) {
           utils.logCpu("needCarriers()");
-          console.log(container, container.pos, "requires a carrier");
           return true;
         }
       }
@@ -1724,7 +1723,7 @@ function getCostMatrixSafeCreeps(roomName: string) {
     if (room)
       room
         .find(FIND_CREEPS)
-        .forEach(c => costs.set(c.pos.x, c.pos.y, Game.time - (c.memory.lastMoveTime || Game.time)));
+        .forEach(c => costs.set(c.pos.x, c.pos.y, Game.time - (c.memory?.lastMoveTime || Game.time)));
   }
   return costs;
 }
@@ -1972,6 +1971,7 @@ function spawnUpgrader(urgentOnly = false) {
 
 function spawnCarrier() {
   const energySource = getCarrierEnergySources()
+    .filter(s => s.pos.findInRange(FIND_MY_CREEPS, 2).filter(c => c.memory.role === "carrier").length < 1)
     .map(value => ({
       value,
       sort: 1 - utils.getFillRatio(value)
