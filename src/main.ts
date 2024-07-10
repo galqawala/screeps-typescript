@@ -566,7 +566,7 @@ function hasEnoughEnergyForAnotherUpgrader(controller: StructureController) {
   if (!store) return false;
   if (!utils.isContainer(store) && !utils.isStorage(store)) return false;
   const energy = utils.getEnergy(store);
-  if (isNaN(energy) || utils.getFillRatio(store) < 0.001) return false;
+  if (isNaN(energy) || utils.getFillRatio(store) < 0.01) return false;
   const assignedWorkParts = Object.values(Game.creeps)
     .filter(creep => creep.memory.upgrade === controller.id)
     .reduce((aggregated, item) => aggregated + item.getActiveBodyparts(WORK), 0 /* initial*/);
