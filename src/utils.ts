@@ -1638,3 +1638,16 @@ export function getCostMatrixSafe(roomName: string): CostMatrix {
   }
   return new PathFinder.CostMatrix();
 }
+
+export function getStorageMin(): number {
+  logCpu("getStorageMin");
+  const storages = Object.values(Game.structures).filter(isStorage);
+  if (storages.length < 1) return 0;
+
+  let storageMin = Number.POSITIVE_INFINITY;
+  for (const storage of storages) {
+    storageMin = Math.min(storageMin, storage.store.getUsedCapacity(RESOURCE_ENERGY));
+  }
+  logCpu("getStorageMin");
+  return storageMin;
+}

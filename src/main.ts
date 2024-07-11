@@ -199,7 +199,7 @@ export const loop = ErrorMapper.wrapLoop(() => {
 
 function updatePlan() {
   utils.logCpu("updatePlan");
-  const storageMin = getStorageMin();
+  const storageMin = utils.getStorageMin();
   const allSpawnsFull = areAllSpawnsFull();
   const needHarvesters = getSourceToHarvest() ? true : false;
   Memory.plan = {
@@ -231,19 +231,6 @@ function getMinTicksToDowngrade() {
   );
   utils.logCpu("getMinTicksToDowngrade");
   return value;
-}
-
-function getStorageMin() {
-  utils.logCpu("getStorageMin");
-  const storages = Object.values(Game.structures).filter(utils.isStorage);
-  if (storages.length < 1) return 0;
-
-  let storageMin = Number.POSITIVE_INFINITY;
-  for (const storage of storages) {
-    storageMin = Math.min(storageMin, storage.store.getUsedCapacity(RESOURCE_ENERGY));
-  }
-  utils.logCpu("getStorageMin");
-  return storageMin;
 }
 
 function needExplorers() {
@@ -339,19 +326,23 @@ function upgraderRetrieveEnergy(creep: Creep) {
   if (storeId) store = Game.getObjectById(storeId);
   if (!store || utils.getEnergy(store) < 1 || utils.getGlobalRange(creep.pos, store.pos) > 5) {
     const findRange = utils.gotSpareCpu() ? 40 : 10;
-    store = creep.pos.findClosestByRange(
-      creep.pos.findInRange(FIND_STRUCTURES, findRange, {
+    let stores: (AnyStoreStructure | Resource | Tombstone)[] = creep.pos.findInRange(
+      FIND_STRUCTURES,
+      findRange,
+      {
         filter(object) {
-          return (utils.isStorage(object) || utils.isContainer(object)) && utils.getEnergy(object) > 0;
+          return utils.isStorage(object) || utils.isContainer(object);
         }
-      })
-    );
-    if (!store) {
-      store = creep.pos.findClosestByRange(creep.pos.findInRange(FIND_DROPPED_RESOURCES, findRange));
-      if (!store) {
-        utils.moveRandomDirection(creep); // get out of the way
-        return;
       }
+    );
+    stores = stores
+      .concat(creep.pos.findInRange(FIND_DROPPED_RESOURCES, findRange))
+      .concat(creep.pos.findInRange(FIND_TOMBSTONES, findRange))
+      .filter(o => o && utils.getEnergy(o) > 0);
+    store = creep.pos.findClosestByRange(stores);
+    if (!store) {
+      utils.moveRandomDirection(creep); // get out of the way
+      return;
     }
     if (utils.isStorage(store)) creep.memory.storage = store.id;
     else if (utils.isContainer(store)) creep.memory.container = store.id;
