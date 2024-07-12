@@ -1679,9 +1679,9 @@ function getCarrierEnergySource(pos: RoomPosition) {
   return getCarrierEnergySources()
     .map(value => ({
       value,
-      sort: utils.getEnergy(value) / (utils.getGlobalRange(pos, value.pos) / 100)
+      sort: utils.getGlobalRange(pos, value.pos)
     })) /* persist sort values */
-    .sort((a, b) => b.sort - a.sort) /* sort */
+    .sort((a, b) => a.sort - b.sort) /* sort */
     .map(({ value }) => value) /* remove sort values */[0];
 }
 
