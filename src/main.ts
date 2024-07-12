@@ -326,18 +326,21 @@ function upgraderRetrieveEnergy(creep: Creep) {
   if (storeId) store = Game.getObjectById(storeId);
   if (!store || utils.getEnergy(store) < 1 || utils.getGlobalRange(creep.pos, store.pos) > 5) {
     const findRange = utils.gotSpareCpu() ? 40 : 10;
-    let stores: (AnyStoreStructure | Resource | Tombstone)[] = creep.pos.findInRange(
-      FIND_STRUCTURES,
-      findRange,
-      {
-        filter(object) {
-          return utils.isStorage(object) || utils.isContainer(object);
-        }
-      }
+    const structures = creep.pos.findInRange(FIND_STRUCTURES, findRange);
+    const storages: (AnyStoreStructure | Resource | Tombstone)[] = structures.filter(utils.isStorage);
+    const containers: (AnyStoreStructure | Resource | Tombstone)[] = structures.filter(utils.isContainer);
+    const resources: (AnyStoreStructure | Resource | Tombstone)[] = creep.pos.findInRange(
+      FIND_DROPPED_RESOURCES,
+      findRange
     );
-    stores = stores
-      .concat(creep.pos.findInRange(FIND_DROPPED_RESOURCES, findRange))
-      .concat(creep.pos.findInRange(FIND_TOMBSTONES, findRange))
+    const tombstones: (AnyStoreStructure | Resource | Tombstone)[] = creep.pos.findInRange(
+      FIND_TOMBSTONES,
+      findRange
+    );
+    const stores: (AnyStoreStructure | Resource | Tombstone)[] = storages
+      .concat(containers)
+      .concat(resources)
+      .concat(tombstones)
       .filter(o => o && utils.getEnergy(o) > 0);
     store = creep.pos.findClosestByRange(stores);
     if (!store) {
@@ -636,6 +639,8 @@ function handleCarrier(creep: Creep) {
   if (followMemorizedPath(creep)) {
     utils.logCpu("handleCarrier(" + creep.name + ")");
     return;
+  } else if (Game.time - (creep.memory.lastTimeFull || Game.time) > 700) {
+    recycleCreep(creep);
   }
 
   if (utils.isEmpty(creep)) {
