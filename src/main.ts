@@ -1967,7 +1967,12 @@ function spawnUpgrader(urgentOnly = false) {
 
 function spawnCarrier() {
   const energySource = getCarrierEnergySources()
-    .filter(s => s.pos.findInRange(FIND_MY_CREEPS, 2).filter(c => c.memory.role === "carrier").length < 1)
+    .filter(
+      s =>
+        s.pos
+          .findInRange(FIND_MY_CREEPS, 3)
+          .filter(c => c.memory.role === "carrier" || c.memory.role === "transferer").length < 1
+    )
     .map(value => ({
       value,
       sort: 1 - utils.getFillRatio(value)
