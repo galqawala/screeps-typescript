@@ -635,16 +635,13 @@ function moveTowardMemory(creep: Creep) {
 
 function handleCarrier(creep: Creep) {
   // maybe we could add some route/target caching even with these dynamic targets?
-  utils.logCpu("handleCarrier(" + creep.name + ")");
   if (followMemorizedPath(creep)) {
-    utils.logCpu("handleCarrier(" + creep.name + ")");
     return;
   } else if (Game.time - (creep.memory.lastTimeFull || Game.time) > 700) {
     recycleCreep(creep);
   }
 
   if (utils.isEmpty(creep)) {
-    utils.logCpu("handleCarrier(" + creep.name + ") fetch");
     const source = getNearbyEnergySource(creep.pos);
     if (source) {
       retrieveEnergy(creep, source);
@@ -657,9 +654,7 @@ function handleCarrier(creep: Creep) {
         recycleCreep(creep);
       }
     }
-    utils.logCpu("handleCarrier(" + creep.name + ") fetch");
   } else {
-    utils.logCpu("handleCarrier(" + creep.name + ") transfer");
     const tgt = getStructureToFillHere(creep.pos);
     if (tgt) {
       transfer(creep, tgt);
@@ -667,15 +662,12 @@ function handleCarrier(creep: Creep) {
       const tgtPos = getTransferDestination(creep.pos);
       if (!tgtPos) {
         recycleCreep(creep);
-        utils.logCpu("handleCarrier(" + creep.name + ")");
         return;
       }
       creep.memory.destination = tgtPos;
       creep.memory.path = getPath(creep.pos, tgtPos);
     }
-    utils.logCpu("handleCarrier(" + creep.name + ") transfer");
   }
-  utils.logCpu("handleCarrier(" + creep.name + ")");
 }
 
 function getReserverForClaiming() {
@@ -1052,7 +1044,7 @@ function move(creep: Creep, destination: Destination, safe = true) {
     plainCost: 2,
     swampCost: 10
   };
-  if (safe) options.costCallback = getCostMatrixSafeCreeps;
+  if (safe) options.costCallback = utils.getCostMatrixSafeCreeps;
   const outcome = creep.moveTo(destination, options);
   utils.logCpu("move(" + creep.name + ") moveTo");
   utils.logCpu("move(" + creep.name + ")");
@@ -1711,19 +1703,6 @@ function getCostMatrix(roomName: string) {
   return costs;
 }
 
-function getCostMatrixSafeCreeps(roomName: string) {
-  const costs = utils.getCostMatrixSafe(roomName);
-  if (utils.gotSpareCpu()) {
-    const room = Game.rooms[roomName];
-    // longer the creep has stayed there, less likely it is to move out of the way
-    if (room)
-      room
-        .find(FIND_CREEPS)
-        .forEach(c => costs.set(c.pos.x, c.pos.y, Game.time - (c.memory?.lastMoveTime || Game.time)));
-  }
-  return costs;
-}
-
 function updateStickyEnergy(room: Room) {
   utils.logCpu("updateStickyEnergy(" + room.name + ")");
   const containers = room.find(FIND_STRUCTURES).filter(utils.isStoreStructure);
@@ -1853,7 +1832,11 @@ function getNearbyEnergySource(pos: RoomPosition) {
   if (source) return source;
   source = pos.findInRange(FIND_DROPPED_RESOURCES, 1)[0];
   if (source && !utils.isEmpty(source)) return source;
-  source = pos.findInRange(FIND_TOMBSTONES, 1)[0];
+  source = pos.findInRange(FIND_TOMBSTONES, 1, {
+    filter(object) {
+      return !utils.isEmpty(object);
+    }
+  })[0];
   if (source && !utils.isEmpty(source)) return source;
   const room = Game.rooms[pos.roomName];
   if (!room) return;

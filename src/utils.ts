@@ -1651,3 +1651,16 @@ export function getStorageMin(): number {
   logCpu("getStorageMin");
   return storageMin;
 }
+
+export function getCostMatrixSafeCreeps(roomName: string): CostMatrix {
+  const costs = getCostMatrixSafe(roomName);
+  if (gotSpareCpu()) {
+    const room = Game.rooms[roomName];
+    // longer the creep has stayed there, less likely it is to move out of the way
+    if (room)
+      room
+        .find(FIND_CREEPS)
+        .forEach(c => costs.set(c.pos.x, c.pos.y, Game.time - (c.memory?.lastMoveTime || Game.time)));
+  }
+  return costs;
+}
