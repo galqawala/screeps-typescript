@@ -1659,9 +1659,9 @@ function getClusterStructures(clusterPos: RoomPosition) {
     .map(({ value }) => value) /* remove sort values */
     .filter(utils.isOwnedStoreStructure)
     .filter(
-      /* only fill storage when spawns/extensions are full */
+      /* only fill storage/link when spawns/extensions are full */
       s =>
-        (!utils.isStorage(s) && !utils.isStorageSubstitute(s)) ||
+        (!utils.isStorage(s) && !utils.isStorageSubstitute(s) && !utils.isLink(s)) ||
         room.energyAvailable >= room.energyCapacityAvailable
     );
   return structures;
