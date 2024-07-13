@@ -192,6 +192,7 @@ export const loop = ErrorMapper.wrapLoop(() => {
   if (utils.gotSpareCpu()) updateFlagDismantle();
   utils.logCpu("update flags");
   handleCreeps();
+  if (Math.random() < 0.01 || utils.gotSpareCpu()) utils.constructRoads();
   Memory.cpuUsedRatio = Game.cpu.getUsed() / Game.cpu.limit;
   utils.logCpu("main");
   utils.cpuInfo(); // after everything!
@@ -649,7 +650,7 @@ function handleCarrier(creep: Creep) {
       const tgt = getPosNextToEnergySource(creep.pos);
       if (tgt) {
         creep.memory.destination = tgt;
-        creep.memory.path = getPath(creep.pos, tgt);
+        creep.memory.path = utils.getPath(creep.pos, tgt);
       } else {
         recycleCreep(creep);
       }
@@ -665,7 +666,7 @@ function handleCarrier(creep: Creep) {
         return;
       }
       creep.memory.destination = tgtPos;
-      creep.memory.path = getPath(creep.pos, tgtPos);
+      creep.memory.path = utils.getPath(creep.pos, tgtPos);
     }
   }
 }
@@ -1891,18 +1892,6 @@ function getPosNextToStorage(pos: RoomPosition, exclFull = true) {
     })) /* persist sort values */
     .sort((a, b) => a.sort - b.sort) /* sort */
     .map(({ value }) => value) /* remove sort values */[0];
-}
-
-function getPath(from: RoomPosition, to: RoomPosition, range = 0) {
-  return PathFinder.search(
-    from,
-    { pos: to, range },
-    {
-      plainCost: 2,
-      swampCost: 10,
-      roomCallback: utils.getCostMatrixSafe
-    }
-  ).path;
 }
 
 function followMemorizedPath(creep: Creep) {

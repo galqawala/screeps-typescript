@@ -942,6 +942,25 @@ export function constructInRoom(room: Room): void {
   logCpu("constructInRoom(" + room.name + ")");
 }
 
+export function constructRoads(): void {
+  const clusters = Object.values(Game.flags)
+    .filter(
+      flag =>
+        flag.name.startsWith("cluster_") &&
+        flag.room &&
+        flag.pos.findInRange(FIND_MY_STRUCTURES, 1).length > 0
+    )
+    .map(value => ({ value, sort: Math.random() })) /* persist sort values */
+    .sort((a, b) => b.sort - a.sort) /* sort */
+    .map(({ value }) => value); /* remove sort values */
+  if (clusters.length < 2) return;
+  const path = getPath(clusters[0].pos, clusters[1].pos);
+  if (path.length > 50) return;
+  for (const pos of path) {
+    pos.createConstructionSite(STRUCTURE_ROAD);
+  }
+}
+
 export function checkRoomCanOperate(room: Room): void {
   logCpu("checkRoomCanOperate(" + room.name + ")");
   const value = canOperateInRoom(room);
@@ -1663,4 +1682,16 @@ export function getCostMatrixSafeCreeps(roomName: string): CostMatrix {
         .forEach(c => costs.set(c.pos.x, c.pos.y, Game.time - (c.memory?.lastMoveTime || Game.time)));
   }
   return costs;
+}
+
+export function getPath(from: RoomPosition, to: RoomPosition, range = 0): RoomPosition[] {
+  return PathFinder.search(
+    from,
+    { pos: to, range },
+    {
+      plainCost: 2,
+      swampCost: 10,
+      roomCallback: getCostMatrixSafe
+    }
+  ).path;
 }
