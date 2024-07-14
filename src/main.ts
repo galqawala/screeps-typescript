@@ -1946,7 +1946,7 @@ function spawnCarrier() {
   const energySource = getCarrierEnergySources()
     .filter(
       s =>
-        utils.getEnergy(s) > 50 &&
+        utils.getEnergy(s) > 100 &&
         s.pos.findInRange(FIND_MY_CREEPS, 3).filter(c => c.memory.role === "carrier").length < 1
     )
     .map(value => ({
