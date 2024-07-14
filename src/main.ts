@@ -1962,7 +1962,7 @@ function spawnCarrier() {
     })) /* persist sort values */
     .sort((a, b) => a.sort - b.sort) /* sort */
     .map(({ value }) => value) /* remove sort values */[0];
-  if (!spawn) return false;
+  if (!spawn || spawn.spawning) return false;
 
   console.log(
     "Spawning carrier for energy source:",
