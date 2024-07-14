@@ -649,7 +649,6 @@ function handleCarrier(creep: Creep) {
     } else {
       const tgt = getPosNextToEnergySource(creep.pos);
       if (tgt) {
-        creep.memory.destination = tgt;
         creep.memory.path = utils.getPath(creep.pos, tgt);
       } else {
         recycleCreep(creep);
@@ -660,13 +659,13 @@ function handleCarrier(creep: Creep) {
     if (tgt) {
       transfer(creep, tgt);
     } else {
-      const tgtPos = getTransferDestination(creep.pos);
-      if (!tgtPos) {
+      const target = getStructureToFill(creep.pos);
+      const targetPos = getPosNear(creep.pos, target.pos);
+      if (!target || !targetPos) {
         recycleCreep(creep);
         return;
       }
-      creep.memory.destination = tgtPos;
-      creep.memory.path = utils.getPath(creep.pos, tgtPos);
+      creep.memory.path = utils.getPath(creep.pos, targetPos);
     }
   }
 }
@@ -1786,22 +1785,6 @@ function getStructurePathCost(struct: AnyStructure | ConstructionSite) {
   return null;
 }
 
-function getClustersToFill(pos: RoomPosition) {
-  return Object.values(Game.flags)
-    .filter(
-      flag =>
-        flag.name.startsWith("cluster_") &&
-        flag.room &&
-        flag.pos.findInRange(FIND_MY_STRUCTURES, 1).length > 0
-    )
-    .map(value => ({
-      value,
-      sort: utils.getGlobalRange(pos, value.pos)
-    })) /* persist sort values */
-    .sort((a, b) => a.sort - b.sort) /* sort */
-    .map(({ value }) => value); /* remove sort values */
-}
-
 function getStructureToFillHere(pos: RoomPosition) {
   utils.logCpu("getStructureToFillHere(" + pos.toString() + ")");
   const structures: AnyStructure[] = getClusterStructures(pos);
@@ -1821,20 +1804,29 @@ function getStructureToFillHere(pos: RoomPosition) {
   return null;
 }
 
-function getTransferDestination(pos: RoomPosition): RoomPosition | undefined {
-  const clusters = getClustersToFill(pos);
-  const posByStorage = getPosNextToStorage(pos);
-  for (const cluster of clusters) {
-    const store = getStructureToFillHere(cluster.pos);
-    if (!store) continue;
-    if (posByStorage && cluster.pos.roomName !== pos.roomName) {
-      return posByStorage;
-    } else if (!utils.isFull(store)) {
-      return cluster.pos;
+function getStructureToFill(pos: RoomPosition) {
+  let targets: AnyStructure[] = [];
+  for (const room of Object.values(Game.rooms)) {
+    const spawnMaxed = room.energyAvailable >= room.energyCapacityAvailable;
+    if (spawnMaxed) {
+      const storage = getStorage(room);
+      if (storage && !utils.isFull(storage)) targets.push(storage);
     }
+    targets = targets.concat(
+      room
+        .find(FIND_MY_STRUCTURES)
+        .filter(utils.isStoreStructure)
+        .filter(s => !utils.isFull(s) && !utils.isStorage(s))
+        .filter(s => spawnMaxed || !utils.isLink(s))
+    );
   }
-  if (posByStorage) return posByStorage;
-  return;
+  return targets
+    .map(value => ({
+      value,
+      sort: utils.getGlobalRange(pos, value.pos)
+    })) /* persist sort values */
+    .sort((a, b) => a.sort - b.sort) /* sort */
+    .map(({ value }) => value)[0]; /* remove sort values */
 }
 
 function getNearbyEnergySource(pos: RoomPosition) {
@@ -1883,18 +1875,16 @@ function getPosNextToEnergySource(pos: RoomPosition) {
     .map(({ value }) => value) /* remove sort values */[0];
 }
 
-function getPosNextToStorage(pos: RoomPosition, exclFull = true) {
-  const room = Game.rooms[pos.roomName];
-  if (!room) return;
-  const storage = getStorage(room);
-  if (!storage) return;
-  if (exclFull && utils.isFull(storage)) return;
-  let positionsAroundTgt = utils.getSurroundingPlains(storage.pos, 1, 1, false);
-  if (positionsAroundTgt.length < 1) positionsAroundTgt = utils.getSurroundingPlains(storage.pos, 1, 1, true);
-  if (positionsAroundTgt.length < 1) {
-    utils.msg(pos, "Can't find positions around storage " + storage.toString());
-    return;
-  }
+function getPosNear(pos: RoomPosition, target: RoomPosition) {
+  if (!utils.blockedByStructure(target)) return target;
+
+  const cluster = target.findInRange(FIND_FLAGS, 1).filter(flag => flag.name.startsWith("cluster_"))[0];
+  if (cluster) return cluster.pos;
+
+  let positionsAroundTgt = utils.getSurroundingPlains(target, 1, 1, false);
+  if (positionsAroundTgt.length < 1) positionsAroundTgt = utils.getSurroundingPlains(target, 1, 1, true);
+  if (positionsAroundTgt.length < 1) return;
+
   return positionsAroundTgt
     .map(value => ({
       value,
