@@ -1942,7 +1942,11 @@ function spawnUpgrader(urgentOnly = false) {
 
 function spawnCarrier() {
   const energySource = getCarrierEnergySources()
-    .filter(s => s.pos.findInRange(FIND_MY_CREEPS, 3).filter(c => c.memory.role === "carrier").length < 1)
+    .filter(
+      s =>
+        utils.getEnergy(s) > 50 &&
+        s.pos.findInRange(FIND_MY_CREEPS, 3).filter(c => c.memory.role === "carrier").length < 1
+    )
     .map(value => ({
       value,
       sort: 1 - utils.getFillRatio(value)
@@ -1959,6 +1963,16 @@ function spawnCarrier() {
     .sort((a, b) => a.sort - b.sort) /* sort */
     .map(({ value }) => value) /* remove sort values */[0];
   if (!spawn) return false;
+
+  console.log(
+    "Spawning carrier for energy source:",
+    energySource,
+    energySource.pos,
+    utils.getEnergy(energySource),
+    "from spawn",
+    spawn,
+    spawn.pos
+  );
 
   return spawnCreep("carrier", spawn.room.energyAvailable, undefined, undefined, undefined, spawn);
 }
