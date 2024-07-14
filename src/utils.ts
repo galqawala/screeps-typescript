@@ -469,7 +469,7 @@ export function getHarvestSpotForSource(source: Source): RoomPosition | undefine
 export function sourceHasHarvester(source: Source): boolean {
   for (const i in Game.creeps) {
     const creep = Game.creeps[i];
-    if (creep.memory.sourceId === source.id) {
+    if (creep.memory.sourceId === source.id && (creep.ticksToLive || 100) > 30) {
       return true;
     }
   }
