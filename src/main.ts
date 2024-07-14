@@ -1173,13 +1173,21 @@ function needCarriers(): boolean {
         const delta = room.memory.stickyEnergyDelta?.[container.id] || 0;
         if (utils.isFull(container) || (utils.getFillRatio(container) > 0.5 && delta > 0)) {
           utils.logCpu("needCarriers()");
+          console.log("Need more carriers for:", source, source.pos);
           return true;
         }
       }
     }
     const storage = getStorage(room);
-    if (room.energyAvailable < room.energyCapacityAvailable && storage && !utils.isEmpty(storage))
+    if (
+      room.energyAvailable < room.energyCapacityAvailable &&
+      storage &&
+      !utils.isEmpty(storage) &&
+      storage.pos.findInRange(FIND_MY_CREEPS, 5).filter(c => c.memory.role === "carrier").length < 1
+    ) {
+      console.log("Need more carriers for:", storage, storage.pos);
       return true;
+    }
   }
   utils.logCpu("needCarriers()");
   return false;
@@ -1859,10 +1867,7 @@ function getNearbyEnergySource(pos: RoomPosition) {
 
 function getPosNextToEnergySource(pos: RoomPosition) {
   const tgt = getCarrierEnergySource(pos);
-  if (!tgt) {
-    utils.msg(pos, "Can't find energy source for carrier around " + pos.toString());
-    return;
-  }
+  if (!tgt) return;
   let positionsAroundTgt = utils.getSurroundingPlains(tgt.pos, 1, 1, false);
   if (positionsAroundTgt.length < 1) positionsAroundTgt = utils.getSurroundingPlains(tgt.pos, 1, 1, true);
   if (positionsAroundTgt.length < 1) {
