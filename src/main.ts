@@ -1967,27 +1967,24 @@ function getCarrierEnergySources(): (Resource<ResourceConstant> | Tombstone | An
   let containers: (AnyStoreStructure | Resource | Tombstone)[] = [];
   for (const room of Object.values(Game.rooms)) {
     if (room.memory.hostilesPresent) continue;
-    containers = containers.concat(
-      room
-        .find(FIND_STRUCTURES)
-        .filter(utils.isContainer)
-        .filter(container => !utils.isStorageSubstitute(container))
-        .filter(container => !utils.isEmpty(container))
-    );
-    if (utils.gotSpareCpu()) {
-      containers = containers.concat(room.find(FIND_DROPPED_RESOURCES));
+    containers = containers
+      .concat(
+        room
+          .find(FIND_STRUCTURES)
+          .filter(utils.isContainer)
+          .filter(container => !utils.isStorageSubstitute(container))
+          .filter(container => !utils.isEmpty(container))
+      )
+      .concat(room.find(FIND_DROPPED_RESOURCES))
+      .concat(room.find(FIND_TOMBSTONES).filter(container => !utils.isEmpty(container)));
+    if (room.energyAvailable < room.energyCapacityAvailable) {
       containers = containers.concat(
-        room.find(FIND_TOMBSTONES).filter(container => !utils.isEmpty(container))
+        room
+          .find(FIND_STRUCTURES)
+          .filter(utils.isStoreStructure)
+          .filter(s => utils.isContainer(s) || utils.isStorage(s) || utils.isLink(s))
+          .filter(container => !utils.isEmpty(container))
       );
-      if (room.energyAvailable < room.energyCapacityAvailable) {
-        containers = containers.concat(
-          room
-            .find(FIND_STRUCTURES)
-            .filter(utils.isStoreStructure)
-            .filter(s => utils.isContainer(s) || utils.isStorage(s) || utils.isLink(s))
-            .filter(container => !utils.isEmpty(container))
-        );
-      }
     }
   }
   return containers;
