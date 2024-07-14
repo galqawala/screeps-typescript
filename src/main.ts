@@ -1175,6 +1175,9 @@ function needCarriers(): boolean {
         }
       }
     }
+    const storage = getStorage(room);
+    if (room.energyAvailable < room.energyCapacityAvailable && storage && !utils.isEmpty(storage))
+      return true;
   }
   utils.logCpu("needCarriers()");
   return false;
@@ -1939,12 +1942,7 @@ function spawnUpgrader(urgentOnly = false) {
 
 function spawnCarrier() {
   const energySource = getCarrierEnergySources()
-    .filter(
-      s =>
-        s.pos
-          .findInRange(FIND_MY_CREEPS, 3)
-          .filter(c => c.memory.role === "carrier" || c.memory.role === "transferer").length < 1
-    )
+    .filter(s => s.pos.findInRange(FIND_MY_CREEPS, 3).filter(c => c.memory.role === "carrier").length < 1)
     .map(value => ({
       value,
       sort: 1 - utils.getFillRatio(value)
@@ -1952,6 +1950,7 @@ function spawnCarrier() {
     .sort((a, b) => a.sort - b.sort) /* sort */
     .map(({ value }) => value) /* remove sort values */[0];
   if (!energySource) return false;
+
   const spawn = Object.values(Game.spawns)
     .map(value => ({
       value,
@@ -1960,7 +1959,7 @@ function spawnCarrier() {
     .sort((a, b) => a.sort - b.sort) /* sort */
     .map(({ value }) => value) /* remove sort values */[0];
   if (!spawn) return false;
-  console.log("Spawning carrier for", energySource, energySource.pos);
+
   return spawnCreep("carrier", spawn.room.energyAvailable, undefined, undefined, undefined, spawn);
 }
 
