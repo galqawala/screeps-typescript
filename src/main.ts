@@ -741,7 +741,8 @@ function handleTransferer(creep: Creep) {
     return;
   }
   if (utils.isEmpty(creep)) {
-    if (retrieveEnergy(creep, upstream, true) === ERR_NOT_IN_RANGE) move(creep, upstream);
+    if (retrieveEnergy(creep, upstream, true) === ERR_NOT_IN_RANGE)
+      move(creep, utils.getPosBetween(upstream.pos, downstream.pos));
   } else {
     const workers = creep.pos
       .findInRange(FIND_MY_CREEPS, 1)
@@ -751,7 +752,8 @@ function handleTransferer(creep: Creep) {
           utils.getFillRatio(worker) < 0.5
       );
     for (const worker of workers) creep.transfer(worker, RESOURCE_ENERGY);
-    if (creep.transfer(downstream, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) move(creep, downstream);
+    if (creep.transfer(downstream, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE)
+      move(creep, utils.getPosBetween(upstream.pos, downstream.pos));
   }
 }
 

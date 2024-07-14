@@ -1695,3 +1695,10 @@ export function getPath(from: RoomPosition, to: RoomPosition, range = 0): RoomPo
     }
   ).path;
 }
+
+export function getPosBetween(pos1: RoomPosition, pos2: RoomPosition): Destination {
+  return (
+    getSurroundingPlains(pos1, 1, 1, false).filter(pos => pos.isNearTo(pos2.x, pos2.y))[0] ||
+    getSurroundingPlains(pos1, 1, 1, true).filter(pos => pos.isNearTo(pos2.x, pos2.y))[0]
+  );
+}
