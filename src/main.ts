@@ -1941,6 +1941,8 @@ function spawnUpgrader(urgentOnly = false) {
 }
 
 function spawnCarrier() {
+  if (!utils.gotSpareCpu()) return false;
+
   const energySource = getCarrierEnergySources()
     .filter(
       s =>
