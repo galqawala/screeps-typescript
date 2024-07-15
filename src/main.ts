@@ -1182,7 +1182,7 @@ function needCarriers(): boolean {
       room.energyAvailable < room.energyCapacityAvailable &&
       storage &&
       !utils.isEmpty(storage) &&
-      storage.pos.findInRange(FIND_MY_CREEPS, 10).filter(c => c.memory.role === "carrier").length < 1
+      room.find(FIND_MY_CREEPS).filter(c => c.memory.role === "carrier").length < 1
     ) {
       console.log("Need more carriers for:", storage, storage.pos);
       return true;
