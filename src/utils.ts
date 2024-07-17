@@ -2,9 +2,7 @@
 export function isOwnedStructure(structure: Structure): structure is AnyOwnedStructure {
   return (structure as { my?: boolean }).my !== undefined;
 }
-export function isStorage(
-  structure: Structure | Ruin | Tombstone | Resource | EnergyStore
-): structure is StructureStorage {
+export function isStorage(structure: Structure | Ruin | Tombstone | Resource): structure is StructureStorage {
   if (!("structureType" in structure)) return false;
   return structure.structureType === STRUCTURE_STORAGE;
 }
@@ -38,9 +36,7 @@ export function isDestructibleWall(structure: Structure): structure is Structure
 export function isInvaderCore(structure: Structure): structure is StructureInvaderCore {
   return structure.structureType === STRUCTURE_INVADER_CORE;
 }
-export function isLink(
-  structure: Structure | Ruin | Tombstone | Resource | EnergyStore
-): structure is StructureLink {
+export function isLink(structure: Structure | Ruin | Tombstone | Resource): structure is StructureLink {
   if (!("structureType" in structure)) return false;
   return structure.structureType === STRUCTURE_LINK;
 }
@@ -1290,8 +1286,6 @@ export function resetSpecificDestinationFromCreeps(destination: Destination): vo
 
 export function resetDestination(creep: Creep): void {
   logCpu("resetDestination(" + creep.name + ")");
-  if (creep?.memory?.deliveryTasks && creep?.memory?.deliveryTasks?.length >= 1)
-    creep?.memory?.deliveryTasks?.shift();
   delete creep.memory.destination;
   delete creep.memory.action;
   delete creep.memory.pathKey;
@@ -1712,4 +1706,5 @@ export function updateEnergy(): void {
   const oldRatio = Memory.totalEnergyRatio || 0;
   Memory.totalEnergyRatio = Memory.totalEnergy / Memory.totalEnergyCap;
   Memory.totalEnergyRatioDelta = Memory.totalEnergyRatio - oldRatio;
+  if (Memory.totalEnergyRatioDelta >= 1 / 200) Memory.totalEnergyIncreaseTime = Game.time;
 }

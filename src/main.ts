@@ -54,6 +54,7 @@ declare global {
     printCpuInfo: boolean;
     totalEnergy: number;
     totalEnergyCap: number;
+    totalEnergyIncreaseTime: number;
     totalEnergyRatio: number;
     totalEnergyRatioDelta: number;
     username: string;
@@ -78,18 +79,12 @@ declare global {
     needWorkers: boolean;
   }
 
-  interface FlagMemory {
-    steps: number;
-    initTime: number;
-  }
-
   interface RoomMemory {
     canOperate: boolean;
     costMatrix?: number[];
     harvestSpots: RoomPosition[];
     hostileRangedAttackParts: number;
     hostilesPresent: boolean;
-    lastTimeFlagEnergyConsumerSet: number;
     remoteHarvestScore: number;
     repairTargets: Id<Structure>[];
     score: number;
@@ -98,18 +93,11 @@ declare global {
     upgradeSpots?: RoomPosition[];
   }
 
-  interface EnergyStore {
-    id: Id<EnergySource | AnyStoreStructure>;
-    energy: number;
-    freeCap: number;
-  }
-
   interface CreepMemory {
     action?: Action;
     build?: Id<ConstructionSite>;
     container?: Id<StructureContainer>;
     debug?: boolean;
-    deliveryTasks?: DeliveryTask[];
     destination?: DestinationId | RoomPosition;
     lastActiveTime?: number;
     lastMoveTime?: number;
@@ -127,18 +115,6 @@ declare global {
     transferred?: boolean;
     transferTo?: Id<Structure>;
     upgrade?: Id<StructureController>;
-  }
-
-  interface Phase {
-    retrieve?: Id<Structure>;
-    transfer?: Id<Structure>;
-    move?: RoomPosition[];
-  }
-
-  interface DeliveryTask {
-    isDelivery: boolean;
-    destination: Id<Structure | Tombstone | Ruin | Resource>;
-    energy: number;
   }
 
   interface Task {
