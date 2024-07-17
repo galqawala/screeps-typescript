@@ -1706,5 +1706,5 @@ export function updateEnergy(): void {
   const oldRatio = Memory.totalEnergyRatio || 0;
   Memory.totalEnergyRatio = Memory.totalEnergy / Memory.totalEnergyCap;
   Memory.totalEnergyRatioDelta = Memory.totalEnergyRatio - oldRatio;
-  if (Memory.totalEnergyRatioDelta >= 1 / 200) Memory.totalEnergyIncreaseTime = Game.time;
+  if (Memory.totalEnergyRatioDelta > 0.004) Memory.totalEnergyIncreaseTime = Game.time;
 }

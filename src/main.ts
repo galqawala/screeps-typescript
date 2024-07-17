@@ -1163,7 +1163,7 @@ function needCarriers(): boolean {
       room.energyAvailable < room.energyCapacityAvailable &&
       storage &&
       !utils.isEmpty(storage) &&
-      Memory.totalEnergyRatioDelta <= 0
+      Memory.totalEnergyRatioDelta < 0.004
     ) {
       console.log("Need more carriers for:", storage, storage.pos);
       return true;
