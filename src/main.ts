@@ -52,6 +52,10 @@ declare global {
     maxTickLimit: number;
     plan: Plan;
     printCpuInfo: boolean;
+    totalEnergy: number;
+    totalEnergyCap: number;
+    totalEnergyRatio: number;
+    totalEnergyRatioDelta: number;
     username: string;
     wipeOut: boolean;
   }
@@ -193,6 +197,7 @@ export const loop = ErrorMapper.wrapLoop(() => {
   utils.logCpu("update flags");
   handleCreeps();
   if (Math.random() < 0.01 || utils.gotSpareCpu()) utils.constructRoads();
+  if (Game.time % 10 === 0) utils.updateEnergy();
   Memory.cpuUsedRatio = Game.cpu.getUsed() / Game.cpu.limit;
   utils.logCpu("main");
   utils.cpuInfo(); // after everything!

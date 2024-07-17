@@ -1702,3 +1702,14 @@ export function getPosBetween(pos1: RoomPosition, pos2: RoomPosition): Destinati
     getSurroundingPlains(pos1, 1, 1, true).filter(pos => pos.isNearTo(pos2.x, pos2.y))[0]
   );
 }
+
+export function updateEnergy(): void {
+  Memory.totalEnergy = Object.values(Game.rooms).reduce((total, room) => total + room.energyAvailable, 0);
+  Memory.totalEnergyCap = Object.values(Game.rooms).reduce(
+    (total, room) => total + room.energyCapacityAvailable,
+    0
+  );
+  const oldRatio = Memory.totalEnergyRatio || 0;
+  Memory.totalEnergyRatio = Memory.totalEnergy / Memory.totalEnergyCap;
+  Memory.totalEnergyRatioDelta = Memory.totalEnergyRatio - oldRatio;
+}
