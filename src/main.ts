@@ -1187,7 +1187,7 @@ function needCarriers(): boolean {
       room.energyAvailable < room.energyCapacityAvailable &&
       storage &&
       !utils.isEmpty(storage) &&
-      room.find(FIND_MY_CREEPS).filter(c => c.memory.role === "carrier").length < 1
+      Memory.totalEnergyRatioDelta <= 0
     ) {
       console.log("Need more carriers for:", storage, storage.pos);
       return true;
