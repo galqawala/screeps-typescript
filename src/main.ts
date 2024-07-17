@@ -194,7 +194,7 @@ function updatePlan() {
     needHarvesters: storageMin < 900000 && needHarvesters,
     needInfantry: needInfantry(),
     needReservers: needReservers(),
-    needTransferers: needTransferers(),
+    needTransferers: getStoragesRequiringTransferer().length > 0,
     needUpgraders: needUpgraders(),
     needWorkers: needWorkers(),
     maxRoomEnergy: Math.max(...Object.values(Game.spawns).map(spawn => spawn.room.energyAvailable)),
@@ -1173,26 +1173,6 @@ function needCarriers(): boolean {
   return false;
 }
 
-function needTransferers(): boolean {
-  // we have storages without transferrer, next to link that has energy
-  utils.logCpu("needTransferers()");
-  const value =
-    Object.values(Game.structures)
-      .filter(utils.isStorage)
-      .filter(
-        storage =>
-          Object.values(Game.creeps).filter(
-            creep => creep.memory.role === "transferer" && creep.memory.transferTo === storage.id
-          ).length <= 0 &&
-          storage.pos
-            .findInRange(FIND_MY_STRUCTURES, 2)
-            .filter(utils.isLink)
-            .filter(link => utils.getEnergy(link) > 0).length > 0
-      ).length > 0;
-  utils.logCpu("needTransferers()");
-  return value;
-}
-
 function spawnRole(roleToSpawn: Role, minBudget = 0, body: undefined | BodyPartConstant[] = undefined) {
   const budget = Math.floor(
     Math.min(
@@ -1429,15 +1409,7 @@ function spawnHarvester() {
 
 function spawnTransferer() {
   const roleToSpawn: Role = "transferer";
-  const storages = Object.values(Game.structures)
-    .filter(utils.isStorage)
-    .filter(
-      storage =>
-        utils.hasStructureInRange(storage.pos, STRUCTURE_LINK, 2, false) &&
-        Object.values(Game.creeps).filter(
-          creep => creep.memory.role === roleToSpawn && creep.memory.transferTo === storage.id
-        ).length <= 0
-    );
+  const storages = getStoragesRequiringTransferer();
   if (storages.length < 1) return;
   const tgtStorage = storages[0];
   const link = tgtStorage.pos.findClosestByRange(FIND_MY_STRUCTURES, {
@@ -1982,4 +1954,19 @@ function getCarrierEnergySources(): (Resource<ResourceConstant> | Tombstone | An
     }
   }
   return containers;
+}
+
+function getStoragesRequiringTransferer() {
+  return Object.values(Game.structures)
+    .filter(utils.isStorage)
+    .filter(
+      storage =>
+        utils.hasStructureInRange(storage.pos, STRUCTURE_LINK, 2, false) &&
+        Object.values(Game.creeps).filter(
+          creep =>
+            creep.memory.role === "transferer" &&
+            creep.memory.transferTo === storage.id &&
+            (creep.ticksToLive || 100) > 30
+        ).length <= 0
+    );
 }
