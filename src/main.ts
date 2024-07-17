@@ -626,11 +626,13 @@ function handleCarrier(creep: Creep) {
   if (utils.isEmpty(creep)) {
     const source = getNearbyEnergySource(creep.pos);
     if (source) {
+      delete creep.memory.path;
       retrieveEnergy(creep, source);
     } else {
       const tgt = getPosNextToEnergySource(creep.pos);
       if (tgt) {
         creep.memory.path = utils.getPath(creep.pos, tgt);
+        followMemorizedPath(creep);
       } else {
         recycleCreep(creep);
       }
@@ -638,6 +640,7 @@ function handleCarrier(creep: Creep) {
   } else {
     const tgt = getStructureToFillHere(creep.pos);
     if (tgt) {
+      delete creep.memory.path;
       transfer(creep, tgt);
     } else {
       const target = getStructureToFill(creep.pos);
@@ -647,6 +650,7 @@ function handleCarrier(creep: Creep) {
         return;
       }
       creep.memory.path = utils.getPath(creep.pos, targetPos);
+      followMemorizedPath(creep);
     }
   }
 }
