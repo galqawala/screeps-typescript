@@ -981,7 +981,15 @@ export function handleHostilesInRoom(room: Room): void {
   if (room.memory.hostilesPresent !== hostilesPresent) {
     if (hostilesPresent) {
       const hostileOwners = getHostileUsernames(hostileCreeps, hostilePowerCreeps);
-      msg(room, totalHostiles.toString() + " hostiles from " + hostileOwners.join() + " detected!", false);
+      msg(
+        room,
+        totalHostiles.toString() +
+          " hostiles from " +
+          hostileOwners.join() +
+          " detected in a room controlled by: " +
+          (room.controller?.owner?.username || "-"),
+        false
+      );
     } else {
       msg(room, "clear of hostiles =)", false);
     }
