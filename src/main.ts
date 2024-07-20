@@ -1876,9 +1876,6 @@ function followMemorizedPath(creep: Creep) {
     if (utils.isStuck(creep)) {
       delete creep.memory.path; // replan
       utils.moveRandomDirection(creep);
-    } else if (creep.room.memory.hostilesPresent) {
-      utils.msg(creep, "hostiles present, resetting plans");
-      delete creep.memory.path; // replan
     } else {
       return true;
     }
