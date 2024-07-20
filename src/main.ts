@@ -1167,7 +1167,7 @@ function needCarriers(): boolean {
       room.energyAvailable < room.energyCapacityAvailable &&
       storage &&
       !utils.isEmpty(storage) &&
-      Game.time - (Memory.totalEnergyIncreaseTime || 0) > 30
+      Game.time - (Memory.totalEnergyIncreaseTime || 0) > 40
     ) {
       console.log(
         "Need more carriers for:",
