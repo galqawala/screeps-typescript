@@ -1368,13 +1368,16 @@ interface ClusterPos {
 }
 
 function getInitialClusterPaths(room: Room) {
-  const positions: RoomPosition[] = room.find(FIND_SOURCES).map(source => source.pos);
-  if (room.controller) positions.push(room.controller.pos);
+  const pointsOfInterest: RoomPosition[] = room
+    .find(FIND_SOURCES)
+    .map(source => source.pos)
+    .concat(getExits(room));
+  if (room.controller) pointsOfInterest.push(room.controller.pos);
 
   const posInfos: ClusterPos[] = [];
 
-  for (const from of positions) {
-    for (const to of positions) {
+  for (const from of pointsOfInterest) {
+    for (const to of pointsOfInterest) {
       const path = PathFinder.search(from, { pos: to, range: 1 }).path;
       for (const step of path) {
         const stepIndex = posInfos.findIndex(pi => pi.pos.x === step.x && pi.pos.y === step.y);
@@ -1388,6 +1391,17 @@ function getInitialClusterPaths(room: Room) {
   }
 
   return posInfos;
+}
+
+function getExits(room: Room) {
+  const exits: RoomPosition[] = [];
+  const finds = [FIND_EXIT_BOTTOM, FIND_EXIT_LEFT, FIND_EXIT_RIGHT, FIND_EXIT_TOP];
+  const center = room.controller?.pos ?? RoomPosition(25, 25, room.name);
+  for (const whatToFind of finds) {
+    const pos = center.findClosestByRange(whatToFind);
+    if (pos) exits.push(pos);
+  }
+  return exits;
 }
 
 function isValidClusterPos(structurePosCount: number, pos: RoomPosition, room: Room, posInfos: ClusterPos[]) {
