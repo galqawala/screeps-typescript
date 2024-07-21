@@ -884,7 +884,8 @@ export function updateRoomRepairTargets(room: Room): void {
         needRepair(target) &&
         (getHpRatio(target) || 1) < 0.9 &&
         !isUnderRepair(target) &&
-        (target.structureType !== STRUCTURE_CONTAINER || isStorageSubstitute(target))
+        (target.structureType !== STRUCTURE_CONTAINER || isStorageSubstitute(target)) &&
+        (!isRoad(target) || target.pos.findInRange(FIND_MY_CREEPS, 5).length > 0)
     );
   room.memory.repairTargets = targets
     .map(target => target.id)
