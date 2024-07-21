@@ -49,12 +49,12 @@ declare global {
   interface Memory {
     cpuLog: Record<string, CpuLogEntry>;
     cpuUsedRatio: number;
+    lackedEnergySinceTime: number;
     maxTickLimit: number;
     plan: Plan;
     printCpuInfo: boolean;
     totalEnergy: number;
     totalEnergyCap: number;
-    totalEnergyIncreaseTime: number;
     totalEnergyRatio: number;
     totalEnergyRatioDelta: number;
     username: string;
@@ -1167,14 +1167,14 @@ function needCarriers(): boolean {
       room.energyAvailable < room.energyCapacityAvailable &&
       storage &&
       !utils.isEmpty(storage) &&
-      Game.time - (Memory.totalEnergyIncreaseTime || 0) > 40
+      Game.time - (Memory.lackedEnergySinceTime || 0) > 40
     ) {
       console.log(
         "Need more carriers for:",
         storage,
         storage.pos,
-        "Time since energy increase:",
-        Game.time - (Memory.totalEnergyIncreaseTime || 0)
+        "Been lacking energy for:",
+        Game.time - (Memory.lackedEnergySinceTime || 0)
       );
       return true;
     }
