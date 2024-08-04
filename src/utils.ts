@@ -946,22 +946,40 @@ export function constructInRoom(room: Room): void {
 }
 
 export function constructRoads(): void {
-  const pointsOfInterest = Object.values(Game.flags)
+  // construct roads between two random points of interest not too far from each other
+  logCpu("constructRoads()");
+  let pointsOfInterest = Object.values(Game.flags)
     .filter(
       flag =>
         flag.name.startsWith("cluster_") &&
         flag.room &&
         flag.pos.findInRange(FIND_MY_STRUCTURES, 1).length > 0
     )
+    .map(flag => flag.pos);
+  for (const room of Object.values(Game.rooms)) {
+    pointsOfInterest = pointsOfInterest.concat(
+      room
+        .find(FIND_STRUCTURES)
+        .filter(isContainer)
+        .map(container => container.pos)
+    );
+  }
+  logCpu("constructRoads()");
+  if (pointsOfInterest.length < 2) return;
+  pointsOfInterest = pointsOfInterest
     .map(value => ({ value, sort: Math.random() })) /* persist sort values */
     .sort((a, b) => b.sort - a.sort) /* sort */
     .map(({ value }) => value); /* remove sort values */
-  if (pointsOfInterest.length < 2) return;
-  const path = getPath(pointsOfInterest[0].pos, pointsOfInterest[1].pos);
-  if (path.length > 50) return;
+  const from = pointsOfInterest.shift();
+  const to = pointsOfInterest.find(pos => getGlobalRange(from, pos) <= 60);
+  logCpu("constructRoads()");
+  if (!from || !to) return;
+  const path = getPath(from, to);
+  console.log("Constructing road between:", from, to);
   for (const pos of path) {
     pos.createConstructionSite(STRUCTURE_ROAD);
   }
+  logCpu("constructRoads()");
 }
 
 export function checkRoomCanOperate(room: Room): void {
