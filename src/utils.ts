@@ -168,7 +168,7 @@ export function cpuInfo(): void {
       Game.cpu.getUsed().toString() + "/" + Game.cpu.limit.toString() + " CPU used!\n" + getCpuLog()
     );
     Memory.printCpuInfo = false;
-  } else if (Game.cpu.getUsed() > Game.cpu.limit) {
+  } else if (Game.cpu.getUsed() >= Game.cpu.tickLimit) {
     msg(
       "cpuInfo()",
       Game.cpu.getUsed().toString() +
