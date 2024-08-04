@@ -908,16 +908,19 @@ export function getHpRatio(obj: Structure): number {
 
 export function constructInRoom(room: Room): void {
   logCpu("constructInRoom(" + room.name + ")");
-  // construct some structures
-  const structureTypes = [
-    STRUCTURE_EXTENSION,
-    STRUCTURE_LINK,
-    STRUCTURE_OBSERVER,
+  const structureTypesByPriority = [
     STRUCTURE_SPAWN,
+    STRUCTURE_EXTENSION,
+    STRUCTURE_TOWER,
     STRUCTURE_STORAGE,
-    STRUCTURE_TOWER
+    STRUCTURE_LINK,
+    STRUCTURE_OBSERVER
   ];
-  structureTypes.forEach(structureType => construct(room, structureType));
+  for (const structureType of structureTypesByPriority) {
+    // max one per tick to prevent trying to place multiple structures in the same coords
+    if (construct(room, structureType)) return;
+  }
+
   if (
     room.controller &&
     room.controller.my &&
@@ -1232,10 +1235,10 @@ export function getBodyCost(body: BodyPartConstant[]): number {
     return cost + BODYPART_COST[part];
   }, 0);
 }
-export function construct(room: Room, structureType: BuildableStructureConstant): void {
+export function construct(room: Room, structureType: BuildableStructureConstant): boolean {
   if (needStructure(room, structureType)) {
     const pos = getPosForConstruction(room, structureType);
-    if (!pos) return;
+    if (!pos) return false;
     if (structureType !== STRUCTURE_ROAD) {
       pos.lookFor(LOOK_STRUCTURES).forEach(existingStructure => {
         if (
@@ -1248,8 +1251,12 @@ export function construct(room: Room, structureType: BuildableStructureConstant)
       });
     }
     const outcome = pos.createConstructionSite(structureType);
-    if (structureType !== STRUCTURE_ROAD) constructMsg(room, structureType, pos, outcome);
+    if (structureType !== STRUCTURE_ROAD) {
+      constructMsg(room, structureType, pos, outcome);
+      return outcome === OK;
+    }
   }
+  return false;
 }
 
 function constructMsg(room: Room, structureType: string, pos: RoomPosition, outcome: number) {
