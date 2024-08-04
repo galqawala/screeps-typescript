@@ -165,7 +165,7 @@ export function cpuInfo(): void {
       Game.cpu.getUsed().toString() + "/" + Game.cpu.limit.toString() + " CPU used!\n" + getCpuLog()
     );
     Memory.printCpuInfo = false;
-  } else if (Game.cpu.tickLimit - Game.cpu.getUsed() < Memory.maxTickLimit / 2) {
+  } else if (Game.cpu.getUsed() > Game.cpu.limit) {
     msg(
       "cpuInfo()",
       Game.cpu.getUsed().toString() +
@@ -1356,7 +1356,7 @@ export function getTotalRepairTargetCount(): number {
   );
 }
 
-const structuresInRoomClusters =
+const clusterStructureTargetCount =
   CONTROLLER_STRUCTURES[STRUCTURE_SPAWN][8] +
   CONTROLLER_STRUCTURES[STRUCTURE_EXTENSION][8] +
   CONTROLLER_STRUCTURES[STRUCTURE_TOWER][8];
@@ -1372,20 +1372,19 @@ function getInitialClusterPaths(room: Room) {
     .find(FIND_SOURCES)
     .map(source => source.pos)
     .concat(getExits(room));
-  if (room.controller) pointsOfInterest.push(room.controller.pos);
 
   const posInfos: ClusterPos[] = [];
+  if (!room.controller) return posInfos;
 
-  for (const from of pointsOfInterest) {
-    for (const to of pointsOfInterest) {
-      const path = PathFinder.search(from, { pos: to, range: 1 }).path;
-      for (const step of path) {
-        const stepIndex = posInfos.findIndex(pi => pi.pos.x === step.x && pi.pos.y === step.y);
-        if (stepIndex > -1) {
-          if (posInfos[stepIndex].content !== "cluster") posInfos[stepIndex].content = "path";
-        } else {
-          posInfos.push({ pos: step, scanned: false, content: "path" });
-        }
+  const from = room.controller.pos;
+  for (const to of pointsOfInterest) {
+    const path = PathFinder.search(from, { pos: to, range: 1 }).path;
+    for (const step of path) {
+      const stepIndex = posInfos.findIndex(pi => pi.pos.x === step.x && pi.pos.y === step.y);
+      if (stepIndex > -1) {
+        if (posInfos[stepIndex].content !== "cluster") posInfos[stepIndex].content = "path";
+      } else {
+        posInfos.push({ pos: step, scanned: false, content: "path" });
       }
     }
   }
@@ -1413,6 +1412,8 @@ function isValidClusterPos(structurePosCount: number, pos: RoomPosition, room: R
 }
 
 function planClusters(room: Room, allowSwamp = false) {
+  console.log("Planning clusters for room:", room);
+  clearClusters(room);
   if (!room.controller) return;
   let posInfos = getInitialClusterPaths(room);
   if (!posInfos || posInfos.length < 1) return;
@@ -1440,7 +1441,7 @@ function planClusters(room: Room, allowSwamp = false) {
     for (const index of structureIndexes) if (!posInfos[index].content) posInfos[index].content = "structure";
     posInfos[clusterIndex].content = "cluster";
     const structureCount = posInfos.filter(pi => pi.content === "structure").length;
-    if (structureCount >= structuresInRoomClusters) {
+    if (structureCount >= clusterStructureTargetCount) {
       posInfos = addClusterForExistingSpawn(posInfos, room);
       flagClusters(room, posInfos);
       clusterReport(room, posInfos.filter(pi => pi.content === "cluster").length, structureCount);
@@ -1573,8 +1574,8 @@ function addClusterForExistingSpawn(posInfos: ClusterPos[], room: Room): Cluster
     const clusterPos = getSurroundingPlains(spawn.pos, 1, 1, false)[0];
     if (!clusterPos) msg(spawn, "Failed to plan cluster for existing spawn");
     const index = posInfos.findIndex(pi => pi.pos.x === clusterPos.x && pi.pos.y === clusterPos.y);
-    if (index) {
-      posInfos[index].content = "cluster";
+    if (index > -1) {
+      posInfos[index].content = "cluster"; // TypeError: Cannot set property 'content' of undefined
     } else {
       posInfos.push({ content: "cluster", pos: clusterPos, scanned: false });
     }
