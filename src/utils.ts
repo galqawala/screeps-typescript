@@ -946,7 +946,7 @@ export function constructInRoom(room: Room): void {
 }
 
 export function constructRoads(): void {
-  const clusters = Object.values(Game.flags)
+  const pointsOfInterest = Object.values(Game.flags)
     .filter(
       flag =>
         flag.name.startsWith("cluster_") &&
@@ -956,8 +956,8 @@ export function constructRoads(): void {
     .map(value => ({ value, sort: Math.random() })) /* persist sort values */
     .sort((a, b) => b.sort - a.sort) /* sort */
     .map(({ value }) => value); /* remove sort values */
-  if (clusters.length < 2) return;
-  const path = getPath(clusters[0].pos, clusters[1].pos);
+  if (pointsOfInterest.length < 2) return;
+  const path = getPath(pointsOfInterest[0].pos, pointsOfInterest[1].pos);
   if (path.length > 50) return;
   for (const pos of path) {
     pos.createConstructionSite(STRUCTURE_ROAD);

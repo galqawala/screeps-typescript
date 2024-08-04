@@ -617,7 +617,9 @@ function moveTowardMemory(creep: Creep) {
 
 function handleCarrier(creep: Creep) {
   // maybe we could add some route/target caching even with these dynamic targets?
+  utils.logCpu("handleCarrier(" + creep.name + ")");
   if (followMemorizedPath(creep)) {
+    utils.logCpu("handleCarrier(" + creep.name + ")");
     return;
   } else if (Game.time - (creep.memory.lastTimeFull || Game.time) > 700) {
     recycleCreep(creep);
@@ -647,12 +649,14 @@ function handleCarrier(creep: Creep) {
       const targetPos = getPosNear(creep.pos, target.pos);
       if (!target || !targetPos) {
         recycleCreep(creep);
+        utils.logCpu("handleCarrier(" + creep.name + ")");
         return;
       }
       creep.memory.path = utils.getPath(creep.pos, targetPos);
       followMemorizedPath(creep);
     }
   }
+  utils.logCpu("handleCarrier(" + creep.name + ")");
 }
 
 function getReserverForClaiming() {
