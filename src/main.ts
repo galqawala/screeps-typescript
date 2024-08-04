@@ -1793,7 +1793,7 @@ function getStructureToFill(pos: RoomPosition) {
 }
 
 function getNearbyEnergySource(pos: RoomPosition) {
-  let source: AnyStoreStructure | Resource | Tombstone = pos
+  let source: AnyStoreStructure | Resource | Tombstone | Ruin = pos
     .findInRange(FIND_STRUCTURES, 1)
     .filter(utils.isContainer)
     .filter(container => !utils.isStorageSubstitute(container))
@@ -1802,6 +1802,12 @@ function getNearbyEnergySource(pos: RoomPosition) {
   source = pos.findInRange(FIND_DROPPED_RESOURCES, 1)[0];
   if (source && !utils.isEmpty(source)) return source;
   source = pos.findInRange(FIND_TOMBSTONES, 1, {
+    filter(object) {
+      return !utils.isEmpty(object);
+    }
+  })[0];
+  if (source && !utils.isEmpty(source)) return source;
+  source = pos.findInRange(FIND_RUINS, 1, {
     filter(object) {
       return !utils.isEmpty(object);
     }
@@ -1921,8 +1927,8 @@ function spawnCarrier() {
   return spawnCreep("carrier", spawn.room.energyAvailable, undefined, undefined, undefined, spawn);
 }
 
-function getCarrierEnergySources(): (Resource<ResourceConstant> | Tombstone | AnyStoreStructure)[] {
-  let containers: (AnyStoreStructure | Resource | Tombstone)[] = [];
+function getCarrierEnergySources(): (Resource<ResourceConstant> | Tombstone | AnyStoreStructure | Ruin)[] {
+  let containers: (AnyStoreStructure | Resource | Tombstone | Ruin)[] = [];
   for (const room of Object.values(Game.rooms)) {
     if (room.memory.hostilesPresent) continue;
     containers = containers
@@ -1934,7 +1940,8 @@ function getCarrierEnergySources(): (Resource<ResourceConstant> | Tombstone | An
           .filter(container => !utils.isEmpty(container))
       )
       .concat(room.find(FIND_DROPPED_RESOURCES))
-      .concat(room.find(FIND_TOMBSTONES).filter(container => !utils.isEmpty(container)));
+      .concat(room.find(FIND_TOMBSTONES).filter(container => !utils.isEmpty(container)))
+      .concat(room.find(FIND_RUINS).filter(container => !utils.isEmpty(container)));
     if (room.energyAvailable < room.energyCapacityAvailable) {
       containers = containers.concat(
         room

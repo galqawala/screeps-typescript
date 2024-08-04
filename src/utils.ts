@@ -16,10 +16,13 @@ export function isContainer(
   if (!("structureType" in structure)) return false;
   return structure.structureType === STRUCTURE_CONTAINER;
 }
-export function isResource(object: Resource | Structure | Creep | Tombstone): object is Resource {
+export function isRuin(object: Resource | Structure | Creep | Tombstone | Ruin): object is Ruin {
+  return object instanceof Ruin;
+}
+export function isResource(object: Resource | Structure | Creep | Tombstone | Ruin): object is Resource {
   return object instanceof Resource;
 }
-export function isTombstone(object: Resource | Structure | Creep | Tombstone): object is Tombstone {
+export function isTombstone(object: Resource | Structure | Creep | Tombstone | Ruin): object is Tombstone {
   return object instanceof Tombstone;
 }
 export function isRoad(structure: Structure): structure is StructureRoad {
@@ -102,7 +105,7 @@ export function hasSpace(object: Structure | Creep | Ruin | Resource | Tombstone
   return store.getFreeCapacity(RESOURCE_ENERGY) > 0;
 }
 
-export function getFillRatio(object: Structure | Creep | Resource | Tombstone): number {
+export function getFillRatio(object: Structure | Creep | Resource | Tombstone | Ruin): number {
   if (!object) return 0;
   if (isResource(object) || isTombstone(object)) return 1;
   const store = getStore(object) as StoreBase<RESOURCE_ENERGY, false>;
