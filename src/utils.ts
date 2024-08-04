@@ -1422,9 +1422,9 @@ function isValidClusterPos(structurePosCount: number, pos: RoomPosition, room: R
 }
 
 function planClusters(room: Room, allowSwamp = false) {
-  console.log("Planning clusters for room:", room);
   clearClusters(room);
   if (!room.controller) return;
+  console.log("Planning clusters for room:", room);
   let posInfos = getInitialClusterPaths(room);
   if (!posInfos || posInfos.length < 1) return;
   for (;;) {
