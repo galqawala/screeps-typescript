@@ -860,9 +860,11 @@ function recycleCreep(creep: Creep) {
   if (destination) {
     if (utils.getGlobalRange(creep.pos, destination.pos) <= 1 && destination instanceof StructureSpawn) {
       if (destination.recycleCreep(creep) === OK) utils.msg(creep, "recycled!");
-    } else {
-      move(creep, destination);
+      return;
+    } else if (!creep.memory.path) {
+      creep.memory.path = utils.getPath(creep.pos, destination.pos, 1);
     }
+    followMemorizedPath(creep);
   }
 }
 
