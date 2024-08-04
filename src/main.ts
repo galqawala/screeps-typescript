@@ -629,7 +629,7 @@ function handleCarrier(creep: Creep) {
       delete creep.memory.path;
       retrieveEnergy(creep, source);
     } else {
-      const tgt = getPosNextToEnergySource(creep.pos);
+      const tgt = getPosNextToEnergySource(creep);
       if (tgt) {
         creep.memory.path = utils.getPath(creep.pos, tgt);
         followMemorizedPath(creep);
@@ -1643,11 +1643,14 @@ function getClusterStructures(clusterPos: RoomPosition) {
   return structures;
 }
 
-function getCarrierEnergySource(pos: RoomPosition) {
+function getCarrierEnergySource(creep: Creep) {
   return getCarrierEnergySources()
-    .map(value => ({
-      value,
-      sort: utils.getGlobalRange(pos, value.pos)
+    .map(source => ({
+      value: source,
+      /* prefer close-by sources, full sources and sources that fill us 100% */
+      sort:
+        utils.getGlobalRange(creep.pos, source.pos) *
+        (utils.isFull(source) || utils.getEnergy(source) >= utils.getFreeCap(creep) ? 1 : 100)
     })) /* persist sort values */
     .sort((a, b) => a.sort - b.sort) /* sort */
     .map(({ value }) => value) /* remove sort values */[0];
@@ -1826,19 +1829,19 @@ function getNearbyEnergySource(pos: RoomPosition) {
   return;
 }
 
-function getPosNextToEnergySource(pos: RoomPosition) {
-  const tgt = getCarrierEnergySource(pos);
+function getPosNextToEnergySource(creep: Creep) {
+  const tgt = getCarrierEnergySource(creep);
   if (!tgt) return;
   let positionsAroundTgt = utils.getSurroundingPlains(tgt.pos, 1, 1, false);
   if (positionsAroundTgt.length < 1) positionsAroundTgt = utils.getSurroundingPlains(tgt.pos, 1, 1, true);
   if (positionsAroundTgt.length < 1) {
-    utils.msg(pos, "Can't find positions around source " + tgt.toString());
+    utils.msg(creep, "Can't find positions around source " + tgt.toString());
     return;
   }
   return positionsAroundTgt
     .map(value => ({
       value,
-      sort: utils.getGlobalRange(pos, utils.getPos(value))
+      sort: utils.getGlobalRange(creep.pos, utils.getPos(value))
     })) /* persist sort values */
     .sort((a, b) => a.sort - b.sort) /* sort */
     .map(({ value }) => value) /* remove sort values */[0];
