@@ -1163,7 +1163,6 @@ function needCarriers(): boolean {
         const delta = room.memory.stickyEnergyDelta?.[container.id] || 0;
         if (utils.isFull(container) || (utils.getFillRatio(container) > 0.5 && delta > 0)) {
           utils.logCpu("needCarriers()");
-          console.log("Need more carriers for:", source, source.pos);
           return true;
         }
       }
