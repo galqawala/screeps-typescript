@@ -975,7 +975,6 @@ export function constructRoads(): void {
   logCpu("constructRoads()");
   if (!from || !to) return;
   const path = getPath(from, to);
-  console.log("Constructing road between:", from, to);
   for (const pos of path) {
     pos.createConstructionSite(STRUCTURE_ROAD);
   }
