@@ -879,8 +879,6 @@ function handleHarvester(creep: Creep) {
   const flagName = "creep_" + creep.name;
   if (
     !creep.memory.sourceId ||
-    creep.memory.action === "recycleCreep" ||
-    creep.room.memory.hostilesPresent ||
     !(flagName in Game.flags) ||
     (Game.flags[flagName].room && Game.flags[flagName].pos.findInRange(FIND_SOURCES, 1).length < 1)
   ) {
