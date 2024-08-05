@@ -979,11 +979,11 @@ export function handleHostilesInRoom(room: Room): void {
   const totalHostiles = hostileCreeps.length + hostilePowerCreeps.length;
   room.memory.hostilesPresent = totalHostiles > 0;
   const hostileAttackParts = hostileCreeps.reduce(
-    (aggregated, item) => aggregated + item.getActiveBodyparts(ATTACK),
+    (aggregated, creep) => aggregated + creep.getActiveBodyparts(ATTACK),
     0 /* initial*/
   );
   const hostileRangedAttackParts = hostileCreeps.reduce(
-    (aggregated, item) => aggregated + item.getActiveBodyparts(RANGED_ATTACK),
+    (aggregated, creep) => aggregated + creep.getActiveBodyparts(RANGED_ATTACK),
     0 /* initial*/
   );
   if (

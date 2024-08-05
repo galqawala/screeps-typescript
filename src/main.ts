@@ -1263,7 +1263,11 @@ function updateFlagDismantle() {
 function getTargetsInRoom(room: Room) {
   let targets: (Structure | Creep | PowerCreep)[] = [];
   targets = targets.concat(room.find(FIND_HOSTILE_STRUCTURES));
-  targets = targets.concat(room.find(FIND_HOSTILE_CREEPS));
+  targets = targets.concat(
+    room
+      .find(FIND_HOSTILE_CREEPS)
+      .filter(creep => creep.getActiveBodyparts(ATTACK) > 0 || creep.getActiveBodyparts(RANGED_ATTACK) > 0)
+  );
   targets = targets.concat(room.find(FIND_HOSTILE_POWER_CREEPS));
   return targets;
 }
