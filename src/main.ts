@@ -304,42 +304,10 @@ function handleUpgrader(creep: Creep) {
 }
 
 function upgraderRetrieveEnergy(creep: Creep) {
-  const storeId = creep.memory.storage || creep.memory.container;
-  let store;
-  if (storeId) store = Game.getObjectById(storeId);
-  if (!store || utils.getEnergy(store) < 1 || utils.getGlobalRange(creep.pos, store.pos) > 5) {
-    const findRange = utils.gotSpareCpu() ? 40 : 10;
-    const structures = creep.pos.findInRange(FIND_STRUCTURES, findRange);
-    const storages: (AnyStoreStructure | Resource | Tombstone)[] = structures.filter(utils.isStorage);
-    const containers: (AnyStoreStructure | Resource | Tombstone)[] = structures.filter(utils.isContainer);
-    const resources: (AnyStoreStructure | Resource | Tombstone)[] = creep.pos.findInRange(
-      FIND_DROPPED_RESOURCES,
-      findRange
-    );
-    const tombstones: (AnyStoreStructure | Resource | Tombstone)[] = creep.pos.findInRange(
-      FIND_TOMBSTONES,
-      findRange
-    );
-    const stores: (AnyStoreStructure | Resource | Tombstone)[] = storages
-      .concat(containers)
-      .concat(resources)
-      .concat(tombstones)
-      .filter(o => o && utils.getEnergy(o) > 0);
-    store = creep.pos.findClosestByRange(stores);
-    if (!store) {
-      utils.moveRandomDirection(creep); // get out of the way
-      return;
-    }
-    if (utils.isStorage(store)) creep.memory.storage = store.id;
-    else if (utils.isContainer(store)) creep.memory.container = store.id;
-  }
-  let withdrawOutcome;
-  if (utils.isResource(store)) {
-    withdrawOutcome = creep.pickup(store);
-  } else {
-    withdrawOutcome = creep.withdraw(store, RESOURCE_ENERGY);
-  }
-  if (withdrawOutcome === ERR_NOT_IN_RANGE) move(creep, store);
+  const storage = getStorage(creep.room);
+  if (!storage) return;
+  const withdrawOutcome = creep.withdraw(storage, RESOURCE_ENERGY);
+  if (withdrawOutcome === ERR_NOT_IN_RANGE) move(creep, storage);
   if (utils.isStuck(creep)) utils.moveRandomDirection(creep);
 }
 
