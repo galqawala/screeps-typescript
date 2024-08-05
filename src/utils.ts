@@ -977,29 +977,39 @@ export function handleHostilesInRoom(room: Room): void {
   const hostileCreeps = room.find(FIND_HOSTILE_CREEPS);
   const hostilePowerCreeps = room.find(FIND_HOSTILE_POWER_CREEPS);
   const totalHostiles = hostileCreeps.length + hostilePowerCreeps.length;
-  const hostilesPresent = totalHostiles > 0;
-
-  if (room.memory.hostilesPresent !== hostilesPresent) {
-    if (room.controller?.my) {
-      if (hostilesPresent) {
-        const hostileOwners = getHostileUsernames(hostileCreeps, hostilePowerCreeps);
-        msg(
-          room,
-          totalHostiles.toString() + " creeps from " + hostileOwners.join() + " invading my room!",
-          false
-        );
-      } else {
-        msg(room, "clear of invaders =)", false);
-      }
-    }
-    room.memory.hostilesPresent = hostilesPresent;
-    room.memory.hostileRangedAttackParts = room
-      .find(FIND_HOSTILE_CREEPS)
-      .reduce((aggregated, item) => aggregated + item.getActiveBodyparts(RANGED_ATTACK), 0 /* initial*/);
+  room.memory.hostilesPresent = totalHostiles > 0;
+  const hostileAttackParts = hostileCreeps.reduce(
+    (aggregated, item) => aggregated + item.getActiveBodyparts(ATTACK),
+    0 /* initial*/
+  );
+  const hostileRangedAttackParts = hostileCreeps.reduce(
+    (aggregated, item) => aggregated + item.getActiveBodyparts(RANGED_ATTACK),
+    0 /* initial*/
+  );
+  if (
+    room.controller?.my &&
+    ((room.memory.hostileAttackParts || 0) !== hostileAttackParts ||
+      (room.memory.hostileRangedAttackParts || 0) !== hostileRangedAttackParts)
+  ) {
+    const hostileOwners = getHostileUsernames(hostileCreeps, hostilePowerCreeps);
+    msg(
+      room,
+      totalHostiles.toString() +
+        " creeps from " +
+        hostileOwners.join() +
+        " invading with " +
+        hostileAttackParts.toString() +
+        " attack and " +
+        hostileRangedAttackParts.toString() +
+        " ranged attack parts!",
+      false
+    );
   }
+  room.memory.hostileAttackParts = hostileAttackParts;
+  room.memory.hostileRangedAttackParts = hostileRangedAttackParts;
 
   // enable safe mode if necessary
-  if (hostilesPresent) enableSafeModeIfNeed(room);
+  if (room.memory.hostilesPresent) enableSafeModeIfNeed(room);
   logCpu("handleHostilesInRoom(" + room.name + ")");
 }
 

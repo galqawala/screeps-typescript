@@ -83,6 +83,7 @@ declare global {
     canOperate: boolean;
     costMatrix?: number[];
     harvestSpots: RoomPosition[];
+    hostileAttackParts: number;
     hostileRangedAttackParts: number;
     hostilesPresent: boolean;
     remoteHarvestScore: number;
