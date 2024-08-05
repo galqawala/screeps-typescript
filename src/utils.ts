@@ -980,19 +980,17 @@ export function handleHostilesInRoom(room: Room): void {
   const hostilesPresent = totalHostiles > 0;
 
   if (room.memory.hostilesPresent !== hostilesPresent) {
-    if (hostilesPresent) {
-      const hostileOwners = getHostileUsernames(hostileCreeps, hostilePowerCreeps);
-      msg(
-        room,
-        totalHostiles.toString() +
-          " hostiles from " +
-          hostileOwners.join() +
-          " detected in a room controlled by: " +
-          (room.controller?.owner?.username || "-"),
-        false
-      );
-    } else {
-      msg(room, "clear of hostiles =)", false);
+    if (room.controller?.my) {
+      if (hostilesPresent) {
+        const hostileOwners = getHostileUsernames(hostileCreeps, hostilePowerCreeps);
+        msg(
+          room,
+          totalHostiles.toString() + " creeps from " + hostileOwners.join() + " invading my room!",
+          false
+        );
+      } else {
+        msg(room, "clear of invaders =)", false);
+      }
     }
     room.memory.hostilesPresent = hostilesPresent;
     room.memory.hostileRangedAttackParts = room
