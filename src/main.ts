@@ -1620,7 +1620,7 @@ function getCarrierEnergySource(creep: Creep) {
       /* prefer close-by sources, full sources and sources that fill us 100% */
       sort:
         utils.getGlobalRange(creep.pos, source.pos) *
-        (utils.isFull(source) || utils.getEnergy(source) >= utils.getFreeCap(creep) ? 1 : 100)
+        (!utils.hasSpace(source) || utils.getEnergy(source) >= utils.getFreeCap(creep) ? 1 : 100)
     })) /* persist sort values */
     .sort((a, b) => a.sort - b.sort) /* sort */
     .map(({ value }) => value) /* remove sort values */[0];
