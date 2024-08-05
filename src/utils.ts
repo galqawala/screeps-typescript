@@ -1243,24 +1243,9 @@ export function construct(room: Room, structureType: BuildableStructureConstant)
       });
     }
     const outcome = pos.createConstructionSite(structureType);
-    if (structureType !== STRUCTURE_ROAD) {
-      constructMsg(room, structureType, pos, outcome);
-      return outcome === OK;
-    }
+    if (structureType !== STRUCTURE_ROAD) return outcome === OK;
   }
   return false;
-}
-
-function constructMsg(room: Room, structureType: string, pos: RoomPosition, outcome: number) {
-  msg(
-    room,
-    "Creating a construction site for " +
-      structureType +
-      " at " +
-      pos.toString() +
-      " outcome: " +
-      outcome.toString()
-  );
 }
 
 export function needStructure(room: Room, structureType: BuildableStructureConstant): boolean {
