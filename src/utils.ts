@@ -391,29 +391,6 @@ export function getBodyPartRatio(body: BodyPartConstant[], type: BodyPartConstan
   return body.filter(part => part === type).length / body.length;
 }
 
-export function spawnMsg(
-  spawn: StructureSpawn,
-  roleToSpawn: Role,
-  name: string,
-  body: BodyPartConstant[],
-  target: string | undefined
-): void {
-  msg(
-    spawn,
-    "Spawning: " +
-      roleToSpawn +
-      " (" +
-      name +
-      "), cost: " +
-      getBodyCost(body).toString() +
-      "/" +
-      spawn.room.energyAvailable.toString() +
-      "/" +
-      spawn.room.energyCapacityAvailable.toString() +
-      (target ? " for " + target : "")
-  );
-}
-
 export function setDestinationFlag(name: string, pos: RoomPosition): void {
   const color1 = COLOR_ORANGE;
   const color2 = COLOR_GREEN;

@@ -1415,7 +1415,6 @@ function spawnHarvester() {
   };
   if (spawn.spawnCreep(body, name, { memory }) === OK) {
     utils.setDestinationFlag(name, harvestPos);
-    utils.spawnMsg(spawn, roleToSpawn, name, body, utils.getObjectDescription(harvestPos));
   }
   return true;
 }
@@ -1434,14 +1433,11 @@ function spawnTransferer() {
   const spawn = getSpawn(cost, tgtStorage.pos);
   if (!spawn) return;
   const name = utils.getNameForCreep(roleToSpawn);
-  if (
+  return (
     spawn.spawnCreep(body, name, {
       memory: getTransferrerMem(link.id, tgtStorage.id, spawn.pos)
     }) === OK
-  ) {
-    utils.spawnMsg(spawn, roleToSpawn, name, body, utils.getObjectDescription(tgtStorage));
-  }
-  return true;
+  );
 }
 
 function getTransferrerMem(retrieve: Id<StructureLink>, transferTo: Id<StructureStorage>, pos: RoomPosition) {
@@ -1488,8 +1484,6 @@ function spawnCreep(
   });
 
   if (outcome === OK) {
-    const target = task?.destination || upgradeTarget;
-    utils.spawnMsg(spawn, roleToSpawn, name, body, utils.getObjectDescription(target));
     return true;
   } else {
     utils.msg(spawn, "Failed to spawn creep: " + outcome.toString());
