@@ -738,7 +738,7 @@ function handleInfantry(creep: Creep) {
   creep.notifyWhenAttacked(false);
   const flag = Game.flags.attack;
   const bestTarget = utils.getTarget(creep, undefined);
-  if (!flag && !bestTarget) {
+  if (!flag && !bestTarget && utils.getCreepCountByRole("infantry") > 1) {
     recycleCreep(creep);
   } else if (bestTarget) {
     if ("my" in bestTarget && bestTarget.my) {
