@@ -345,7 +345,7 @@ export function creepsHaveDestination(structure: Structure): boolean {
 
 export function shouldReserveRoom(room: Room): boolean {
   const controller = room.controller;
-  if (room.memory.hostilesPresent) return false;
+  if (!isRoomSafe(room.name)) return false;
   if (!controller) return false;
   if (controller.owner) return false;
   if (isReservationOk(controller)) return false;
@@ -456,20 +456,6 @@ export function getCreepCost(creep: Creep): number {
   return getBodyCost(creep.body.map(part => part.type));
 }
 
-export function getTotalEnergyToHaul(): number {
-  logCpu("getTotalEnergyToHaul()");
-  let energy = 0;
-  for (const i in Game.rooms) {
-    if (Game.rooms[i].memory.hostilesPresent) continue;
-    energy += Game.rooms[i]
-      .find(FIND_STRUCTURES)
-      .filter(structure => structure.structureType === STRUCTURE_CONTAINER && !isStorageSubstitute(structure))
-      .reduce((aggregated, item) => aggregated + getEnergy(item), 0 /* initial*/);
-  }
-  logCpu("getTotalEnergyToHaul()");
-  return energy;
-}
-
 export function isStorageSubstitute(container: AnyStructure | ConstructionSite): boolean {
   return (
     "structureType" in container &&
@@ -505,7 +491,7 @@ export function getConstructionSites(): ConstructionSite[] {
   let sites: ConstructionSite[] = [];
   for (const i in Game.rooms) {
     const room = Game.rooms[i];
-    if (room.memory.hostilesPresent) continue;
+    if (!isRoomSafe(room.name)) continue;
     sites = sites.concat(room.find(FIND_MY_CONSTRUCTION_SITES));
   }
   return sites;
@@ -536,9 +522,7 @@ export function getRoomStatus(roomName: string): "normal" | "closed" | "novice" 
 }
 
 export function isRoomSafe(roomName: string): boolean {
-  if (!Memory.rooms[roomName]) return true;
-  if (Memory.rooms[roomName].hostilesPresent) return false;
-  return true;
+  return Memory.rooms[roomName]?.safeForCreeps || true;
 }
 
 export function getExit(
@@ -972,44 +956,29 @@ export function checkRoomCanOperate(room: Room): void {
 
 export function handleHostilesInRoom(room: Room): void {
   logCpu("handleHostilesInRoom(" + room.name + ")");
-  // check for presence of hostiles
-  const hostileCreeps = room.find(FIND_HOSTILE_CREEPS);
-  const hostilePowerCreeps = room.find(FIND_HOSTILE_POWER_CREEPS);
-  const totalHostiles = hostileCreeps.length + hostilePowerCreeps.length;
-  room.memory.hostilesPresent = totalHostiles > 0;
-  const hostileAttackParts = hostileCreeps.reduce(
-    (aggregated, creep) => aggregated + creep.getActiveBodyparts(ATTACK),
-    0 /* initial*/
-  );
-  const hostileRangedAttackParts = hostileCreeps.reduce(
-    (aggregated, creep) => aggregated + creep.getActiveBodyparts(RANGED_ATTACK),
-    0 /* initial*/
-  );
-  if (
-    room.controller?.my &&
-    ((room.memory.hostileAttackParts || 0) !== hostileAttackParts ||
-      (room.memory.hostileRangedAttackParts || 0) !== hostileRangedAttackParts)
-  ) {
-    const hostileOwners = getHostileUsernames(hostileCreeps, hostilePowerCreeps);
-    msg(
-      room,
-      totalHostiles.toString() +
-        " creeps from " +
-        hostileOwners.join() +
-        " invading with " +
-        hostileAttackParts.toString() +
-        " attack and " +
-        hostileRangedAttackParts.toString() +
-        " ranged attack parts!",
-      false
-    );
-  }
-  room.memory.hostileAttackParts = hostileAttackParts;
-  room.memory.hostileRangedAttackParts = hostileRangedAttackParts;
-
-  // enable safe mode if necessary
-  if (hostileAttackParts > 0 || hostileRangedAttackParts > 0) enableSafeModeIfNeed(room);
+  room.memory.claimIsSafe =
+    (room.controller?.safeMode || 0) > 0 ||
+    room.find(FIND_HOSTILE_CREEPS).filter(hostile => isThreatToRoom(hostile)).length < 1;
+  room.memory.safeForCreeps =
+    (room.controller?.safeMode || 0) > 0 ||
+    room.find(FIND_HOSTILE_CREEPS).filter(hostile => isThreatToCreep(hostile)).length < 1;
+  if (!room.memory.claimIsSafe) enableSafeModeIfNeed(room);
   logCpu("handleHostilesInRoom(" + room.name + ")");
+}
+
+export function isThreatToRoom(target: Creep) {
+  return (
+    !target.my &&
+    (target.getActiveBodyparts(ATTACK) > 0 ||
+      target.getActiveBodyparts(RANGED_ATTACK) > 0 ||
+      target.getActiveBodyparts(CLAIM) > 0)
+  );
+}
+
+export function isThreatToCreep(target: Creep) {
+  return (
+    !target.my && (target.getActiveBodyparts(ATTACK) > 0 || target.getActiveBodyparts(RANGED_ATTACK) > 0)
+  );
 }
 
 export function enableSafeModeIfNeed(room: Room): void {
@@ -1029,27 +998,6 @@ export function getHostileUsernames(hostileCreeps: Creep[], hostilePowerCreeps: 
     .map(creep => creep.owner.username)
     .concat(hostilePowerCreeps.map(creep => creep.owner.username))
     .filter((value, index, self) => self.indexOf(value) === index); // unique
-}
-
-export function updateHarvestSpots(room: Room): void {
-  const range = 1;
-  const terrain = new Room.Terrain(room.name);
-  const spots: RoomPosition[] = [];
-
-  room.find(FIND_SOURCES).forEach(source => {
-    const targetPos = source.pos;
-
-    for (let x = targetPos.x - range; x <= targetPos.x + range; x++) {
-      for (let y = targetPos.y - range; y <= targetPos.y + range; y++) {
-        if (x === targetPos.x && y === targetPos.y) continue;
-        if (terrain.get(x, y) === TERRAIN_MASK_WALL) continue;
-        const pos = new RoomPosition(x, y, room.name);
-        if (blockedByStructure(pos)) continue;
-        if (!containsPosition(spots, pos)) spots.push(pos);
-      }
-    }
-  });
-  room.memory.harvestSpots = spots;
 }
 
 export function getLinkDownstreamPos(room: Room): RoomPosition | undefined {
@@ -1317,20 +1265,6 @@ export function getUpgradeableControllerCount(): number {
   ).length;
   logCpu("getUpgradeableControllerCount");
   return count;
-}
-
-export function updateRemoteHarvestScore(room: Room): void {
-  let score = 0;
-  const sources = room.find(FIND_SOURCES);
-  for (const source of sources) {
-    const storages = Object.values(Game.structures).filter(isStorage);
-    const path = PathFinder.search(
-      source.pos,
-      storages.map(storage => storage.pos)
-    );
-    score += 1 / path.cost;
-  }
-  room.memory.remoteHarvestScore = score;
 }
 
 export function updateRoomScore(room: Room): void {

@@ -79,17 +79,13 @@ declare global {
 
   interface RoomMemory {
     canOperate: boolean;
+    claimIsSafe: boolean;
     costMatrix?: number[];
-    harvestSpots: RoomPosition[];
-    hostileAttackParts: number;
-    hostileRangedAttackParts: number;
-    hostilesPresent: boolean;
-    remoteHarvestScore: number;
     repairTargets: Id<Structure>[];
+    safeForCreeps: boolean;
     score: number;
     stickyEnergy: Record<Id<AnyStoreStructure>, number>;
     stickyEnergyDelta: Record<Id<AnyStoreStructure>, number>;
-    upgradeSpots?: RoomPosition[];
   }
 
   interface CreepMemory {
@@ -520,9 +516,9 @@ function hasEnoughEnergyForAnotherUpgrader(controller: StructureController) {
 function getControllerToUpgrade(pos: RoomPosition | undefined = undefined, urgentOnly = false) {
   utils.logCpu("getControllerToUpgrade(" + (pos || "").toString() + "," + urgentOnly.toString() + ")");
   const targets = [];
-  for (const i in Game.rooms) {
-    const room = Game.rooms[i];
-    if (room.memory.hostilesPresent) continue;
+  for (const roomName in Game.rooms) {
+    const room = Game.rooms[roomName];
+    if (!utils.isRoomSafe(roomName)) continue;
     if (!room.controller) continue;
     if (!room.controller.my) continue;
     const ticksToDowngrade = room.controller.ticksToDowngrade;
@@ -638,9 +634,6 @@ function getReserverForClaiming() {
 function handleReserver(creep: Creep) {
   if ("claim" in Game.flags && getReserverForClaiming().name === creep.name) {
     claim(creep);
-    return;
-  } else if (creep.memory.action === "recycleCreep" || creep.room.memory.hostilesPresent) {
-    recycleCreep(creep);
     return;
   }
   let destination;
@@ -777,11 +770,10 @@ function handleInfantry(creep: Creep) {
 
 function evadeHostiles(creep: Creep) {
   utils.logCpu("evadeHostiles(" + creep.name + ")");
+  if (creep.room.controller?.safeMode) return;
   const hostilePositions = creep.pos
     .findInRange(FIND_HOSTILE_CREEPS, 4)
-    .filter(
-      hostile => hostile.getActiveBodyparts(ATTACK) > 0 || hostile.getActiveBodyparts(RANGED_ATTACK) > 0
-    )
+    .filter(hostile => utils.isThreatToCreep(hostile))
     .map(hostile => hostile.pos)
     .concat(creep.pos.findInRange(FIND_HOSTILE_POWER_CREEPS, 4).map(hostile => hostile.pos));
   if (hostilePositions.length < 1) return;
@@ -929,7 +921,8 @@ function handleRoom(room: Room) {
   utils.logCpu("handleRoom(" + room.name + ") updates1");
   utils.logCpu("handleRoom(" + room.name + ") updates2");
   utils.handleLinks(room);
-  roomUpdates(room);
+  if (!room.memory.score) utils.updateRoomScore(room);
+  if (Math.random() < 0.001) utils.updateRoomRepairTargets(room);
   utils.logCpu("handleRoom(" + room.name + ") updates2");
   utils.logCpu("handleRoom(" + room.name + ") updates3");
   utils.checkRoomCanOperate(room);
@@ -984,9 +977,6 @@ function handleRoomObservers(room: Room) {
 
 function roomUpdates(room: Room) {
   utils.logCpu("roomUpdates(" + room.name + ")");
-  delete room.memory.upgradeSpots;
-  if (!room.memory.harvestSpots) utils.updateHarvestSpots(room);
-  if (!room.memory.remoteHarvestScore) utils.updateRemoteHarvestScore(room);
   if (!room.memory.score) utils.updateRoomScore(room);
   if (Math.random() < 0.001) utils.updateRoomRepairTargets(room);
   utils.logCpu("roomUpdates(" + room.name + ")");
@@ -1123,7 +1113,7 @@ function getRoomToClaim(controlledRooms: Room[]) {
 function needCarriers(): boolean {
   utils.logCpu("needCarriers()");
   for (const room of Object.values(Game.rooms)) {
-    if (room.memory.hostilesPresent || !room.memory.canOperate) continue;
+    if (!utils.isRoomSafe(room.name) || !room.memory.canOperate) continue;
     const sources = room.find(FIND_SOURCES);
     for (const source of sources) {
       const containers = source.pos.findInRange(FIND_STRUCTURES, 3).filter(utils.isContainer);
@@ -1166,22 +1156,9 @@ function spawnRole(roleToSpawn: Role, minBudget = 0, body: undefined | BodyPartC
   return spawnCreep(roleToSpawn, budget, body, undefined);
 }
 
-function getSpawnBudget(pos: RoomPosition, min: number) {
-  const closestSpawn = Object.values(Game.spawns)
-    .filter(spawn => spawn.room.energyAvailable >= min)
-    .map(spawn => ({
-      value: spawn,
-      sort: utils.getGlobalRange(pos, spawn.pos)
-    })) /* persist sort values */
-    .sort((a, b) => a.sort - b.sort) /* sort */
-    .map(({ value }) => value) /* remove sort values */[0];
-  if (closestSpawn) return closestSpawn.room.energyAvailable;
-  return 0;
-}
-
 function needInfantry() {
   if (!("attack" in Game.flags)) return false;
-  return Memory.rooms[Game.flags.attack.pos.roomName].hostileRangedAttackParts > 0;
+  return Memory.rooms[Game.flags.attack.pos.roomName].claimIsSafe === false;
 }
 
 function spawnReserver() {
@@ -1279,14 +1256,7 @@ function getTargetsInRoom(room: Room) {
   let targets: (Structure | Creep | PowerCreep)[] = [];
   targets = targets.concat(room.find(FIND_HOSTILE_STRUCTURES));
   targets = targets.concat(
-    room
-      .find(FIND_HOSTILE_CREEPS)
-      .filter(
-        creep =>
-          !towersAvailable ||
-          creep.getActiveBodyparts(ATTACK) > 0 ||
-          creep.getActiveBodyparts(RANGED_ATTACK) > 0
-      )
+    room.find(FIND_HOSTILE_CREEPS).filter(creep => !towersAvailable || utils.isThreatToRoom(creep))
   );
   targets = targets.concat(room.find(FIND_HOSTILE_POWER_CREEPS));
   return targets;
@@ -1362,9 +1332,9 @@ function getTotalConstructionWork() {
 function getSourceToHarvest() {
   utils.logCpu("getSourceToHarvest()");
   let sources: Source[] = [];
-  for (const r in Game.rooms) {
-    const room = Game.rooms[r];
-    if (room.memory.hostilesPresent) continue;
+  for (const roomName in Game.rooms) {
+    const room = Game.rooms[roomName];
+    if (!utils.isRoomSafe(roomName)) continue;
     if (!utils.canOperateInRoom(room)) continue;
     if (!utils.shouldHarvestRoom(room)) continue;
     sources = sources.concat(
@@ -1699,7 +1669,7 @@ function checkWipeOut() {
 function needUpgraders(): boolean {
   for (const roomName in Game.rooms) {
     const room = Game.rooms[roomName];
-    if (room.memory.hostilesPresent) continue;
+    if (!utils.isRoomSafe(roomName)) continue;
     if (!room.controller) continue;
     if (!room.controller.my) continue;
     const ticksToDowngrade = room.controller.ticksToDowngrade;
@@ -1921,7 +1891,7 @@ function spawnCarrier() {
 function getCarrierEnergySources(): (Resource<ResourceConstant> | Tombstone | AnyStoreStructure | Ruin)[] {
   let containers: (AnyStoreStructure | Resource | Tombstone | Ruin)[] = [];
   for (const room of Object.values(Game.rooms)) {
-    if (room.memory.hostilesPresent) continue;
+    if (!utils.isRoomSafe(room.name)) continue;
     containers = containers
       .concat(
         room
