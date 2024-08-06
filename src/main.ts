@@ -939,16 +939,18 @@ function handleRoom(room: Room) {
 }
 
 function spawnCarriers(room: Room) {
-  const carriers = Object.values(Game.creeps).filter(
-    creep => creep.memory.role === "carrier" && creep.memory.room === room.name
-  ).length;
-  const fullContainers = room
-    .find(FIND_STRUCTURES)
-    .filter(utils.isContainer)
-    .filter(container => utils.isFull(container) && !utils.isStorageSubstitute(container)).length;
-  if (carriers < 1 || fullContainers > 0) {
-    console.log(room, "carriers", carriers, "fullContainers", fullContainers);
-    spawnCarrier(room);
+  if (room.controller?.my) {
+    const carriers = Object.values(Game.creeps).filter(
+      creep => creep.memory.role === "carrier" && creep.memory.room === room.name
+    ).length;
+    const fullContainers = room
+      .find(FIND_STRUCTURES)
+      .filter(utils.isContainer)
+      .filter(container => utils.isFull(container) && !utils.isStorageSubstitute(container)).length;
+    if (carriers < 1 || fullContainers > 0) {
+      console.log(room, "carriers", carriers, "fullContainers", fullContainers);
+      spawnCarrier(room);
+    }
   }
 }
 
