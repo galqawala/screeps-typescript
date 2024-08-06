@@ -564,10 +564,8 @@ function moveTowardMemory(creep: Creep) {
 }
 
 function handleCarrier(creep: Creep) {
-  utils.logCpu("handleCarrier(" + creep.name + ")");
   if (!creep.memory.room) creep.memory.room = creep.pos.roomName;
   if (followMemorizedPath(creep)) {
-    utils.logCpu("handleCarrier(" + creep.name + ")");
     return;
   }
 
@@ -596,10 +594,13 @@ function handleCarrier(creep: Creep) {
       transfer(creep, tgt);
     } else {
       const target = getStructureToFill(creep.pos);
+      if (!target) {
+        utils.moveRandomDirection(creep);
+        return;
+      }
       const targetPos = getPosNear(creep.pos, target.pos);
-      if (!target || !targetPos) {
-        recycleCreep(creep);
-        utils.logCpu("handleCarrier(" + creep.name + ")");
+      if (!targetPos) {
+        utils.moveRandomDirection(creep);
         return;
       }
       creep.memory.path = utils.getPath(creep.pos, targetPos);
@@ -607,7 +608,6 @@ function handleCarrier(creep: Creep) {
     }
     utils.logCpu("handleCarrier(" + creep.name + ") deliver");
   }
-  utils.logCpu("handleCarrier(" + creep.name + ")");
 }
 
 function getReserverForClaiming() {
@@ -1688,20 +1688,20 @@ function getStructureToFillHere(pos: RoomPosition) {
 
 function getStructureToFill(pos: RoomPosition) {
   let targets: AnyStructure[] = [];
-  for (const room of Object.values(Game.rooms)) {
-    const spawnMaxed = room.energyAvailable >= room.energyCapacityAvailable;
-    if (spawnMaxed) {
-      const storage = getStorage(room);
-      if (storage && !utils.isFull(storage)) targets.push(storage);
-    }
-    targets = targets.concat(
-      room
-        .find(FIND_MY_STRUCTURES)
-        .filter(utils.isStoreStructure)
-        .filter(s => !utils.isFull(s) && !utils.isStorage(s))
-        .filter(s => spawnMaxed || !utils.isLink(s))
-    );
+  const room = Game.rooms[pos.roomName];
+  if (!room) return;
+  const spawnMaxed = room.energyAvailable >= room.energyCapacityAvailable;
+  if (spawnMaxed) {
+    const storage = getStorage(room);
+    if (storage && !utils.isFull(storage)) targets.push(storage);
   }
+  targets = targets.concat(
+    room
+      .find(FIND_MY_STRUCTURES)
+      .filter(utils.isStoreStructure)
+      .filter(s => !utils.isFull(s) && !utils.isStorage(s))
+      .filter(s => spawnMaxed || !utils.isLink(s))
+  );
   return targets
     .map(value => ({
       value,
