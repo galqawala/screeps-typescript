@@ -764,6 +764,8 @@ function handleInfantry(creep: Creep) {
     } else if (!followMemorizedPath(creep)) {
       creep.memory.path = utils.getPath(creep.pos, flag.pos, 0, false);
     }
+  } else {
+    utils.moveRandomDirection(creep);
   }
   utils.logCpu("handleInfantry(" + creep.name + ")");
 }
@@ -973,13 +975,6 @@ function handleRoomObservers(room: Room) {
     }
   }
   utils.logCpu("handleRoomObservers(" + room.name + ")");
-}
-
-function roomUpdates(room: Room) {
-  utils.logCpu("roomUpdates(" + room.name + ")");
-  if (!room.memory.score) utils.updateRoomScore(room);
-  if (Math.random() < 0.001) utils.updateRoomRepairTargets(room);
-  utils.logCpu("roomUpdates(" + room.name + ")");
 }
 
 function move(creep: Creep, destination: Destination, safe = true) {
@@ -1750,7 +1745,7 @@ function getStructureToFill(pos: RoomPosition) {
 }
 
 function getNearbyEnergySource(pos: RoomPosition) {
-  let droppedRes = pos
+  const droppedRes = pos
     .findInRange(FIND_DROPPED_RESOURCES, 1)
     .filter(container => !utils.isEmpty(container))[0];
   if (droppedRes) return droppedRes;
