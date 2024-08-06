@@ -841,7 +841,7 @@ function handleHarvester(creep: Creep) {
   // move
   const flag = Game.flags[flagName];
   if (!utils.isPosEqual(creep.pos, flag.pos)) move(creep, flag);
-  if (!utils.isEmpty(creep)) harvesterSpendEnergy(creep);
+  if (utils.isFull(creep)) harvesterSpendEnergy(creep);
   // harvest
   const sourceId = creep.memory.sourceId;
   if (sourceId) {
@@ -866,6 +866,8 @@ function harvesterSpendEnergy(creep: Creep) {
     if (target) creep.repair(target);
     const site = creep.pos.lookFor(LOOK_CONSTRUCTION_SITES)[0];
     if (site) creep.build(site);
+    const link = creep.pos.findInRange(FIND_MY_STRUCTURES, 1).filter(utils.isLink)[0];
+    if (link) creep.transfer(link, RESOURCE_ENERGY);
   }
   utils.logCpu("harvesterSpendEnergy(" + creep.name + ")");
 }
