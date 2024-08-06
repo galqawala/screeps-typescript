@@ -961,7 +961,11 @@ export function handleHostilesInRoom(room: Room): void {
     room.find(FIND_HOSTILE_CREEPS).filter(hostile => isThreatToRoom(hostile)).length < 1;
   room.memory.safeForCreeps =
     (room.controller?.safeMode || 0) > 0 ||
-    room.find(FIND_HOSTILE_CREEPS).filter(hostile => isThreatToCreep(hostile)).length < 1;
+    (room.find(FIND_HOSTILE_CREEPS).filter(hostile => isThreatToCreep(hostile)).length < 1 &&
+      room
+        .find(FIND_HOSTILE_STRUCTURES)
+        .filter(isTower)
+        .filter(tower => !isEmpty(tower)).length < 1);
   if (!room.memory.claimIsSafe) enableSafeModeIfNeed(room);
   logCpu("handleHostilesInRoom(" + room.name + ")");
 }
