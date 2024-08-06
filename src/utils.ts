@@ -636,7 +636,6 @@ export function getPosForStorage(room: Room): RoomPosition | undefined {
       bestPos = pos;
     }
   }
-  console.log("Position for storage: ", bestPos);
   return bestPos;
 }
 
@@ -1009,14 +1008,15 @@ export function handleHostilesInRoom(room: Room): void {
   room.memory.hostileRangedAttackParts = hostileRangedAttackParts;
 
   // enable safe mode if necessary
-  if (room.memory.hostilesPresent) enableSafeModeIfNeed(room);
+  if (hostileAttackParts > 0 || hostileRangedAttackParts > 0) enableSafeModeIfNeed(room);
   logCpu("handleHostilesInRoom(" + room.name + ")");
 }
 
 export function enableSafeModeIfNeed(room: Room): void {
   const towerCount = room
     .find(FIND_MY_STRUCTURES)
-    .filter(tower => tower.structureType === STRUCTURE_TOWER).length;
+    .filter(isTower)
+    .filter(tower => !isEmpty(tower)).length;
   if (towerCount <= 0) {
     if (room.controller && room.controller.activateSafeMode() === OK) {
       msg(room.controller, "safe mode activated!", true);
@@ -1646,6 +1646,12 @@ export function moveRandomDirection(creep: Creep): void {
   creep.move(direction);
 }
 
+export function getCostMatrix(roomName: string): CostMatrix {
+  const costMem = Memory.rooms[roomName]?.costMatrix;
+  if (costMem) return PathFinder.CostMatrix.deserialize(costMem);
+  return new PathFinder.CostMatrix();
+}
+
 export function getCostMatrixSafe(roomName: string): CostMatrix {
   const costMem = Memory.rooms[roomName]?.costMatrix;
   if (costMem) {
@@ -1699,14 +1705,14 @@ export function getCostMatrixSafeCreeps(roomName: string): CostMatrix {
   return costs;
 }
 
-export function getPath(from: RoomPosition, to: RoomPosition, range = 0): RoomPosition[] {
+export function getPath(from: RoomPosition, to: RoomPosition, range = 0, safe = true): RoomPosition[] {
   return PathFinder.search(
     from,
     { pos: to, range },
     {
       plainCost: 2,
       swampCost: 10,
-      roomCallback: getCostMatrixSafe
+      roomCallback: safe ? getCostMatrixSafe : getCostMatrix
     }
   ).path;
 }

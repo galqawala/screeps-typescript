@@ -5,7 +5,6 @@ import { ErrorMapper } from "utils/ErrorMapper";
 
 declare global {
   type Role =
-    | "attacker"
     | "carrier"
     | "explorer"
     | "harvester"
@@ -68,7 +67,6 @@ declare global {
     maxRoomEnergy: number;
     maxRoomEnergyCap: number;
     minTicksToDowngrade: number;
-    needAttackers: boolean;
     needCarriers: boolean;
     needExplorers: boolean;
     needHarvesters: boolean;
@@ -189,7 +187,6 @@ function updatePlan() {
     controllersToReserve: utils.getControllersToReserve().map(controller => controller.id),
     fillSpawnsFromStorage: storageMin >= 800000 && !allSpawnsFull,
     fillStorage: (storageMin < 150000 && !needHarvesters) || allSpawnsFull,
-    needAttackers: needAttackers(),
     needCarriers: needCarriers(),
     needExplorers: needExplorers(),
     needHarvesters: storageMin < 900000 && needHarvesters,
@@ -250,8 +247,7 @@ function handleCreeps() {
       if (creep.memory.pos?.roomName !== creep.pos.roomName) delete creep.memory.pathKey;
 
       const role = creep.memory.role;
-      if (role === "attacker") handleAttacker(creep);
-      else if (role === "carrier") handleCarrier(creep);
+      if (role === "carrier") handleCarrier(creep);
       else if (role === "explorer") handleExplorer(creep);
       else if (role === "harvester") handleHarvester(creep);
       else if (role === "infantry") handleInfantry(creep);
@@ -739,23 +735,6 @@ function retrieveEnergy(creep: Creep, destination: Structure | Tombstone | Ruin 
   return ERR_INVALID_TARGET;
 }
 
-function handleAttacker(creep: Creep) {
-  utils.logCpu("handleAttacker(" + creep.name + ")");
-  const flag = Game.flags.attack;
-  const bestTarget = utils.getTarget(creep, undefined);
-  if (!flag && !bestTarget) {
-    recycleCreep(creep);
-  } else if (bestTarget) {
-    if (creep.attack(bestTarget) === ERR_NOT_IN_RANGE) {
-      move(creep, bestTarget);
-      creep.attack(bestTarget);
-    }
-  } else if (flag) {
-    move(creep, flag);
-  }
-  utils.logCpu("handleAttacker(" + creep.name + ")");
-}
-
 function handleInfantry(creep: Creep) {
   utils.logCpu("handleInfantry(" + creep.name + ")");
   const flag = Game.flags.attack;
@@ -763,14 +742,29 @@ function handleInfantry(creep: Creep) {
   if (!flag && !bestTarget) {
     recycleCreep(creep);
   } else if (bestTarget) {
-    if (creep.rangedAttack(bestTarget) === ERR_NOT_IN_RANGE || bestTarget instanceof Structure) {
-      move(creep, bestTarget);
-      creep.rangedAttack(bestTarget);
+    if ("my" in bestTarget && bestTarget.my) {
+      if (creep.heal(bestTarget) === ERR_NOT_IN_RANGE) move(creep, bestTarget);
     } else {
-      evadeHostiles(creep);
+      const rangedAttack = creep.rangedAttack(bestTarget);
+      const attack = creep.attack(bestTarget);
+      if (creep.hits < creep.hitsMax) creep.heal(creep);
+      if (
+        rangedAttack === ERR_NOT_IN_RANGE ||
+        attack === ERR_NOT_IN_RANGE ||
+        bestTarget instanceof Structure
+      ) {
+        move(creep, bestTarget);
+      } else {
+        evadeHostiles(creep);
+      }
     }
   } else if (flag) {
-    move(creep, flag);
+    if (utils.isStuck(creep)) {
+      delete creep.memory.path; // replan
+      utils.moveRandomDirection(creep);
+    } else if (!followMemorizedPath(creep)) {
+      creep.memory.path = utils.getPath(creep.pos, flag.pos, 0, false);
+    }
   }
   utils.logCpu("handleInfantry(" + creep.name + ")");
 }
@@ -779,6 +773,9 @@ function evadeHostiles(creep: Creep) {
   utils.logCpu("evadeHostiles(" + creep.name + ")");
   const hostilePositions = creep.pos
     .findInRange(FIND_HOSTILE_CREEPS, 4)
+    .filter(
+      hostile => hostile.getActiveBodyparts(ATTACK) > 0 || hostile.getActiveBodyparts(RANGED_ATTACK) > 0
+    )
     .map(hostile => hostile.pos)
     .concat(creep.pos.findInRange(FIND_HOSTILE_POWER_CREEPS, 4).map(hostile => hostile.pos));
   if (hostilePositions.length < 1) return;
@@ -1041,9 +1038,7 @@ function spawnCreeps() {
   } else if (Memory.plan?.needHarvesters) {
     spawnHarvester();
   } else if (Memory.plan?.needInfantry) {
-    spawnRole("infantry");
-  } else if (Memory.plan?.needAttackers) {
-    spawnCreep("attacker", budget);
+    spawnCreep("infantry", getSpawnBudget(Game.flags.attack.pos, 300));
   } else if (Memory.plan?.needExplorers && spawnRole("explorer", 0, [MOVE])) {
     Memory.plan.needExplorers = false;
   } else if (Memory.plan?.needWorkers) {
@@ -1165,13 +1160,22 @@ function spawnRole(roleToSpawn: Role, minBudget = 0, body: undefined | BodyPartC
   return spawnCreep(roleToSpawn, budget, body, undefined);
 }
 
+function getSpawnBudget(pos: RoomPosition, min: number) {
+  const closestSpawn = Object.values(Game.spawns)
+    .filter(spawn => spawn.room.energyAvailable >= min)
+    .map(spawn => ({
+      value: spawn,
+      sort: utils.getGlobalRange(pos, spawn.pos)
+    })) /* persist sort values */
+    .sort((a, b) => a.sort - b.sort) /* sort */
+    .map(({ value }) => value) /* remove sort values */[0];
+  if (closestSpawn) return closestSpawn.room.energyAvailable;
+  return 0;
+}
+
 function needInfantry() {
   if (!("attack" in Game.flags)) return false;
   return Memory.rooms[Game.flags.attack.pos.roomName].hostileRangedAttackParts > 0;
-}
-
-function needAttackers() {
-  return "attack" in Game.flags && utils.getCreepCountByRole("attacker") < 5;
 }
 
 function spawnReserver() {
@@ -1261,12 +1265,22 @@ function updateFlagDismantle() {
 }
 
 function getTargetsInRoom(room: Room) {
+  const towersAvailable =
+    room
+      .find(FIND_MY_STRUCTURES)
+      .filter(utils.isTower)
+      .filter(tower => !utils.isEmpty(tower)).length > 0;
   let targets: (Structure | Creep | PowerCreep)[] = [];
   targets = targets.concat(room.find(FIND_HOSTILE_STRUCTURES));
   targets = targets.concat(
     room
       .find(FIND_HOSTILE_CREEPS)
-      .filter(creep => creep.getActiveBodyparts(ATTACK) > 0 || creep.getActiveBodyparts(RANGED_ATTACK) > 0)
+      .filter(
+        creep =>
+          !towersAvailable ||
+          creep.getActiveBodyparts(ATTACK) > 0 ||
+          creep.getActiveBodyparts(RANGED_ATTACK) > 0
+      )
   );
   targets = targets.concat(room.find(FIND_HOSTILE_POWER_CREEPS));
   return targets;
@@ -1445,12 +1459,13 @@ function spawnCreep(
   upgradeTarget: StructureController | undefined = undefined,
   spawn: StructureSpawn | undefined = undefined
 ) {
+  if (energyAvailable < 50) return false;
   if (!body) body = getBody(roleToSpawn, energyAvailable);
   const name = utils.getNameForCreep(roleToSpawn);
   if (!spawn) spawn = getSpawn(energyAvailable, utils.getPos(task?.destination));
   if (!spawn) return false;
   if (spawn.spawning) return false;
-  if (!body || utils.getBodyCost(body) > spawn.room.energyAvailable) return false;
+  if (!body || utils.getBodyCost(body) > spawn.room.energyAvailable || !body.includes(MOVE)) return false;
 
   const outcome = spawn.spawnCreep(body, name, {
     memory: getInitialCreepMem(roleToSpawn, task, spawn.pos, upgradeTarget)
@@ -1459,7 +1474,8 @@ function spawnCreep(
   if (outcome === OK) {
     return true;
   } else {
-    utils.msg(spawn, "Failed to spawn creep: " + outcome.toString());
+    utils.msg(spawn, "Failed to spawn creep: " + outcome.toString() + " with body " + body.toString());
+    console.log("body", body, "energyAvailable", energyAvailable);
     return false;
   }
 }
@@ -1482,8 +1498,7 @@ function getInitialCreepMem(
 }
 
 function getBody(roleToSpawn: Role, energyAvailable: number) {
-  if (roleToSpawn === "attacker") return getBodyForAttacker(energyAvailable);
-  else if (roleToSpawn === "carrier") return getBodyForCarrier(energyAvailable);
+  if (roleToSpawn === "carrier") return getBodyForCarrier(energyAvailable);
   else if (roleToSpawn === "infantry") return getBodyForInfantry(energyAvailable);
   else if (roleToSpawn === "reserver") return getBodyForReserver(energyAvailable);
   else if (roleToSpawn === "upgrader") return getBodyForUpgrader(energyAvailable);
@@ -1537,24 +1552,21 @@ function getBodyForReserver(energyAvailable: number) {
   }
 }
 
-function getBodyForAttacker(energyAvailable: number) {
-  const body: BodyPartConstant[] = [ATTACK, MOVE];
-  for (;;) {
-    const nextPart = utils.getBodyPartRatio(body) <= 0.34 ? MOVE : ATTACK;
-    if (utils.getBodyCost(body) + BODYPART_COST[nextPart] > energyAvailable) return body;
-    body.push(nextPart);
-    if (body.length >= 50) return body;
-  }
-}
-
 function getBodyForInfantry(energyAvailable: number) {
-  const body: BodyPartConstant[] = [MOVE, RANGED_ATTACK];
-  for (;;) {
-    const nextPart = utils.getBodyPartRatio(body) <= 0.34 ? MOVE : RANGED_ATTACK;
-    if (utils.getBodyCost(body) + BODYPART_COST[nextPart] > energyAvailable) return body;
-    body.push(nextPart);
-    if (body.length >= 50) return body;
+  // Unsafe assignment of type any[] to a variable of type BodyPartConstant[].eslint@typescript-eslint/no-unsafe-assignment
+  const body: BodyPartConstant[] = [
+    ...Array<BodyPartConstant>(20).fill(MOVE),
+    ...Array<BodyPartConstant>(10).fill(ATTACK),
+    ...Array<BodyPartConstant>(10).fill(RANGED_ATTACK),
+    ...Array<BodyPartConstant>(5).fill(MOVE),
+    ...Array<BodyPartConstant>(5).fill(HEAL)
+  ];
+  while (utils.getBodyCost(body) > energyAvailable) {
+    const randomIndex = Math.floor(Math.random() * body.length);
+    body.splice(randomIndex, 1);
   }
+  if (!body.includes(MOVE)) return;
+  return body;
 }
 
 function purgeFlagsMemory() {
