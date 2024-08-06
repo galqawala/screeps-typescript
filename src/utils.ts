@@ -1575,7 +1575,7 @@ export function isPosEqual(a: RoomPosition, b: RoomPosition): boolean {
 }
 
 export function isStuck(creep: Creep): boolean {
-  return (creep.memory.lastMoveTime || 0) < Game.time - 10;
+  return (creep.memory.lastMoveTime || 0) < Game.time - 8;
 }
 
 export function moveRandomDirection(creep: Creep): void {
