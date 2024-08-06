@@ -914,7 +914,6 @@ function spawnCarriers(room: Room) {
       .filter(utils.isContainer)
       .filter(container => utils.isFull(container) && !utils.isStorageSubstitute(container)).length;
     if (carriers < min || fullContainers > 0) {
-      console.log(room, "carriers", carriers, "fullContainers", fullContainers);
       spawnCarrier(room);
     }
   }
@@ -1816,7 +1815,6 @@ function spawnUpgrader(urgentOnly = false) {
 }
 
 function spawnCarrier(targetRoom: Room) {
-  console.log("Spawning carrier for:", targetRoom);
   const targetPos = getStorage(targetRoom)?.pos ?? targetRoom.controller?.pos;
   const spawn = Object.values(Game.spawns)
     .filter(s => !s.spawning)
