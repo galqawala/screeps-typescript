@@ -1754,26 +1754,32 @@ function getStructureToFill(pos: RoomPosition) {
 }
 
 function getNearbyEnergySource(pos: RoomPosition) {
-  let source: AnyStoreStructure | Resource | Tombstone | Ruin = pos
+  let droppedRes = pos
+    .findInRange(FIND_DROPPED_RESOURCES, 1)
+    .filter(container => !utils.isEmpty(container))[0];
+  if (droppedRes) return droppedRes;
+
+  let source: AnyStoreStructure | Tombstone | Ruin = pos
     .findInRange(FIND_STRUCTURES, 1)
     .filter(utils.isContainer)
     .filter(container => !utils.isStorageSubstitute(container))
     .filter(container => !utils.isEmpty(container))[0];
   if (source) return source;
-  source = pos.findInRange(FIND_DROPPED_RESOURCES, 1)[0];
-  if (source && !utils.isEmpty(source)) return source;
+
   source = pos.findInRange(FIND_TOMBSTONES, 1, {
     filter(object) {
       return !utils.isEmpty(object);
     }
   })[0];
   if (source && !utils.isEmpty(source)) return source;
+
   source = pos.findInRange(FIND_RUINS, 1, {
     filter(object) {
       return !utils.isEmpty(object);
     }
   })[0];
   if (source && !utils.isEmpty(source)) return source;
+
   const room = Game.rooms[pos.roomName];
   if (!room) return;
   if (room.energyAvailable < room.energyCapacityAvailable) {
