@@ -3,6 +3,7 @@
   "version": "3.0.0",
   "description": "",
   "main": "index.js",
+  "type": "module",
   "//": "If you add or change the names of destinations in screeps.json, make sure you update these scripts to reflect the changes",
   "scripts": {
     "lint": "eslint \"src/**/*.ts\"",
@@ -30,7 +31,7 @@
   },
   "homepage": "https://github.com/screepers/screeps-typescript-starter#readme",
   "devDependencies": {
-    "@rollup/plugin-commonjs": "^20.0.0",
+    "@rollup/plugin-commonjs": "^16.0.0",
     "@rollup/plugin-node-resolve": "^13.0.4",
     "@types/chai": "^4.1.6",
     "@types/lodash": "3.10.2",
