@@ -957,10 +957,10 @@ export function checkRoomCanOperate(room: Room): void {
 export function handleHostilesInRoom(room: Room): void {
   logCpu("handleHostilesInRoom(" + room.name + ")");
   room.memory.claimIsSafe =
-    (room.controller?.safeMode || 0) > 50 ||
+    (room.controller?.safeMode || 0) > 300 ||
     room.find(FIND_HOSTILE_CREEPS).filter(hostile => isThreatToRoom(hostile)).length < 1;
   room.memory.safeForCreeps =
-    (room.controller?.safeMode || 0) > 50 ||
+    (room.controller?.safeMode || 0) > 300 ||
     (room.find(FIND_HOSTILE_CREEPS).filter(hostile => isThreatToCreep(hostile)).length < 1 &&
       room
         .find(FIND_HOSTILE_STRUCTURES)
