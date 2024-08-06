@@ -157,7 +157,7 @@ export const loop = ErrorMapper.wrapLoop(() => {
   if (!Memory.username) utils.setUsername();
   checkWipeOut();
   utils.logCpu("mem");
-  if (Math.random() < 0.01 || utils.gotSpareCpu()) updatePlan();
+  if (Math.random() < 0.1 || utils.gotSpareCpu()) updatePlan();
   for (const r in Game.rooms) handleRoom(Game.rooms[r]);
   spawnCreeps();
   utils.logCpu("update flags");
