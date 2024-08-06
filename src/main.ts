@@ -593,7 +593,9 @@ function handleCarrier(creep: Creep) {
     } else {
       const tgt = getCarrierEnergySource(creep);
       if (tgt) {
+        utils.logCpu("handleCarrier(" + creep.name + ") moveTo");
         creep.moveTo(tgt);
+        utils.logCpu("handleCarrier(" + creep.name + ") moveTo");
       } else {
         utils.moveRandomDirection(creep);
       }
@@ -938,15 +940,18 @@ function handleRoom(room: Room) {
 }
 
 function spawnCarriers(room: Room) {
+  const min = 1;
+  const max = 3;
   if (room.controller?.my) {
     const carriers = Object.values(Game.creeps).filter(
       creep => creep.memory.role === "carrier" && creep.memory.room === room.name
     ).length;
+    if (carriers >= max) return;
     const fullContainers = room
       .find(FIND_STRUCTURES)
       .filter(utils.isContainer)
       .filter(container => utils.isFull(container) && !utils.isStorageSubstitute(container)).length;
-    if (carriers < 1 || fullContainers > 0) {
+    if (carriers < min || fullContainers > 0) {
       console.log(room, "carriers", carriers, "fullContainers", fullContainers);
       spawnCarrier(room);
     }
