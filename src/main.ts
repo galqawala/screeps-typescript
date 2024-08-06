@@ -939,9 +939,9 @@ function handleRoom(room: Room) {
 }
 
 function spawnCarriers(room: Room) {
-  const carriers = room
-    .find(FIND_MY_CREEPS)
-    .filter(creep => creep.memory.role === "carrier" && creep.memory.room === room.name).length;
+  const carriers = Object.values(Game.creeps).filter(
+    creep => creep.memory.role === "carrier" && creep.memory.room === room.name
+  ).length;
   const fullContainers = room
     .find(FIND_STRUCTURES)
     .filter(utils.isContainer)
