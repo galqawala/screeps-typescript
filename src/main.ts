@@ -195,8 +195,8 @@ function updatePlan() {
     needTransferers: getStoragesRequiringTransferer().length > 0,
     needUpgraders: needUpgraders(),
     needWorkers: needWorkers(),
-    maxRoomEnergy: Math.max(...Object.values(Game.spawns).map(spawn => spawn.room.energyAvailable)),
-    maxRoomEnergyCap: Math.max(...Object.values(Game.spawns).map(s => s.room.energyCapacityAvailable)),
+    maxRoomEnergy: Math.max(...Object.values(Game.rooms).map(r => r.energyAvailable)),
+    maxRoomEnergyCap: Math.max(...Object.values(Game.rooms).map(r => r.energyCapacityAvailable)),
     minTicksToDowngrade: getMinTicksToDowngrade()
   };
   utils.logCpu("updatePlan");
@@ -1044,7 +1044,7 @@ function spawnCreeps() {
   } else if (Memory.plan?.needHarvesters) {
     spawnHarvester();
   } else if (Memory.plan?.needInfantry) {
-    spawnCreep("infantry", getSpawnBudget(Game.flags.attack.pos, 300));
+    spawnCreep("infantry", Memory.plan?.maxRoomEnergy);
   } else if (Memory.plan?.needExplorers && spawnRole("explorer", 0, [MOVE])) {
     Memory.plan.needExplorers = false;
   } else if (Memory.plan?.needWorkers) {
