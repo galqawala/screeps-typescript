@@ -596,7 +596,7 @@ function handleCarrier(creep: Creep) {
       if (tgt) {
         creep.moveTo(tgt);
       } else {
-        recycleCreep(creep);
+        utils.moveRandomDirection(creep);
       }
     }
     utils.logCpu("handleCarrier(" + creep.name + ") fetch");
@@ -1862,6 +1862,7 @@ function spawnUpgrader(urgentOnly = false) {
 }
 
 function spawnCarrier(targetRoom: Room) {
+  console.log("Spawning carrier for:", targetRoom);
   if (!utils.gotSpareCpu()) return false;
 
   const targetPos = getStorage(targetRoom)?.pos ?? targetRoom.controller?.pos;
