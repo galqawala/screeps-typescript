@@ -67,7 +67,6 @@ declare global {
     maxRoomEnergy: number;
     maxRoomEnergyCap: number;
     minTicksToDowngrade: number;
-    needCarriers: boolean;
     needExplorers: boolean;
     needHarvesters: boolean;
     needInfantry: boolean;
@@ -184,7 +183,6 @@ function updatePlan() {
     controllersToReserve: utils.getControllersToReserve().map(controller => controller.id),
     fillSpawnsFromStorage: storageMin >= 800000 && !allSpawnsFull,
     fillStorage: (storageMin < 150000 && !needHarvesters) || allSpawnsFull,
-    needCarriers: needCarriers(),
     needExplorers: needExplorers(),
     needHarvesters: storageMin < 900000 && needHarvesters,
     needInfantry: needInfantry(),
@@ -588,6 +586,7 @@ function handleCarrier(creep: Creep) {
   }
 
   if (utils.isEmpty(creep)) {
+    utils.logCpu("handleCarrier(" + creep.name + ") fetch");
     const source = getNearbyEnergySource(creep.pos);
     if (source) {
       delete creep.memory.path;
@@ -601,7 +600,9 @@ function handleCarrier(creep: Creep) {
         recycleCreep(creep);
       }
     }
+    utils.logCpu("handleCarrier(" + creep.name + ") fetch");
   } else {
+    utils.logCpu("handleCarrier(" + creep.name + ") deliver");
     const tgt = getStructureToFillHere(creep.pos);
     if (tgt) {
       delete creep.memory.path;
@@ -617,6 +618,7 @@ function handleCarrier(creep: Creep) {
       creep.memory.path = utils.getPath(creep.pos, targetPos);
       followMemorizedPath(creep);
     }
+    utils.logCpu("handleCarrier(" + creep.name + ") deliver");
   }
   utils.logCpu("handleCarrier(" + creep.name + ")");
 }
@@ -931,7 +933,23 @@ function handleRoom(room: Room) {
   utils.checkRoomCanOperate(room);
   if (Math.random() < 0.1 && utils.gotSpareCpu()) updateStickyEnergy(room);
   utils.logCpu("handleRoom(" + room.name + ") updates3");
+  utils.logCpu("handleRoom(" + room.name + ") spawn carriers");
+  spawnCarriers(room);
+  utils.logCpu("handleRoom(" + room.name + ") spawn carriers");
   utils.logCpu("handleRoom(" + room.name + ")");
+}
+
+function spawnCarriers(room: Room) {
+  if (
+    room
+      .find(FIND_MY_CREEPS)
+      .filter(creep => creep.memory.role === "carrier" && creep.memory.room === room.name).length < 1 ||
+    room
+      .find(FIND_STRUCTURES)
+      .filter(utils.isContainer)
+      .filter(container => utils.isFull(container) && !utils.isStorageSubstitute(container)).length > 0
+  )
+    spawnCarrier(room);
 }
 
 function handleRoomTowers(room: Room) {
@@ -1025,8 +1043,6 @@ function spawnCreeps() {
     return; // spawning upgrader for urgent need
   } else if (Memory.plan?.needTransferers) {
     spawnTransferer();
-  } else if (Memory.plan?.needCarriers && spawnCarrier()) {
-    Memory.plan.needCarriers = false;
   } else if (Memory.plan?.needHarvesters) {
     spawnHarvester();
   } else if (Memory.plan?.needInfantry) {
@@ -1104,42 +1120,6 @@ function getRoomToClaim(controlledRooms: Room[]) {
     }
   }
   return bestRoomName;
-}
-
-function needCarriers(): boolean {
-  utils.logCpu("needCarriers()");
-  for (const room of Object.values(Game.rooms)) {
-    if (!utils.isRoomSafe(room.name) || !room.memory.canOperate) continue;
-    const sources = room.find(FIND_SOURCES);
-    for (const source of sources) {
-      const containers = source.pos.findInRange(FIND_STRUCTURES, 3).filter(utils.isContainer);
-      for (const container of containers) {
-        const delta = room.memory.stickyEnergyDelta?.[container.id] || 0;
-        if (utils.isFull(container) || (utils.getFillRatio(container) > 0.5 && delta > 0)) {
-          utils.logCpu("needCarriers()");
-          return true;
-        }
-      }
-    }
-    const storage = getStorage(room);
-    if (
-      room.energyAvailable < room.energyCapacityAvailable &&
-      storage &&
-      !utils.isEmpty(storage) &&
-      Game.time - (Memory.lackedEnergySinceTime || Game.time) > 40
-    ) {
-      console.log(
-        "Need more carriers for:",
-        storage,
-        storage.pos,
-        "Been lacking energy for:",
-        Game.time - (Memory.lackedEnergySinceTime || Game.time)
-      );
-      return true;
-    }
-  }
-  utils.logCpu("needCarriers()");
-  return false;
 }
 
 function spawnRole(roleToSpawn: Role, minBudget = 0, body: undefined | BodyPartConstant[] = undefined) {
@@ -1610,7 +1590,11 @@ function getClusterStructures(clusterPos: RoomPosition) {
 }
 
 function getCarrierEnergySource(creep: Creep) {
-  return getCarrierEnergySources()
+  const roomName = creep.memory.room;
+  if (!roomName) return;
+  const room = Game.rooms[roomName];
+  if (!room) return;
+  return getCarrierEnergySources(room)
     .map(source => ({
       value: source,
       /* prefer close-by sources, full sources and sources that fill us 100% */
@@ -1878,22 +1862,14 @@ function spawnUpgrader(urgentOnly = false) {
   return spawnCreep("upgrader", spawn.room.energyAvailable, undefined, undefined, upgradeTarget, spawn);
 }
 
-function spawnCarrier() {
+function spawnCarrier(targetRoom: Room) {
   if (!utils.gotSpareCpu()) return false;
 
-  const energySource = getCarrierEnergySources()
-    .map(value => ({
-      value,
-      sort: 1 - utils.getFillRatio(value)
-    })) /* persist sort values */
-    .sort((a, b) => a.sort - b.sort) /* sort */
-    .map(({ value }) => value) /* remove sort values */[0];
-  if (!energySource) return false;
-
+  const targetPos = getStorage(targetRoom)?.pos ?? targetRoom.controller?.pos;
   const spawn = Object.values(Game.spawns)
     .map(value => ({
       value,
-      sort: utils.getGlobalRange(value.pos, energySource.pos)
+      sort: utils.getGlobalRange(value.pos, targetPos)
     })) /* persist sort values */
     .sort((a, b) => a.sort - b.sort) /* sort */
     .map(({ value }) => value) /* remove sort values */[0];
@@ -1905,35 +1881,34 @@ function spawnCarrier() {
     role: roleToSpawn,
     stroke: utils.hslToHex(Math.random() * 360, 100, 50),
     strokeWidth: 0.1 + 0.1 * (Math.random() % 4),
-    room: energySource.pos.roomName
+    room: targetRoom.name
   };
   return spawnCreep(roleToSpawn, spawn.room.energyAvailable, undefined, undefined, undefined, spawn, memory);
 }
 
-function getCarrierEnergySources(): (Resource<ResourceConstant> | Tombstone | AnyStoreStructure | Ruin)[] {
+function getCarrierEnergySources(
+  room: Room
+): (Resource<ResourceConstant> | Tombstone | AnyStoreStructure | Ruin)[] {
   let containers: (AnyStoreStructure | Resource | Tombstone | Ruin)[] = [];
-  for (const room of Object.values(Game.rooms)) {
-    if (!utils.isRoomSafe(room.name)) continue;
-    containers = containers
-      .concat(
-        room
-          .find(FIND_STRUCTURES)
-          .filter(utils.isContainer)
-          .filter(container => !utils.isStorageSubstitute(container))
-          .filter(container => !utils.isEmpty(container))
-      )
-      .concat(room.find(FIND_DROPPED_RESOURCES))
-      .concat(room.find(FIND_TOMBSTONES).filter(container => !utils.isEmpty(container)))
-      .concat(room.find(FIND_RUINS).filter(container => !utils.isEmpty(container)));
-    if (room.energyAvailable < room.energyCapacityAvailable) {
-      containers = containers.concat(
-        room
-          .find(FIND_STRUCTURES)
-          .filter(utils.isStoreStructure)
-          .filter(s => utils.isContainer(s) || utils.isStorage(s) || utils.isLink(s))
-          .filter(container => !utils.isEmpty(container))
-      );
-    }
+  containers = containers
+    .concat(
+      room
+        .find(FIND_STRUCTURES)
+        .filter(utils.isContainer)
+        .filter(container => !utils.isStorageSubstitute(container))
+        .filter(container => !utils.isEmpty(container))
+    )
+    .concat(room.find(FIND_DROPPED_RESOURCES))
+    .concat(room.find(FIND_TOMBSTONES).filter(container => !utils.isEmpty(container)))
+    .concat(room.find(FIND_RUINS).filter(container => !utils.isEmpty(container)));
+  if (room.energyAvailable < room.energyCapacityAvailable) {
+    containers = containers.concat(
+      room
+        .find(FIND_STRUCTURES)
+        .filter(utils.isStoreStructure)
+        .filter(s => utils.isContainer(s) || utils.isStorage(s) || utils.isLink(s))
+        .filter(container => !utils.isEmpty(container))
+    );
   }
   return containers;
 }

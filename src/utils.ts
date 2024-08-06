@@ -522,7 +522,7 @@ export function getRoomStatus(roomName: string): "normal" | "closed" | "novice" 
 }
 
 export function isRoomSafe(roomName: string): boolean {
-  return Memory.rooms[roomName]?.safeForCreeps || true;
+  return Memory.rooms[roomName]?.safeForCreeps ?? true;
 }
 
 export function getExit(
