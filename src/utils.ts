@@ -970,7 +970,7 @@ export function handleHostilesInRoom(room: Room): void {
   logCpu("handleHostilesInRoom(" + room.name + ")");
 }
 
-export function isThreatToRoom(target: Creep) {
+export function isThreatToRoom(target: Creep): boolean {
   return (
     !target.my &&
     (target.getActiveBodyparts(ATTACK) > 0 ||
@@ -979,7 +979,7 @@ export function isThreatToRoom(target: Creep) {
   );
 }
 
-export function isThreatToCreep(target: Creep) {
+export function isThreatToCreep(target: Creep): boolean {
   return (
     !target.my && (target.getActiveBodyparts(ATTACK) > 0 || target.getActiveBodyparts(RANGED_ATTACK) > 0)
   );
