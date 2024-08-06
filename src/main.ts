@@ -103,6 +103,7 @@ declare global {
     pos: RoomPosition;
     retrieve?: Id<Structure | Tombstone | Ruin | Resource>;
     role: Role;
+    room?: string;
     sourceId?: Id<Source>;
     storage?: Id<StructureStorage>;
     stroke: string;
@@ -577,8 +578,8 @@ function moveTowardMemory(creep: Creep) {
 }
 
 function handleCarrier(creep: Creep) {
-  // maybe we could add some route/target caching even with these dynamic targets?
   utils.logCpu("handleCarrier(" + creep.name + ")");
+  if (!creep.memory.room) creep.memory.room = creep.pos.roomName;
   if (followMemorizedPath(creep)) {
     utils.logCpu("handleCarrier(" + creep.name + ")");
     return;
@@ -1439,7 +1440,8 @@ function spawnCreep(
   body: undefined | BodyPartConstant[] = undefined,
   task: Task | undefined = undefined,
   upgradeTarget: StructureController | undefined = undefined,
-  spawn: StructureSpawn | undefined = undefined
+  spawn: StructureSpawn | undefined = undefined,
+  memory: CreepMemory | undefined = undefined
 ) {
   if (energyAvailable < 50) return false;
   if (!body) body = getBody(roleToSpawn, energyAvailable);
@@ -1450,7 +1452,7 @@ function spawnCreep(
   if (!body || utils.getBodyCost(body) > spawn.room.energyAvailable || !body.includes(MOVE)) return false;
 
   const outcome = spawn.spawnCreep(body, name, {
-    memory: getInitialCreepMem(roleToSpawn, task, spawn.pos, upgradeTarget)
+    memory: memory ?? getInitialCreepMem(roleToSpawn, task, spawn.pos, upgradeTarget)
   });
 
   if (outcome === OK) {
@@ -1897,7 +1899,15 @@ function spawnCarrier() {
     .map(({ value }) => value) /* remove sort values */[0];
   if (!spawn || spawn.spawning) return false;
 
-  return spawnCreep("carrier", spawn.room.energyAvailable, undefined, undefined, undefined, spawn);
+  const roleToSpawn: Role = "carrier";
+  const memory = {
+    pos: spawn.pos,
+    role: roleToSpawn,
+    stroke: utils.hslToHex(Math.random() * 360, 100, 50),
+    strokeWidth: 0.1 + 0.1 * (Math.random() % 4),
+    room: energySource.pos.roomName
+  };
+  return spawnCreep(roleToSpawn, spawn.room.energyAvailable, undefined, undefined, undefined, spawn, memory);
 }
 
 function getCarrierEnergySources(): (Resource<ResourceConstant> | Tombstone | AnyStoreStructure | Ruin)[] {
