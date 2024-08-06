@@ -1746,36 +1746,36 @@ function getStructureToFill(pos: RoomPosition) {
 }
 
 function getNearbyEnergySource(pos: RoomPosition) {
-  const droppedRes = pos
+  let sources: (Resource | AnyStoreStructure | Tombstone | Ruin)[] = pos
     .findInRange(FIND_DROPPED_RESOURCES, 1)
-    .filter(container => !utils.isEmpty(container))[0];
-  if (droppedRes) return droppedRes;
-
-  let source: AnyStoreStructure | Tombstone | Ruin = pos
-    .findInRange(FIND_STRUCTURES, 1)
-    .filter(utils.isContainer)
-    .filter(container => !utils.isStorageSubstitute(container))
-    .filter(container => !utils.isEmpty(container))[0];
-  if (source) return source;
-
-  source = pos.findInRange(FIND_TOMBSTONES, 1, {
-    filter(object) {
-      return !utils.isEmpty(object);
-    }
-  })[0];
-  if (source && !utils.isEmpty(source)) return source;
-
-  source = pos.findInRange(FIND_RUINS, 1, {
-    filter(object) {
-      return !utils.isEmpty(object);
-    }
-  })[0];
-  if (source && !utils.isEmpty(source)) return source;
+    .filter(container => !utils.isEmpty(container));
+  sources = sources.concat(
+    pos
+      .findInRange(FIND_STRUCTURES, 1)
+      .filter(utils.isContainer)
+      .filter(container => !utils.isStorageSubstitute(container))
+      .filter(container => !utils.isEmpty(container))
+  );
+  sources = sources.concat(
+    pos.findInRange(FIND_TOMBSTONES, 1, {
+      filter(object) {
+        return !utils.isEmpty(object);
+      }
+    })
+  );
+  sources = sources.concat(
+    pos.findInRange(FIND_RUINS, 1, {
+      filter(object) {
+        return !utils.isEmpty(object);
+      }
+    })
+  );
+  if (sources.length > 0) return sources[Math.floor(Math.random() * sources.length)];
 
   const room = Game.rooms[pos.roomName];
   if (!room) return;
   if (room.energyAvailable < room.energyCapacityAvailable) {
-    source = pos
+    const source = pos
       .findInRange(FIND_STRUCTURES, 1)
       .filter(utils.isStoreStructure)
       .filter(s => utils.isContainer(s) || utils.isStorage(s) || utils.isLink(s))
