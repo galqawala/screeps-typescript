@@ -1158,7 +1158,10 @@ function spawnRole(roleToSpawn: Role, minBudget = 0, body: undefined | BodyPartC
 
 function needInfantry() {
   if (!("attack" in Game.flags)) return false;
-  return Memory.rooms[Game.flags.attack.pos.roomName].claimIsSafe === false;
+  return (
+    Memory.rooms[Game.flags.attack.pos.roomName].claimIsSafe === false ||
+    utils.getCreepCountByRole("infantry") < 1
+  );
 }
 
 function spawnReserver() {
@@ -1248,16 +1251,9 @@ function updateFlagDismantle() {
 }
 
 function getTargetsInRoom(room: Room) {
-  const towersAvailable =
-    room
-      .find(FIND_MY_STRUCTURES)
-      .filter(utils.isTower)
-      .filter(tower => !utils.isEmpty(tower)).length > 0;
   let targets: (Structure | Creep | PowerCreep)[] = [];
   targets = targets.concat(room.find(FIND_HOSTILE_STRUCTURES));
-  targets = targets.concat(
-    room.find(FIND_HOSTILE_CREEPS).filter(creep => !towersAvailable || utils.isThreatToRoom(creep))
-  );
+  targets = targets.concat(room.find(FIND_HOSTILE_CREEPS));
   targets = targets.concat(room.find(FIND_HOSTILE_POWER_CREEPS));
   return targets;
 }
