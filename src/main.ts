@@ -594,9 +594,7 @@ function handleCarrier(creep: Creep) {
     } else {
       const tgt = getCarrierEnergySource(creep);
       if (tgt) {
-        if (creep.name === "C9") console.log(creep, creep.pos, tgt, tgt.pos);
-        creep.memory.path = utils.getPath(creep.pos, tgt.pos, 1);
-        followMemorizedPath(creep);
+        creep.moveTo(tgt);
       } else {
         recycleCreep(creep);
       }
