@@ -299,7 +299,6 @@ function upgraderRetrieveEnergy(creep: Creep) {
   if (!storage) return;
   const withdrawOutcome = creep.withdraw(storage, RESOURCE_ENERGY);
   if (withdrawOutcome === ERR_NOT_IN_RANGE) move(creep, storage);
-  if (utils.isStuck(creep)) utils.moveRandomDirection(creep);
 }
 
 function handleWorker(creep: Creep) {
@@ -1000,7 +999,6 @@ function handleRoomObservers(room: Room) {
 
 function move(creep: Creep, destination: Destination, safe = true) {
   utils.logCpu("move(" + creep.name + ")");
-  utils.logCpu("move(" + creep.name + ") moveTo");
   const options: MoveToOpts = {
     // bit of randomness to prevent creeps from moving the same way at same time to pass each other
     reusePath: Math.round(Memory.maxTickLimit - Game.cpu.tickLimit + Math.random()),
@@ -1015,7 +1013,6 @@ function move(creep: Creep, destination: Destination, safe = true) {
   };
   if (safe) options.costCallback = utils.getCostMatrixSafeCreeps;
   const outcome = creep.moveTo(destination, options);
-  utils.logCpu("move(" + creep.name + ") moveTo");
   utils.logCpu("move(" + creep.name + ")");
   return outcome;
 }
@@ -1748,6 +1745,7 @@ function getStructureToFill(pos: RoomPosition) {
 }
 
 function getNearbyEnergySource(pos: RoomPosition) {
+  utils.logCpu("getNearbyEnergySource(" + pos.toString() + ")");
   let sources: (Resource | AnyStoreStructure | Tombstone | Ruin)[] = pos
     .findInRange(FIND_DROPPED_RESOURCES, 1)
     .filter(container => !utils.isEmpty(container));
@@ -1772,9 +1770,11 @@ function getNearbyEnergySource(pos: RoomPosition) {
       }
     })
   );
+  utils.logCpu("getNearbyEnergySource(" + pos.toString() + ")");
   if (sources.length > 0) return sources[Math.floor(Math.random() * sources.length)];
 
   const room = Game.rooms[pos.roomName];
+  utils.logCpu("getNearbyEnergySource(" + pos.toString() + ")");
   if (!room) return;
   if (room.energyAvailable < room.energyCapacityAvailable) {
     const source = pos
@@ -1782,8 +1782,10 @@ function getNearbyEnergySource(pos: RoomPosition) {
       .filter(utils.isStoreStructure)
       .filter(s => utils.isContainer(s) || utils.isStorage(s) || utils.isLink(s))
       .filter(container => !utils.isEmpty(container))[0];
+    utils.logCpu("getNearbyEnergySource(" + pos.toString() + ")");
     if (source) return source;
   }
+  utils.logCpu("getNearbyEnergySource(" + pos.toString() + ")");
   return;
 }
 
