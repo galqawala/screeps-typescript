@@ -1153,9 +1153,24 @@ function spawnRole(roleToSpawn: Role, minBudget = 0, body: undefined | BodyPartC
 
 function needInfantry() {
   if (!("attack" in Game.flags)) return false;
+
   return (
-    Memory.rooms[Game.flags.attack.pos.roomName].claimIsSafe === false ||
-    utils.getCreepCountByRole("infantry") < 1
+    Object.values(Game.rooms)
+      .filter(room => room.controller?.my)
+      .reduce(
+        (aggregate, room) =>
+          aggregate +
+          Math.max(
+            0,
+            room.find(FIND_HOSTILE_CREEPS).length +
+              room.find(FIND_HOSTILE_POWER_CREEPS).length -
+              room
+                .find(FIND_MY_STRUCTURES)
+                .filter(utils.isTower)
+                .filter(t => !utils.isEmpty(t)).length
+          ),
+        0 /* initial*/
+      ) >= utils.getCreepCountByRole("infantry")
   );
 }
 
