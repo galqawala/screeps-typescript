@@ -939,16 +939,17 @@ function handleRoom(room: Room) {
 }
 
 function spawnCarriers(room: Room) {
-  if (
-    room
-      .find(FIND_MY_CREEPS)
-      .filter(creep => creep.memory.role === "carrier" && creep.memory.room === room.name).length < 1 ||
-    room
-      .find(FIND_STRUCTURES)
-      .filter(utils.isContainer)
-      .filter(container => utils.isFull(container) && !utils.isStorageSubstitute(container)).length > 0
-  )
+  const carriers = room
+    .find(FIND_MY_CREEPS)
+    .filter(creep => creep.memory.role === "carrier" && creep.memory.room === room.name).length;
+  const fullContainers = room
+    .find(FIND_STRUCTURES)
+    .filter(utils.isContainer)
+    .filter(container => utils.isFull(container) && !utils.isStorageSubstitute(container)).length;
+  if (carriers < 1 || fullContainers > 0) {
+    console.log(room, "carriers", carriers, "fullContainers", fullContainers);
     spawnCarrier(room);
+  }
 }
 
 function handleRoomTowers(room: Room) {
@@ -1863,17 +1864,16 @@ function spawnUpgrader(urgentOnly = false) {
 
 function spawnCarrier(targetRoom: Room) {
   console.log("Spawning carrier for:", targetRoom);
-  if (!utils.gotSpareCpu()) return false;
-
   const targetPos = getStorage(targetRoom)?.pos ?? targetRoom.controller?.pos;
   const spawn = Object.values(Game.spawns)
+    .filter(s => !s.spawning)
     .map(value => ({
       value,
       sort: utils.getGlobalRange(value.pos, targetPos)
     })) /* persist sort values */
     .sort((a, b) => a.sort - b.sort) /* sort */
     .map(({ value }) => value) /* remove sort values */[0];
-  if (!spawn || spawn.spawning) return false;
+  if (!spawn) return false;
 
   const roleToSpawn: Role = "carrier";
   const memory = {
