@@ -372,7 +372,8 @@ export function isReservedByOthers(controller: StructureController): boolean {
 export function getCostOfCurrentCreepsInTheRole(role: Role): number {
   return (
     Object.values(Game.creeps).reduce(
-      (aggregated, item) => aggregated + (item.memory.role === role ? getCreepCost(item) : 0),
+      (aggregated, creep) =>
+        aggregated + (creep.name.startsWith(role.charAt(0).toLowerCase()) ? getCreepCost(creep) : 0),
       0 /* initial*/
     ) || 0
   );
@@ -467,8 +468,11 @@ export function isStorageSubstitute(container: AnyStructure | ConstructionSite):
 
 export function getTotalCreepCapacity(role: Role | undefined): number {
   return Object.values(Game.creeps).reduce(
-    (aggregated, item) =>
-      aggregated + (!role || item.memory.role === role ? item.store.getCapacity(RESOURCE_ENERGY) : 0),
+    (aggregated, creep) =>
+      aggregated +
+      (!role || creep.name.startsWith(role.charAt(0).toLowerCase())
+        ? creep.store.getCapacity(RESOURCE_ENERGY)
+        : 0),
     0 /* initial*/
   );
 }
@@ -497,15 +501,15 @@ export function getConstructionSites(): ConstructionSite[] {
   return sites;
 }
 
-export function isUnderRepair(structure: Structure): boolean {
-  if (!structure) return false;
-  if (!structure.id) return false;
-  const creepsRepairingIt = Object.values(Game.creeps).filter(function (creep) {
-    return creep.memory.action === "repair" && creep.memory.destination === structure.id;
-  }).length;
-  if (creepsRepairingIt) return true;
-  return false;
-}
+// export function isUnderRepair(structure: Structure): boolean {
+//   if (!structure) return false;
+//   if (!structure.id) return false;
+//   const creepsRepairingIt = Object.values(Game.creeps).filter(function (creep) {
+//     return creep.memory.action === "repair" && creep.memory.destination === structure.id;
+//   }).length;
+//   if (creepsRepairingIt) return true;
+//   return false;
+// }
 
 export function canOperateInRoom(room: Room): boolean {
   if (!room.controller) return true; // no controller
@@ -840,22 +844,20 @@ export function setDestination(creep: Creep, destination: Destination): void {
 
 export function updateRoomRepairTargets(room: Room): void {
   logCpu("updateRoomRepairTargets(" + room.name + ")");
-  const targets: Structure[] = room
-    .find(FIND_STRUCTURES)
-    .filter(
-      target =>
-        needRepair(target) &&
-        (getHpRatio(target) || 1) < 0.9 &&
-        !isUnderRepair(target) &&
-        (target.structureType !== STRUCTURE_CONTAINER || isStorageSubstitute(target)) &&
-        (!isRoad(target) || target.pos.findInRange(FIND_MY_CREEPS, 5).length > 0)
-    );
+  const targets: Structure[] = room.find(FIND_STRUCTURES).filter(
+    target =>
+      needRepair(target) &&
+      (getHpRatio(target) || 1) < 0.9 &&
+      // !isUnderRepair(target) &&
+      (target.structureType !== STRUCTURE_CONTAINER || isStorageSubstitute(target)) &&
+      (!isRoad(target) || target.pos.findInRange(FIND_MY_CREEPS, 5).length > 0)
+  );
   room.memory.repairTargets = targets
     .map(target => target.id)
     .filter(
       id =>
         Object.values(Game.creeps).filter(
-          creep => creep.memory.role === "worker" && creep.memory.destination === id
+          creep => creep.name.startsWith("W") && creep.memory.destination === id
         ).length < 1
     );
   logCpu("updateRoomRepairTargets(" + room.name + ")");
@@ -1178,7 +1180,10 @@ export function shouldHarvestRoom(room: Room): boolean {
 export function getCreepCountByRole(role: Role, minTicksToLive = 120): number {
   logCpu("getCreepCountByRole(" + role + ")");
   const count = Object.values(Game.creeps).filter(function (creep) {
-    return creep.memory.role === role && (!creep.ticksToLive || creep.ticksToLive >= minTicksToLive);
+    return (
+      creep.name.startsWith(role.charAt(0).toLowerCase()) &&
+      (!creep.ticksToLive || creep.ticksToLive >= minTicksToLive)
+    );
   }).length;
   logCpu("getCreepCountByRole(" + role + ")");
   return count;
@@ -1245,8 +1250,6 @@ export function resetSpecificDestinationFromCreeps(destination: Destination): vo
 export function resetDestination(creep: Creep): void {
   logCpu("resetDestination(" + creep.name + ")");
   delete creep.memory.destination;
-  delete creep.memory.action;
-  delete creep.memory.pathKey;
   const flag = Game.flags["creep_" + creep.name];
   if (flag) flag.remove();
   logCpu("resetDestination(" + creep.name + ")");
@@ -1521,7 +1524,9 @@ function addClusterForExistingSpawn(posInfos: ClusterPos[], room: Room): Cluster
 export function isAnyoneIdle(role: Role): boolean {
   return (
     Object.values(Game.creeps).filter(
-      c => (!role || c.memory.role === role) && (c.memory.lastActiveTime || 0) < Game.time - 10
+      c =>
+        (!role || c.name.startsWith(role.charAt(0).toLowerCase())) &&
+        (c.memory.lastActiveTime || 0) < Game.time - 10
     ).length > 0
   );
 }
@@ -1529,7 +1534,9 @@ export function isAnyoneIdle(role: Role): boolean {
 export function isAnyoneLackingEnergy(role: Role): boolean {
   return (
     Object.values(Game.creeps).filter(
-      c => (!role || c.memory.role === role) && (c.memory.lastTimeFull || 0) < Game.time - 100
+      c =>
+        (!role || c.name.startsWith(role.charAt(0).toLowerCase())) &&
+        (c.memory.lastTimeFull || 0) < Game.time - 100
     ).length > 0
   );
 }

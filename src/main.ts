@@ -88,26 +88,18 @@ declare global {
   }
 
   interface CreepMemory {
-    action?: Action;
     build?: Id<ConstructionSite>;
-    container?: Id<StructureContainer>;
-    debug?: boolean;
     destination?: DestinationId | RoomPosition;
     lastActiveTime?: number;
     lastMoveTime?: number;
     lastTimeFull?: number;
-    link?: Id<StructureLink>;
     path?: RoomPosition[];
-    pathKey?: string;
     pos: RoomPosition;
     retrieve?: Id<Structure | Tombstone | Ruin | Resource>;
-    role: Role;
     room?: string;
     sourceId?: Id<Source>;
-    storage?: Id<StructureStorage>;
     stroke: string;
     strokeWidth: number;
-    transferred?: boolean;
     transferTo?: Id<Structure>;
     upgrade?: Id<StructureController>;
   }
@@ -238,18 +230,15 @@ function handleCreeps() {
     if (!Game.creeps[c].spawning) {
       utils.logCpu("creep: " + c);
       const creep = Game.creeps[c];
-      creep.memory.transferred = false;
-      if (creep.memory.pos?.roomName !== creep.pos.roomName) delete creep.memory.pathKey;
-
-      const role = creep.memory.role;
-      if (role === "carrier") handleCarrier(creep);
-      else if (role === "explorer") handleExplorer(creep);
-      else if (role === "harvester") handleHarvester(creep);
-      else if (role === "infantry") handleInfantry(creep);
-      else if (role === "reserver") handleReserver(creep);
-      else if (role === "transferer") handleTransferer(creep);
-      else if (role === "upgrader") handleUpgrader(creep);
-      else if (role === "worker") handleWorker(creep);
+      const role = creep.name.charAt(0).toLowerCase();
+      if (role === "c") handleCarrier(creep);
+      else if (role === "e") handleExplorer(creep);
+      else if (role === "h") handleHarvester(creep);
+      else if (role === "i") handleInfantry(creep);
+      else if (role === "r") handleReserver(creep);
+      else if (role === "t") handleTransferer(creep);
+      else if (role === "u") handleUpgrader(creep);
+      else if (role === "w") handleWorker(creep);
 
       if (!utils.isPosEqual(creep.memory.pos, creep.pos)) creep.memory.lastMoveTime = Game.time;
       if (utils.isFull(creep)) creep.memory.lastTimeFull = Game.time;
@@ -580,8 +569,6 @@ function handleCarrier(creep: Creep) {
   if (followMemorizedPath(creep)) {
     utils.logCpu("handleCarrier(" + creep.name + ")");
     return;
-  } else if (Game.time - (creep.memory.lastTimeFull || Game.time) > 700) {
-    recycleCreep(creep);
   }
 
   if (utils.isEmpty(creep)) {
@@ -625,7 +612,7 @@ function handleCarrier(creep: Creep) {
 
 function getReserverForClaiming() {
   return Object.values(Game.creeps)
-    .filter(creep => creep.memory.role === "reserver")
+    .filter(creep => creep.name.startsWith("R"))
     .map(value => ({
       value,
       sort: utils.getGlobalRange(value.pos, Game.flags.claim.pos)
@@ -697,8 +684,7 @@ function handleTransferer(creep: Creep) {
       .findInRange(FIND_MY_CREEPS, 1)
       .filter(
         worker =>
-          (worker.memory.role === "worker" || worker.memory.role === "upgrader") &&
-          utils.getFillRatio(worker) < 0.5
+          (worker.name.startsWith("W") || worker.name.startsWith("U")) && utils.getFillRatio(worker) < 0.5
       );
     for (const worker of workers) creep.transfer(worker, RESOURCE_ENERGY);
     if (creep.transfer(downstream, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) {
@@ -808,7 +794,6 @@ function evadeHostiles(creep: Creep) {
 
 function recycleCreep(creep: Creep) {
   creep.say("♻️");
-  creep.memory.action = "recycleCreep";
   let destination;
   const oldDestination = creep.memory.destination;
   if (typeof oldDestination === "string") destination = Game.getObjectById(oldDestination);
@@ -843,7 +828,6 @@ function recycleCreep(creep: Creep) {
 
 function handleHarvester(creep: Creep) {
   utils.logCpu("handleHarvester(" + creep.name + ")");
-  if (creep.memory.role !== "harvester") return false;
   if (creep.spawning) return true;
   const flagName = "creep_" + creep.name;
   if (
@@ -864,7 +848,7 @@ function handleHarvester(creep: Creep) {
     const source = Game.getObjectById(sourceId);
     if (source) {
       const outcome = creep.harvest(source);
-      if (outcome === ERR_NOT_OWNER) creep.memory.action = "recycleCreep";
+      if (outcome === ERR_NOT_OWNER) recycleCreep(creep);
     }
   }
   // done
@@ -875,8 +859,8 @@ function handleHarvester(creep: Creep) {
 function harvesterSpendEnergy(creep: Creep) {
   utils.logCpu("harvesterSpendEnergy(" + creep.name + ")");
   if (
-    creep.pos.findInRange(FIND_MY_CREEPS, 10).filter(nearbyCreep => nearbyCreep.memory.role === "worker")
-      .length < 1
+    creep.pos.findInRange(FIND_MY_CREEPS, 10).filter(nearbyCreep => nearbyCreep.name.startsWith("W")).length <
+    1
   ) {
     const target = creep.pos.lookFor(LOOK_STRUCTURES).filter(utils.needRepair)[0];
     if (target) creep.repair(target);
@@ -922,7 +906,7 @@ function spawnCarriers(room: Room) {
   const max = 3;
   if (room.controller?.my) {
     const carriers = Object.values(Game.creeps).filter(
-      creep => creep.memory.role === "carrier" && creep.memory.room === room.name
+      creep => creep.name.startsWith("C") && creep.memory.room === room.name
     ).length;
     if (carriers >= max) return;
     const fullContainers = room
@@ -1278,7 +1262,7 @@ function updateFlagReserve() {
 function needWorkers() {
   utils.logCpu("needWorkers");
   if (utils.isAnyoneIdle("worker") || utils.isAnyoneLackingEnergy("worker")) return false;
-  const workers = Object.values(Game.creeps).filter(creep => creep.memory.role === "worker");
+  const workers = Object.values(Game.creeps).filter(creep => creep.name.startsWith("W"));
   utils.logCpu("needWorkers");
   if (workers.length >= 15) return false;
   const workParts = workers.reduce(
@@ -1890,7 +1874,7 @@ function getStoragesRequiringTransferer() {
         utils.hasStructureInRange(storage.pos, STRUCTURE_LINK, 2, false) &&
         Object.values(Game.creeps).filter(
           creep =>
-            creep.memory.role === "transferer" &&
+            creep.name.startsWith("T") &&
             creep.memory.transferTo === storage.id &&
             (creep.ticksToLive || 100) > 30
         ).length <= 0
