@@ -737,6 +737,7 @@ function retrieveEnergy(creep: Creep, destination: Structure | Tombstone | Ruin 
 
 function handleInfantry(creep: Creep) {
   utils.logCpu("handleInfantry(" + creep.name + ")");
+  creep.notifyWhenAttacked(false);
   const flag = Game.flags.attack;
   const bestTarget = utils.getTarget(creep, undefined);
   if (!flag && !bestTarget) {
