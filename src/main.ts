@@ -883,28 +883,6 @@ function harvesterSpendEnergy(creep: Creep) {
     const site = creep.pos.lookFor(LOOK_CONSTRUCTION_SITES)[0];
     if (site) creep.build(site);
   }
-  utils.logCpu("harvesterSpendEnergy(" + creep.name + ") unloadCreep");
-  if (utils.getFillRatio(creep) > 0.9) {
-    const storeId = creep.memory.link || creep.memory.container;
-    let store;
-    if (storeId) store = Game.getObjectById(storeId);
-    if (!store) {
-      const sourceId = creep.memory.sourceId;
-      if (!sourceId) return;
-      const source = Game.getObjectById(sourceId);
-      if (!source) return;
-      store = source.pos.findClosestByRange(FIND_STRUCTURES, {
-        filter(object) {
-          return utils.isLink(object) || utils.isContainer(object);
-        }
-      });
-      if (!store) return;
-      if (utils.isLink(store)) creep.memory.link = store.id;
-      else if (utils.isContainer(store)) creep.memory.container = store.id;
-    }
-    if (creep.transfer(store, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) move(creep, store);
-  }
-  utils.logCpu("harvesterSpendEnergy(" + creep.name + ") unloadCreep");
   utils.logCpu("harvesterSpendEnergy(" + creep.name + ")");
 }
 
@@ -1792,24 +1770,6 @@ function getNearbyEnergySource(pos: RoomPosition) {
   }
   utils.logCpu("getNearbyEnergySource(" + pos.toString() + ")");
   return;
-}
-
-function getPosNextToEnergySource(creep: Creep) {
-  const tgt = getCarrierEnergySource(creep);
-  if (!tgt) return;
-  let positionsAroundTgt = utils.getSurroundingPlains(tgt.pos, 1, 1, false);
-  if (positionsAroundTgt.length < 1) positionsAroundTgt = utils.getSurroundingPlains(tgt.pos, 1, 1, true);
-  if (positionsAroundTgt.length < 1) {
-    utils.msg(creep, "Can't find positions around source " + tgt.toString());
-    return;
-  }
-  return positionsAroundTgt
-    .map(value => ({
-      value,
-      sort: utils.getGlobalRange(creep.pos, utils.getPos(value))
-    })) /* persist sort values */
-    .sort((a, b) => a.sort - b.sort) /* sort */
-    .map(({ value }) => value) /* remove sort values */[0];
 }
 
 function getPosNear(pos: RoomPosition, target: RoomPosition) {
