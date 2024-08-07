@@ -715,7 +715,6 @@ export function getPosForConstruction(
       bestPos = pos;
     }
   }
-  msg(room, "best score: " + (bestScore || "-").toString() + ", best pos: " + (bestPos || "-").toString());
   return bestPos;
 }
 

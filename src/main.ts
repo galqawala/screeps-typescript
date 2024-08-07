@@ -1494,7 +1494,6 @@ function getBodyForReserver(energyAvailable: number) {
 }
 
 function getBodyForInfantry(energyAvailable: number) {
-  // Unsafe assignment of type any[] to a variable of type BodyPartConstant[].eslint@typescript-eslint/no-unsafe-assignment
   const body: BodyPartConstant[] = [
     ...Array<BodyPartConstant>(20).fill(MOVE),
     ...Array<BodyPartConstant>(10).fill(ATTACK),
@@ -1507,6 +1506,7 @@ function getBodyForInfantry(energyAvailable: number) {
     body.splice(randomIndex, 1);
   }
   if (!body.includes(MOVE)) return;
+  if (!body.includes(ATTACK) && !body.includes(RANGED_ATTACK)) return;
   return body;
 }
 
