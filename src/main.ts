@@ -293,11 +293,6 @@ function upgraderRetrieveEnergy(creep: Creep) {
 }
 
 function handleWorker(creep: Creep) {
-  if (utils.isStuck(creep)) {
-    utils.moveRandomDirection(creep);
-    return;
-  }
-
   if (utils.isEmpty(creep)) delete creep.memory.build;
   else if (utils.isFull(creep)) delete creep.memory.retrieve;
 
