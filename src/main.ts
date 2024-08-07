@@ -888,7 +888,6 @@ function handleRoads(room: Room) {
 }
 
 function spawnCarriers(room: Room) {
-  const min = 1;
   const max = 3;
   if (room.controller?.my) {
     const carriers = Object.values(Game.creeps).filter(
@@ -899,7 +898,7 @@ function spawnCarriers(room: Room) {
       .find(FIND_STRUCTURES)
       .filter(utils.isContainer)
       .filter(container => utils.isFull(container) && !utils.isStorageSubstitute(container)).length;
-    if (carriers < min || fullContainers > 0) {
+    if (fullContainers > 0) {
       spawnCarrier(room);
     }
   }
