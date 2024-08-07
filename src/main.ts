@@ -1847,6 +1847,7 @@ function spawnUpgrader(urgentOnly = false) {
 function spawnCarrier(targetRoom: Room) {
   const targetPos = getStorage(targetRoom)?.pos ?? targetRoom.controller?.pos;
   const spawn = Object.values(Game.spawns)
+    .filter(s => s.pos.roomName === targetRoom.name || utils.isRoomSafe(s.pos.roomName))
     .filter(s => !s.spawning)
     .map(value => ({
       value,
