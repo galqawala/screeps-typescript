@@ -549,7 +549,10 @@ function handleCarrier(creep: Creep) {
   if (utils.isFull(creep)) creep.memory.delivering = true;
   else if (utils.isEmpty(creep)) creep.memory.delivering = false;
 
-  if (!creep.memory.delivering) {
+  if (creep.pos.roomName !== creep.memory.room) {
+    creep.memory.path = utils.getPath(creep.pos, new RoomPosition(25, 25, creep.memory.room), 20);
+    followMemorizedPath(creep);
+  } else if (!creep.memory.delivering) {
     //utils.logCpu("handleCarrier(" + creep.name + ") fetch");
     const source = getNearbyEnergySource(creep.pos);
     if (source) {
