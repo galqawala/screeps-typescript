@@ -304,8 +304,6 @@ function handleWorker(creep: Creep) {
   if (repairTarget) {
     creep.memory.lastActiveTime = Game.time;
     creep.repair(repairTarget);
-  } else if (creep.memory.build) {
-    build(creep);
   } else {
     const result = build(creep) || repair(creep) || dismantle(creep);
     return result;
@@ -314,7 +312,6 @@ function handleWorker(creep: Creep) {
 }
 
 function workerRetrieveEnergy(creep: Creep) {
-  //utils.logCpu("workerRetrieveEnergy(" + creep.name + ")");
   if (
     creep.room.storage &&
     !utils.isEmpty(creep.room.storage) &&
@@ -350,12 +347,9 @@ function workerRetrieveEnergy(creep: Creep) {
       }
     }
   }
-  //utils.logCpu("workerRetrieveEnergy(" + creep.name + ")");
 }
 
 function build(creep: Creep) {
-  //utils.logCpu("build(" + creep.name + ")");
-  //utils.logCpu("build(" + creep.name + ") find");
   let destination;
   const oldDestination = creep.memory.build;
   if (typeof oldDestination === "string") {
@@ -367,22 +361,14 @@ function build(creep: Creep) {
     if (!destination) destination = getBuildSite(creep, true);
     if (destination) utils.setDestination(creep, destination);
   }
-  //utils.logCpu("build(" + creep.name + ") find");
-  //utils.logCpu("build(" + creep.name + ") build");
   if (destination instanceof ConstructionSite) {
     creep.memory.lastActiveTime = Game.time;
     creep.memory.build = destination.id;
     if (creep.build(destination) === ERR_NOT_IN_RANGE) {
-      //utils.logCpu("build(" + creep.name + ") build move");
       move(creep, destination);
-      //utils.logCpu("build(" + creep.name + ") build move");
-      //utils.logCpu("build(" + creep.name + ") build");
-      //utils.logCpu("build(" + creep.name + ")");
       return true;
     }
   }
-  //utils.logCpu("build(" + creep.name + ") build");
-  //utils.logCpu("build(" + creep.name + ")");
   return false;
 }
 
