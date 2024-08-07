@@ -86,6 +86,7 @@ declare global {
     score: number;
     stickyEnergy: Record<Id<AnyStoreStructure>, number>;
     stickyEnergyDelta: Record<Id<AnyStoreStructure>, number>;
+    towerMaxRange: number;
   }
 
   interface CreepMemory {
@@ -926,21 +927,32 @@ function spawnCarriers(room: Room) {
 }
 
 function handleRoomTowers(room: Room) {
-  //utils.logCpu("handleRoomTowers(" + room.name + ")");
+  if (!room.memory.towerMaxRange) room.memory.towerMaxRange = 50;
+  else if (Game.time % 10 === 0 && room.memory.towerMaxRange < 50) room.memory.towerMaxRange++;
+
   const towers = room.find(FIND_MY_STRUCTURES).filter(utils.isTower);
-  for (const t of towers) {
-    const creep = t.pos.findClosestByRange(FIND_HOSTILE_CREEPS);
-    if (creep) {
-      utils.engageTarget(t, creep);
+  for (const tower of towers) {
+    // target the closest hostile creep
+    const creep = tower.pos.findClosestByRange(FIND_HOSTILE_CREEPS);
+    if (
+      creep &&
+      tower.pos.getRangeTo(creep.pos) <= room.memory.towerMaxRange &&
+      utils.engageTarget(tower, creep) === OK
+    ) {
+      if (creep.hits >= creep.hitsMax) room.memory.towerMaxRange--;
       continue;
     }
-    const powerCreep = t.pos.findClosestByRange(FIND_HOSTILE_POWER_CREEPS);
-    if (powerCreep) {
-      utils.engageTarget(t, powerCreep);
+    // target the closest hostile power creep
+    const powerCreep = tower.pos.findClosestByRange(FIND_HOSTILE_POWER_CREEPS);
+    if (
+      powerCreep &&
+      tower.pos.getRangeTo(powerCreep.pos) <= room.memory.towerMaxRange &&
+      utils.engageTarget(tower, powerCreep) === OK
+    ) {
+      if (powerCreep.hits >= powerCreep.hitsMax) room.memory.towerMaxRange--;
       continue;
     }
   }
-  //utils.logCpu("handleRoomTowers(" + room.name + ")");
 }
 
 function handleRoomObservers(room: Room) {
