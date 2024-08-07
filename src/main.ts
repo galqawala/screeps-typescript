@@ -1189,8 +1189,6 @@ function updateFlagDismantle() {
   //utils.logCpu("updateFlagDismantle()");
   const flagDismantle = Game.flags.dismantle;
   if (flagDismantle) {
-    console.log("flagDismantle", flagDismantle);
-    console.log("flagDismantle.room", flagDismantle.room);
     if (flagDismantle.room && flagDismantle.pos.lookFor(LOOK_STRUCTURES).length < 1) {
       flagDismantle.remove(); // have visibility to the room and it's clear of structures
     } else {
