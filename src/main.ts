@@ -134,7 +134,7 @@ declare global {
 // Main loop
 export const loop = ErrorMapper.wrapLoop(() => {
   Memory.cpuLog = {}; // before everything!
-  //utils.logCpu("main");
+  utils.logCpu("main");
   //utils.logCpu("mem");
   if ((Memory.maxTickLimit || 0) < Game.cpu.tickLimit) Memory.maxTickLimit = Game.cpu.tickLimit;
   if (Math.random() < 0.1) {
@@ -163,7 +163,7 @@ export const loop = ErrorMapper.wrapLoop(() => {
   if (Math.random() < 0.01 || utils.gotSpareCpu()) utils.constructRoads();
   if (Game.time % 10 === 0) utils.updateEnergy();
   Memory.cpuUsedRatio = Game.cpu.getUsed() / Game.cpu.limit;
-  //utils.logCpu("main");
+  utils.logCpu("main");
   utils.cpuInfo(); // after everything!
 });
 
@@ -226,10 +226,10 @@ function areAllSpawnsFull() {
 }
 
 function handleCreeps() {
-  //utils.logCpu("handleCreeps()");
+  utils.logCpu("handleCreeps()");
   for (const c in Game.creeps) {
     if (!Game.creeps[c].spawning) {
-      //utils.logCpu("creep: " + c);
+      utils.logCpu("creep: " + c);
       const creep = Game.creeps[c];
       const role = creep.name.charAt(0).toLowerCase();
       if (role === "c") handleCarrier(creep);
@@ -244,10 +244,10 @@ function handleCreeps() {
       if (!utils.isPosEqual(creep.memory.pos, creep.pos)) creep.memory.lastMoveTime = Game.time;
       if (utils.isFull(creep)) creep.memory.lastTimeFull = Game.time;
       creep.memory.pos = creep.pos;
-      //utils.logCpu("creep: " + c);
+      utils.logCpu("creep: " + c);
     }
   }
-  //utils.logCpu("handleCreeps()");
+  utils.logCpu("handleCreeps()");
 }
 
 function handleExplorer(creep: Creep) {
@@ -678,8 +678,13 @@ function handleTransferer(creep: Creep) {
     return;
   }
   if (utils.isEmpty(creep)) {
-    if (retrieveEnergy(creep, upstream, true) === ERR_NOT_IN_RANGE)
-      move(creep, utils.getPosBetween(upstream.pos, downstream.pos));
+    if (retrieveEnergy(creep, upstream, true) === ERR_NOT_IN_RANGE) {
+      if (!utils.isRoomSafe(upstream.pos.roomName)) {
+        recycleCreep(creep);
+      } else {
+        move(creep, utils.getPosBetween(upstream.pos, downstream.pos));
+      }
+    }
   } else {
     const workers = creep.pos
       .findInRange(FIND_MY_CREEPS, 1)
@@ -689,7 +694,9 @@ function handleTransferer(creep: Creep) {
       );
     for (const worker of workers) creep.transfer(worker, RESOURCE_ENERGY);
     if (creep.transfer(downstream, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) {
-      if (!followMemorizedPath(creep)) {
+      if (!utils.isRoomSafe(upstream.pos.roomName)) {
+        recycleCreep(creep);
+      } else if (!followMemorizedPath(creep)) {
         const destination = utils.getPosBetween(upstream.pos, downstream.pos);
         creep.memory.path = utils.getPath(creep.pos, destination);
         followMemorizedPath(creep);
@@ -800,8 +807,14 @@ function recycleCreep(creep: Creep) {
   if (typeof oldDestination === "string") destination = Game.getObjectById(oldDestination);
   if (!(destination instanceof StructureSpawn)) destination = utils.resetDestination(creep);
 
-  if (!destination || !(destination instanceof StructureSpawn)) {
-    const spawns = Object.values(Game.spawns);
+  if (
+    !destination ||
+    !(destination instanceof StructureSpawn) ||
+    (creep.pos.roomName !== destination.pos.roomName && !utils.isRoomSafe(destination.pos.roomName))
+  ) {
+    const spawns = Object.values(Game.spawns).filter(
+      spawn => creep.pos.roomName === spawn.pos.roomName || utils.isRoomSafe(spawn.pos.roomName)
+    );
 
     destination = spawns
       .map(value => ({
