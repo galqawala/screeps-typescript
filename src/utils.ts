@@ -235,7 +235,7 @@ export function getPositionsAround(
   rangeMax: number,
   excludeBlocked: boolean
 ): RoomPosition[] {
-  logCpu("getPositionsAround(" + origin.toString() + ")");
+  //logCpu("getPositionsAround(" + origin.toString() + ")");
   const terrain = new Room.Terrain(origin.roomName);
   const spots: RoomPosition[] = [];
 
@@ -252,7 +252,7 @@ export function getPositionsAround(
       spots.push(pos);
     }
   }
-  logCpu("getPositionsAround(" + origin.toString() + ")");
+  //logCpu("getPositionsAround(" + origin.toString() + ")");
   return spots
     .map(value => ({ value, sort: Math.random() })) /* persist sort values */
     .sort((a, b) => b.sort - a.sort) /* sort */
@@ -260,13 +260,13 @@ export function getPositionsAround(
 }
 
 export function setUsername(): void {
-  logCpu("setUsername()");
+  //logCpu("setUsername()");
   // room controllers
   for (const r in Game.rooms) {
     const room = Game.rooms[r];
     if (room.controller && room.controller.my && room.controller.owner) {
       Memory.username = room.controller.owner.username;
-      logCpu("setUsername()");
+      //logCpu("setUsername()");
       return;
     }
   }
@@ -274,15 +274,14 @@ export function setUsername(): void {
   const creeps = Object.values(Game.creeps);
   if (creeps.length) {
     Memory.username = creeps[0].owner.username;
-    logCpu("setUsername()");
+    //logCpu("setUsername()");
     return;
   }
-  logCpu("setUsername()");
+  //logCpu("setUsername()");
 }
 
 export function logCpu(name: string): void {
   if (!(name in Memory.cpuLog)) {
-    // cpuLog is not defined
     Memory.cpuLog[name] = { before: Game.cpu.getUsed(), after: Game.cpu.getUsed() };
   } else {
     Memory.cpuLog[name].after = Game.cpu.getUsed();
@@ -305,7 +304,7 @@ export function containsPosition(list: RoomPosition[], pos: RoomPosition): boole
 }
 
 export function getControllersToReserve(): StructureController[] {
-  logCpu("getControllersToReserve()");
+  //logCpu("getControllersToReserve()");
   const controllers: StructureController[] = [];
   if (!Memory.plan?.needHarvesters) return controllers;
   for (const r in Game.rooms) {
@@ -323,12 +322,12 @@ export function getControllersToReserve(): StructureController[] {
     .map(value => ({ value, sort: value?.reservation?.ticksToEnd || 0 }))
     .sort((a, b) => a.sort - b.sort)
     .map(({ value }) => value);
-  logCpu("getControllersToReserve()");
+  //logCpu("getControllersToReserve()");
   return sorted;
 }
 
 export function creepsHaveDestination(structure: Structure): boolean {
-  logCpu("creepsHaveDestination(" + structure.toString() + ")");
+  //logCpu("creepsHaveDestination(" + structure.toString() + ")");
   if (!structure) return false;
   if (!structure.id) return false;
   if (
@@ -336,10 +335,10 @@ export function creepsHaveDestination(structure: Structure): boolean {
       return creep.memory.destination === structure.id;
     }).length
   ) {
-    logCpu("creepsHaveDestination(" + structure.toString() + ")");
+    //logCpu("creepsHaveDestination(" + structure.toString() + ")");
     return true;
   }
-  logCpu("creepsHaveDestination(" + structure.toString() + ")");
+  //logCpu("creepsHaveDestination(" + structure.toString() + ")");
   return false;
 }
 
@@ -784,30 +783,30 @@ export function getTarget(
   myUnit: StructureTower | Creep,
   maxRange: number | undefined
 ): Creep | PowerCreep | Structure | undefined {
-  logCpu("getTarget(" + myUnit.toString() + ")");
-  logCpu("getTarget(" + myUnit.toString() + ") getTargetCreep");
+  //logCpu("getTarget(" + myUnit.toString() + ")");
+  //logCpu("getTarget(" + myUnit.toString() + ") getTargetCreep");
   const creep = getTargetCreep(myUnit, maxRange);
-  logCpu("getTarget(" + myUnit.toString() + ") getTargetCreep");
-  logCpu("getTarget(" + myUnit.toString() + ") getTargetPowerCreep");
+  //logCpu("getTarget(" + myUnit.toString() + ") getTargetCreep");
+  //logCpu("getTarget(" + myUnit.toString() + ") getTargetPowerCreep");
   const powerCreep = getTargetPowerCreep(myUnit, maxRange);
-  logCpu("getTarget(" + myUnit.toString() + ") getTargetPowerCreep");
-  logCpu("getTarget(" + myUnit.toString() + ") getTargetStructure");
+  //logCpu("getTarget(" + myUnit.toString() + ") getTargetPowerCreep");
+  //logCpu("getTarget(" + myUnit.toString() + ") getTargetStructure");
   const structure = getTargetStructure(myUnit, maxRange);
-  logCpu("getTarget(" + myUnit.toString() + ") getTargetStructure");
+  //logCpu("getTarget(" + myUnit.toString() + ") getTargetStructure");
 
-  logCpu("getTarget(" + myUnit.toString() + ") target");
+  //logCpu("getTarget(" + myUnit.toString() + ") target");
   const targets = [];
   if (creep) targets.push(creep);
   if (powerCreep) targets.push(powerCreep);
   if (structure) targets.push(structure);
-  logCpu("getTarget(" + myUnit.toString() + ") target");
+  //logCpu("getTarget(" + myUnit.toString() + ") target");
 
-  logCpu("getTarget(" + myUnit.toString() + ")");
+  //logCpu("getTarget(" + myUnit.toString() + ")");
   if (targets.length < 1) return;
-  logCpu("getTarget(" + myUnit.toString() + ") sort");
+  //logCpu("getTarget(" + myUnit.toString() + ") sort");
   const best = targets.sort((a, b) => b.score - a.score)[0].target;
-  logCpu("getTarget(" + myUnit.toString() + ") sort");
-  logCpu("getTarget(" + myUnit.toString() + ")");
+  //logCpu("getTarget(" + myUnit.toString() + ") sort");
+  //logCpu("getTarget(" + myUnit.toString() + ")");
   return best;
 }
 
@@ -830,7 +829,7 @@ export function isEdge(pos: RoomPosition): boolean {
 }
 
 export function setDestination(creep: Creep, destination: Destination): void {
-  logCpu("setDestination(" + creep.name + ")");
+  //logCpu("setDestination(" + creep.name + ")");
   if (destination && creep.memory.destination !== ("id" in destination ? destination.id : destination)) {
     if ("id" in destination) {
       creep.memory.destination = destination.id;
@@ -839,11 +838,11 @@ export function setDestination(creep: Creep, destination: Destination): void {
       setDestinationFlag(creep.name, destination);
     }
   }
-  logCpu("setDestination(" + creep.name + ")");
+  //logCpu("setDestination(" + creep.name + ")");
 }
 
 export function updateRoomRepairTargets(room: Room): void {
-  logCpu("updateRoomRepairTargets(" + room.name + ")");
+  //logCpu("updateRoomRepairTargets(" + room.name + ")");
   const targets: Structure[] = room.find(FIND_STRUCTURES).filter(
     target =>
       needRepair(target) &&
@@ -860,7 +859,7 @@ export function updateRoomRepairTargets(room: Room): void {
           creep => creep.name.startsWith("W") && creep.memory.destination === id
         ).length < 1
     );
-  logCpu("updateRoomRepairTargets(" + room.name + ")");
+  //logCpu("updateRoomRepairTargets(" + room.name + ")");
 }
 
 export function getHpRatio(obj: Structure): number {
@@ -869,7 +868,7 @@ export function getHpRatio(obj: Structure): number {
 }
 
 export function constructInRoom(room: Room): void {
-  logCpu("constructInRoom(" + room.name + ")");
+  //logCpu("constructInRoom(" + room.name + ")");
   const structureTypesByPriority = [
     STRUCTURE_SPAWN,
     STRUCTURE_EXTENSION,
@@ -904,12 +903,12 @@ export function constructInRoom(room: Room): void {
     planClusters(room);
   }
   destroyUnnecessaryContainers(room);
-  logCpu("constructInRoom(" + room.name + ")");
+  //logCpu("constructInRoom(" + room.name + ")");
 }
 
 export function constructRoads(): void {
   // construct roads between two random points of interest not too far from each other
-  logCpu("constructRoads()");
+  //logCpu("constructRoads()");
   let pointsOfInterest = Object.values(Game.flags)
     .filter(
       flag =>
@@ -926,7 +925,7 @@ export function constructRoads(): void {
         .map(container => container.pos)
     );
   }
-  logCpu("constructRoads()");
+  //logCpu("constructRoads()");
   if (pointsOfInterest.length < 2) return;
   pointsOfInterest = pointsOfInterest
     .map(value => ({ value, sort: Math.random() })) /* persist sort values */
@@ -934,17 +933,17 @@ export function constructRoads(): void {
     .map(({ value }) => value); /* remove sort values */
   const from = pointsOfInterest.shift();
   const to = pointsOfInterest.find(pos => getGlobalRange(from, pos) <= 60);
-  logCpu("constructRoads()");
+  //logCpu("constructRoads()");
   if (!from || !to) return;
   const path = getPath(from, to);
   for (const pos of path) {
     pos.createConstructionSite(STRUCTURE_ROAD);
   }
-  logCpu("constructRoads()");
+  //logCpu("constructRoads()");
 }
 
 export function checkRoomCanOperate(room: Room): void {
-  logCpu("checkRoomCanOperate(" + room.name + ")");
+  //logCpu("checkRoomCanOperate(" + room.name + ")");
   const value = canOperateInRoom(room);
   if (room.memory && room.memory.canOperate !== value) {
     msg(
@@ -953,11 +952,11 @@ export function checkRoomCanOperate(room: Room): void {
     );
     room.memory.canOperate = value;
   }
-  logCpu("checkRoomCanOperate(" + room.name + ")");
+  //logCpu("checkRoomCanOperate(" + room.name + ")");
 }
 
 export function handleHostilesInRoom(room: Room): void {
-  logCpu("handleHostilesInRoom(" + room.name + ")");
+  //logCpu("handleHostilesInRoom(" + room.name + ")");
   room.memory.claimIsSafe =
     (room.controller?.safeMode || 0) > 300 ||
     room.find(FIND_HOSTILE_CREEPS).filter(hostile => isThreatToRoom(hostile)).length < 1;
@@ -969,7 +968,7 @@ export function handleHostilesInRoom(room: Room): void {
         .filter(isTower)
         .filter(tower => !isEmpty(tower)).length < 1);
   if (!room.memory.claimIsSafe) enableSafeModeIfNeed(room);
-  logCpu("handleHostilesInRoom(" + room.name + ")");
+  //logCpu("handleHostilesInRoom(" + room.name + ")");
 }
 
 export function isThreatToRoom(target: Creep): boolean {
@@ -1009,27 +1008,27 @@ export function getHostileUsernames(hostileCreeps: Creep[], hostilePowerCreeps: 
 }
 
 export function getLinkDownstreamPos(room: Room): RoomPosition | undefined {
-  logCpu("getLinkDownstreamPos(" + room.name + ")");
+  //logCpu("getLinkDownstreamPos(" + room.name + ")");
   if (room.storage) return room.storage.pos;
   const flagName = room.name + "_EnergyConsumer";
   if (!(flagName in Game.flags)) return;
   const flag = Game.flags[flagName];
   const destination = flag.pos;
-  logCpu("getLinkDownstreamPos(" + room.name + ")");
+  //logCpu("getLinkDownstreamPos(" + room.name + ")");
   return destination;
 }
 
 export function handleLinks(room: Room): void {
-  logCpu("handleLinks(" + room.name + ")");
+  //logCpu("handleLinks(" + room.name + ")");
   // move energy towards the energy consumer
   const downstreamPos = getLinkDownstreamPos(room);
-  logCpu("handleLinks(" + room.name + ")");
+  //logCpu("handleLinks(" + room.name + ")");
   if (!downstreamPos) return;
 
-  logCpu("handleLinks(" + room.name + ") sort");
+  //logCpu("handleLinks(" + room.name + ") sort");
   const links = getSortedLinks(room, downstreamPos);
-  logCpu("handleLinks(" + room.name + ") sort");
-  logCpu("handleLinks(" + room.name + ") loop");
+  //logCpu("handleLinks(" + room.name + ") sort");
+  //logCpu("handleLinks(" + room.name + ") loop");
   let upstreamIndex = 0;
   let downstreamIndex = links.length - 1;
   while (upstreamIndex < downstreamIndex) {
@@ -1045,19 +1044,19 @@ export function handleLinks(room: Room): void {
       upstreamIndex++;
     }
   }
-  logCpu("handleLinks(" + room.name + ") loop");
-  logCpu("handleLinks(" + room.name + ")");
+  //logCpu("handleLinks(" + room.name + ") loop");
+  //logCpu("handleLinks(" + room.name + ")");
 }
 
 export function getSortedLinks(room: Room, downstreamPos: RoomPosition): StructureLink[] {
-  logCpu("getSortedLinks(" + room.name + ")");
+  //logCpu("getSortedLinks(" + room.name + ")");
   const links = room
     .find(FIND_MY_STRUCTURES)
     .filter(isLink)
     .map(value => ({ value, sort: value.pos.getRangeTo(downstreamPos) })) /* persist sort values */
     .sort((a, b) => b.sort - a.sort) /* sort */
     .map(({ value }) => value); /* remove sort values */
-  logCpu("getSortedLinks(" + room.name + ")");
+  //logCpu("getSortedLinks(" + room.name + ")");
   return links;
 }
 
@@ -1180,14 +1179,14 @@ export function shouldHarvestRoom(room: Room): boolean {
 }
 
 export function getCreepCountByRole(role: Role, minTicksToLive = 120): number {
-  logCpu("getCreepCountByRole(" + role + ")");
+  //logCpu("getCreepCountByRole(" + role + ")");
   const count = Object.values(Game.creeps).filter(function (creep) {
     return (
       creep.name.startsWith(role.charAt(0).toLowerCase()) &&
       (!creep.ticksToLive || creep.ticksToLive >= minTicksToLive)
     );
   }).length;
-  logCpu("getCreepCountByRole(" + role + ")");
+  //logCpu("getCreepCountByRole(" + role + ")");
   return count;
 }
 
@@ -1250,11 +1249,11 @@ export function resetSpecificDestinationFromCreeps(destination: Destination): vo
 }
 
 export function resetDestination(creep: Creep): void {
-  logCpu("resetDestination(" + creep.name + ")");
+  //logCpu("resetDestination(" + creep.name + ")");
   delete creep.memory.destination;
   const flag = Game.flags["creep_" + creep.name];
   if (flag) flag.remove();
-  logCpu("resetDestination(" + creep.name + ")");
+  //logCpu("resetDestination(" + creep.name + ")");
   return;
 }
 
@@ -1263,7 +1262,7 @@ export function getOwnedRoomsCount(): number {
 }
 
 export function getUpgradeableControllerCount(): number {
-  logCpu("getUpgradeableControllerCount");
+  //logCpu("getUpgradeableControllerCount");
   const count = Object.values(Game.rooms).filter(
     room =>
       room.controller?.my &&
@@ -1272,7 +1271,7 @@ export function getUpgradeableControllerCount(): number {
         .findInRange(FIND_STRUCTURES, 3)
         .filter(structure => isStorage(structure) || (isContainer(structure) && getEnergy(structure))).length
   ).length;
-  logCpu("getUpgradeableControllerCount");
+  //logCpu("getUpgradeableControllerCount");
   return count;
 }
 
@@ -1627,7 +1626,7 @@ export function getCostMatrixSafe(roomName: string): CostMatrix {
 }
 
 export function getStorageMin(): number {
-  logCpu("getStorageMin");
+  //logCpu("getStorageMin");
   const storages = Object.values(Game.structures).filter(isStorage);
   if (storages.length < 1) return 0;
 
@@ -1635,7 +1634,7 @@ export function getStorageMin(): number {
   for (const storage of storages) {
     storageMin = Math.min(storageMin, storage.store.getUsedCapacity(RESOURCE_ENERGY));
   }
-  logCpu("getStorageMin");
+  //logCpu("getStorageMin");
   return storageMin;
 }
 
