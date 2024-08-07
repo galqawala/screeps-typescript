@@ -906,8 +906,8 @@ function spawnCarriers(room: Room) {
 }
 
 function handleRoomTowers(room: Room) {
-  if (!room.memory.towerMaxRange) room.memory.towerMaxRange = 50;
-  else if (Game.time % 10 === 0 && room.memory.towerMaxRange < 50) room.memory.towerMaxRange += 5;
+  //1% chance to reset to max range so we can retry dealing damage with all towers
+  if (Math.random() < 0.01) room.memory.towerMaxRange = 50;
 
   const towers = room.find(FIND_MY_STRUCTURES).filter(utils.isTower);
   for (const tower of towers) {
@@ -918,7 +918,7 @@ function handleRoomTowers(room: Room) {
       tower.pos.getRangeTo(creep.pos) <= room.memory.towerMaxRange &&
       utils.engageTarget(tower, creep) === OK
     ) {
-      if (creep.hits >= creep.hitsMax) room.memory.towerMaxRange--;
+      if (creep.hits >= creep.hitsMax) room.memory.towerMaxRange -= 1;
       continue;
     }
     // target the closest hostile power creep
