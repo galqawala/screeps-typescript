@@ -853,7 +853,6 @@ function handleHarvester(creep: Creep) {
 }
 
 function harvesterSpendEnergy(creep: Creep) {
-  //utils.logCpu("harvesterSpendEnergy(" + creep.name + ")");
   if (
     creep.pos.findInRange(FIND_MY_CREEPS, 10).filter(nearbyCreep => nearbyCreep.name.startsWith("W")).length <
     1
@@ -862,11 +861,9 @@ function harvesterSpendEnergy(creep: Creep) {
     if (target) creep.repair(target);
     const site = creep.pos.lookFor(LOOK_CONSTRUCTION_SITES)[0];
     if (site) creep.build(site);
-  } else {
-    const link = creep.pos.findInRange(FIND_MY_STRUCTURES, 1).filter(utils.isLink)[0];
-    if (link) creep.transfer(link, RESOURCE_ENERGY);
   }
-  //utils.logCpu("harvesterSpendEnergy(" + creep.name + ")");
+  const link = creep.pos.findInRange(FIND_MY_STRUCTURES, 1).filter(utils.isLink)[0];
+  if (link) creep.transfer(link, RESOURCE_ENERGY);
 }
 
 function handleRoom(room: Room) {
