@@ -90,6 +90,7 @@ declare global {
 
   interface CreepMemory {
     build?: Id<ConstructionSite>;
+    delivering?: boolean;
     destination?: DestinationId | RoomPosition;
     lastActiveTime?: number;
     lastMoveTime?: number;
@@ -566,11 +567,11 @@ function moveTowardMemory(creep: Creep) {
 
 function handleCarrier(creep: Creep) {
   if (!creep.memory.room) creep.memory.room = creep.pos.roomName;
-  if (followMemorizedPath(creep)) {
-    return;
-  }
+  if (followMemorizedPath(creep)) return;
+  if (utils.isFull(creep)) creep.memory.delivering = true;
+  else if (utils.isEmpty(creep)) creep.memory.delivering = false;
 
-  if (utils.isEmpty(creep)) {
+  if (!creep.memory.delivering) {
     //utils.logCpu("handleCarrier(" + creep.name + ") fetch");
     const source = getNearbyEnergySource(creep.pos);
     if (source) {
@@ -855,7 +856,7 @@ function handleHarvester(creep: Creep) {
   // move
   const flag = Game.flags[flagName];
   if (!utils.isPosEqual(creep.pos, flag.pos)) move(creep, flag);
-  if (utils.isFull(creep)) harvesterSpendEnergy(creep);
+  if (utils.getFillRatio(creep) > 0.5) harvesterSpendEnergy(creep);
   // harvest
   const sourceId = creep.memory.sourceId;
   if (sourceId) {
@@ -880,6 +881,7 @@ function harvesterSpendEnergy(creep: Creep) {
     if (target) creep.repair(target);
     const site = creep.pos.lookFor(LOOK_CONSTRUCTION_SITES)[0];
     if (site) creep.build(site);
+  } else {
     const link = creep.pos.findInRange(FIND_MY_STRUCTURES, 1).filter(utils.isLink)[0];
     if (link) creep.transfer(link, RESOURCE_ENERGY);
   }
