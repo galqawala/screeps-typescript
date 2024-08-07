@@ -680,7 +680,7 @@ function handleTransferer(creep: Creep) {
   }
   if (utils.isEmpty(creep)) {
     if (retrieveEnergy(creep, upstream, true) === ERR_NOT_IN_RANGE) {
-      if (!utils.isRoomSafe(upstream.pos.roomName)) {
+      if (!utils.isRoomSafe(upstream.pos.roomName) && creep.pos.roomName !== upstream.pos.roomName) {
         recycleCreep(creep);
       } else {
         move(creep, utils.getPosBetween(upstream.pos, downstream.pos));
@@ -695,7 +695,7 @@ function handleTransferer(creep: Creep) {
       );
     for (const worker of workers) creep.transfer(worker, RESOURCE_ENERGY);
     if (creep.transfer(downstream, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) {
-      if (!utils.isRoomSafe(upstream.pos.roomName)) {
+      if (!utils.isRoomSafe(upstream.pos.roomName) && creep.pos.roomName !== upstream.pos.roomName) {
         recycleCreep(creep);
       } else if (!followMemorizedPath(creep)) {
         const destination = utils.getPosBetween(upstream.pos, downstream.pos);
