@@ -987,16 +987,29 @@ export function isThreatToCreep(target: Creep): boolean {
 }
 
 export function enableSafeModeIfNeed(room: Room): void {
+  // structures not badly damaged?
+  if (room.find(FIND_MY_STRUCTURES).filter(s => s.hits < s.hitsMax / 2).length < 1) return;
+
+  // still got functional towers?
   const towerCount = room
     .find(FIND_MY_STRUCTURES)
     .filter(isTower)
     .filter(tower => !isEmpty(tower)).length;
-  if (towerCount <= 0 && room.controller && room.controller?.my) {
+  if (towerCount > 0) return;
+
+  // save the one simultaneous safe mode for a room with higher RCL?
+  const maxRclWithAvailableSafeModes = Object.values(Game.rooms)
+    .filter(
+      room =>
+        room.controller?.my && room.controller?.safeModeAvailable > 0 && !room.controller?.safeModeCooldown
+    )
+    .reduce((max, room) => Math.max(max, room.controller?.level ?? 0), 0 /* initial*/);
+  if ((room.controller?.level ?? 0) < maxRclWithAvailableSafeModes) return;
+
+  // OK, let's activate it!
+  if (room.controller && room.controller?.my) {
     const outcome = room.controller.activateSafeMode();
-    // console.log(room, "safe mode activation: ", outcome);
-    if (outcome === OK) {
-      msg(room.controller, "safe mode activated!", true);
-    }
+    if (outcome === OK) msg(room.controller, "safe mode activated!", true);
   }
 }
 
