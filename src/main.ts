@@ -312,7 +312,7 @@ function handleWorker(creep: Creep) {
   } else if (creep.memory.build) {
     build(creep);
   } else {
-    const result = build(creep) || repair(creep) || dismantle(creep) || recycleCreep(creep);
+    const result = build(creep) || repair(creep) || dismantle(creep);
     return result;
   }
   return;
