@@ -900,7 +900,17 @@ function handleRoom(room: Room) {
   utils.logCpu("handleRoom(" + room.name + ") spawn carriers");
   spawnCarriers(room);
   utils.logCpu("handleRoom(" + room.name + ") spawn carriers");
+  utils.logCpu("handleRoom(" + room.name + ") roads");
+  if (Math.random() < 0.1 && utils.gotSpareCpu()) handleRoads(room);
+  utils.logCpu("handleRoom(" + room.name + ") roads");
   utils.logCpu("handleRoom(" + room.name + ")");
+}
+
+function handleRoads(room: Room) {
+  const roads = room.find(FIND_STRUCTURES).filter(utils.isRoad);
+  for (const road of roads) {
+    road.notifyWhenAttacked(false);
+  }
 }
 
 function spawnCarriers(room: Room) {

@@ -992,8 +992,10 @@ export function enableSafeModeIfNeed(room: Room): void {
     .find(FIND_MY_STRUCTURES)
     .filter(isTower)
     .filter(tower => !isEmpty(tower)).length;
-  if (towerCount <= 0) {
-    if (room.controller && room.controller.activateSafeMode() === OK) {
+  if (towerCount <= 0 && room.controller && room.controller?.my) {
+    const outcome = room.controller.activateSafeMode();
+    // console.log(room, "safe mode activation: ", outcome);
+    if (outcome === OK) {
       msg(room.controller, "safe mode activated!", true);
     }
   }
