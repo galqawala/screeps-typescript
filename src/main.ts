@@ -1815,12 +1815,13 @@ function spawnCarrier(targetRoom: Room) {
   const spawn = Object.values(Game.spawns)
     .filter(s => s.pos.roomName === targetRoom.name || utils.isRoomSafe(s.pos.roomName))
     .filter(s => !s.spawning)
-    .map(value => ({
-      value,
-      sort: utils.getGlobalRange(value.pos, targetPos)
+    .map(spawn => ({
+      spawn: spawn,
+      range: utils.getGlobalRange(spawn.pos, targetPos)
     })) /* persist sort values */
-    .sort((a, b) => a.sort - b.sort) /* sort */
-    .map(({ value }) => value) /* remove sort values */[0];
+    .filter(spawnRange => spawnRange.range < 100)
+    .sort((a, b) => a.range - b.range) /* sort */
+    .map(({ spawn }) => spawn) /* remove sort values */[0];
   if (!spawn) return false;
 
   const roleToSpawn: Role = "carrier";
