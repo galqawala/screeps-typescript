@@ -48,6 +48,7 @@ declare global {
   interface Memory {
     cpuLog: Record<string, CpuLogEntry>;
     cpuUsedRatio: number;
+    hostileCreepCost: number;
     lackedEnergySinceTime: number;
     maxTickLimit: number;
     plan: Plan;
@@ -1023,7 +1024,7 @@ function spawnCreeps() {
   } else if (Memory.plan?.needHarvesters) {
     spawnHarvester();
   } else if (Memory.plan?.needInfantry) {
-    spawnCreep("infantry", Memory.plan?.maxRoomEnergy);
+    spawnCreep("infantry", Math.max(Memory.hostileCreepCost / 2, Memory.plan.maxRoomEnergy));
   } else if (Memory.plan?.needExplorers && spawnRole("explorer", 0, [MOVE])) {
     Memory.plan.needExplorers = false;
   } else if (Memory.plan?.needWorkers) {

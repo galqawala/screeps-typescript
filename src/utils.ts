@@ -956,6 +956,8 @@ export function checkRoomCanOperate(room: Room): void {
 
 export function handleHostilesInRoom(room: Room): void {
   //logCpu("handleHostilesInRoom(" + room.name + ")");
+  const hostileBody = room.find(FIND_HOSTILE_CREEPS)[0]?.body.map(part => part.type);
+  if (hostileBody) Memory.hostileCreepCost = getBodyCost(hostileBody);
   room.memory.claimIsSafe =
     (room.controller?.safeMode || 0) > 300 ||
     room.find(FIND_HOSTILE_CREEPS).filter(hostile => isThreatToRoom(hostile)).length < 1;
