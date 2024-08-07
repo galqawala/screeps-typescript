@@ -137,7 +137,7 @@ declare global {
 export const loop = ErrorMapper.wrapLoop(() => {
   Memory.cpuLog = {}; // before everything!
   utils.logCpu("main");
-  //utils.logCpu("mem");
+  for (const r in Game.rooms) handleRoom(Game.rooms[r]);
   if ((Memory.maxTickLimit || 0) < Game.cpu.tickLimit) Memory.maxTickLimit = Game.cpu.tickLimit;
   if (Math.random() < 0.1) {
     for (const key in Memory.rooms) {
@@ -151,16 +151,12 @@ export const loop = ErrorMapper.wrapLoop(() => {
   }
   if (!Memory.username) utils.setUsername();
   checkWipeOut();
-  //utils.logCpu("mem");
   if (Math.random() < 0.1 || utils.gotSpareCpu()) updatePlan();
-  for (const r in Game.rooms) handleRoom(Game.rooms[r]);
   spawnCreeps();
-  //utils.logCpu("update flags");
   updateFlagAttack();
   updateFlagClaim();
   updateFlagReserve();
   if (utils.gotSpareCpu()) updateFlagDismantle();
-  //utils.logCpu("update flags");
   handleCreeps();
   if (Math.random() < 0.01 || utils.gotSpareCpu()) utils.constructRoads();
   if (Game.time % 10 === 0) utils.updateEnergy();
@@ -868,37 +864,20 @@ function harvesterSpendEnergy(creep: Creep) {
 }
 
 function handleRoom(room: Room) {
-  //utils.logCpu("handleRoom(" + room.name + ")");
-  //utils.logCpu("handleRoom(" + room.name + ") costs");
+  handleRoomTowers(room);
   if (!room.memory.costMatrix || Math.random() < 0.03)
     room.memory.costMatrix = getCostMatrix(room.name).serialize();
-  //utils.logCpu("handleRoom(" + room.name + ") costs");
-  //utils.logCpu("handleRoom(" + room.name + ") towers");
-  handleRoomTowers(room);
-  //utils.logCpu("handleRoom(" + room.name + ") towers");
-  //utils.logCpu("handleRoom(" + room.name + ") observers");
   if (Math.random() < 0.1 && utils.gotSpareCpu()) handleRoomObservers(room);
-  //utils.logCpu("handleRoom(" + room.name + ") observers");
-  //utils.logCpu("handleRoom(" + room.name + ") updates1");
   utils.handleHostilesInRoom(room);
   if (utils.canOperateInRoom(room) && Math.random() < 0.3 && utils.gotSpareCpu()) utils.constructInRoom(room);
-  //utils.logCpu("handleRoom(" + room.name + ") updates1");
-  //utils.logCpu("handleRoom(" + room.name + ") updates2");
   utils.handleLinks(room);
   if (!room.memory.score) utils.updateRoomScore(room);
   if (Math.random() < 0.001) utils.updateRoomRepairTargets(room);
-  //utils.logCpu("handleRoom(" + room.name + ") updates2");
-  //utils.logCpu("handleRoom(" + room.name + ") updates3");
   utils.checkRoomCanOperate(room);
   if (Math.random() < 0.1 && utils.gotSpareCpu()) updateStickyEnergy(room);
-  //utils.logCpu("handleRoom(" + room.name + ") updates3");
-  //utils.logCpu("handleRoom(" + room.name + ") spawn carriers");
   spawnCarriers(room);
-  //utils.logCpu("handleRoom(" + room.name + ") spawn carriers");
-  //utils.logCpu("handleRoom(" + room.name + ") roads");
   if (Math.random() < 0.1 && utils.gotSpareCpu()) handleRoads(room);
-  //utils.logCpu("handleRoom(" + room.name + ") roads");
-  //utils.logCpu("handleRoom(" + room.name + ")");
+  ("");
 }
 
 function handleRoads(room: Room) {
