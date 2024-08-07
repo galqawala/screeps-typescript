@@ -434,7 +434,7 @@ function repair(creep: Creep) {
 function dismantle(creep: Creep) {
   //utils.logCpu("dismantle(" + creep.name + ")");
   const flag = Game.flags.dismantle;
-  if (!flag) return false;
+  if (!flag || !flag.room) return false;
   const targets = flag.pos.lookFor(LOOK_STRUCTURES);
   if (targets.length < 1) return false;
   const target = targets[0];
@@ -1208,8 +1208,10 @@ function updateFlagDismantle() {
   //utils.logCpu("updateFlagDismantle()");
   const flagDismantle = Game.flags.dismantle;
   if (flagDismantle) {
+    console.log("flagDismantle", flagDismantle);
+    console.log("flagDismantle.room", flagDismantle.room);
     if (flagDismantle.room && flagDismantle.pos.lookFor(LOOK_STRUCTURES).length < 1) {
-      flagDismantle.remove(); // have visibility to the room and it's clear of hostiles
+      flagDismantle.remove(); // have visibility to the room and it's clear of structures
     } else {
       return; // current flag is still valid (to the best of our knowledge)
     }
