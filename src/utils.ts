@@ -889,12 +889,7 @@ export function constructInRoom(room: Room): void {
   ) {
     // container instead of storage
     const pos = getPosForStorage(room);
-    if (pos) {
-      const outcome = pos.createConstructionSite(STRUCTURE_CONTAINER);
-      msg(pos, "Constructing a container near controller: " + outcome.toString());
-    } else {
-      msg(room, "Can't find pos for storage/container");
-    }
+    if (pos) pos.createConstructionSite(STRUCTURE_CONTAINER);
   }
   if (hasClusters(room)) {
     if (getConstructionSites().length <= 0) destroyStructuresOutsideClusters(room);
