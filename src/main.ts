@@ -907,7 +907,7 @@ function spawnCarriers(room: Room) {
 
 function handleRoomTowers(room: Room) {
   if (!room.memory.towerMaxRange) room.memory.towerMaxRange = 50;
-  else if (Game.time % 5 === 0 && room.memory.towerMaxRange < 50) room.memory.towerMaxRange += 2;
+  else if (Game.time % 10 === 0 && room.memory.towerMaxRange < 50) room.memory.towerMaxRange += 5;
 
   const towers = room.find(FIND_MY_STRUCTURES).filter(utils.isTower);
   for (const tower of towers) {
