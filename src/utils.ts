@@ -857,7 +857,10 @@ export function constructInRoom(room: Room): void {
   ];
   for (const structureType of structureTypesByPriority) {
     // max one per tick to prevent trying to place multiple structures in the same coords
-    if (construct(room, structureType)) return;
+    if (construct(room, structureType)) {
+      console.log("Constructing in ", room);
+      return;
+    }
   }
 
   if (
@@ -1178,6 +1181,7 @@ export function getBodyCost(body: BodyPartConstant[]): number {
     return cost + BODYPART_COST[part];
   }, 0);
 }
+
 export function construct(room: Room, structureType: BuildableStructureConstant): boolean {
   if (needStructure(room, structureType)) {
     const pos = getPosForConstruction(room, structureType);
@@ -1278,7 +1282,7 @@ export function getTotalRepairTargetCount(): number {
   );
 }
 
-const clusterStructureTargetCount =
+const fillableStructureTargetCount =
   CONTROLLER_STRUCTURES[STRUCTURE_SPAWN][8] +
   CONTROLLER_STRUCTURES[STRUCTURE_EXTENSION][8] +
   CONTROLLER_STRUCTURES[STRUCTURE_TOWER][8];
@@ -1327,7 +1331,8 @@ function getExits(room: Room) {
 
 function updateRoomLayout(room: Room) {
   if (!room.controller) return;
-  if (!(room.name + "_" + STRUCTURE_STORAGE in Game.flags)) flagStorage(room);
+  if (getStructureFlags(room, STRUCTURE_STORAGE).length < 1) flagStorage(room);
+  flagFillables(room);
 }
 
 export function clearClusters(room: Room): void {
@@ -1584,13 +1589,13 @@ function flagStorage(room: Room) {
       space: getSurroundingPlains(pos, 1, 1, false).length * 10 + getSurroundingPlains(pos, 1, 1, true).length
     })) /* persist sort values */
     .sort((a, b) => b.space - a.space); /* sort desc */ /* remove sort values */
-  for (const rank of ranked) console.log(Object.entries(rank));
   if (ranked.length > 0) flagStructure(ranked.map(({ pos }) => pos)[0], STRUCTURE_STORAGE);
 }
 
 function flagStructure(pos: RoomPosition, structureType: string) {
+  const coords = getGlobalCoords(pos);
   pos.createFlag(
-    pos.roomName + "_" + structureType,
+    structureType + "_" + coords.x + "_" + coords.y,
     getColor(structureType + "1"),
     getColor(structureType + "2")
   );
@@ -1621,4 +1626,53 @@ function getRandomColor(): ColorConstant {
 
   const randomIndex = Math.floor(Math.random() * colors.length);
   return colors[randomIndex];
+}
+
+function flagFillables(room: Room) {
+  const currentCount =
+    getStructureFlags(room, STRUCTURE_SPAWN).length +
+    getStructureFlags(room, STRUCTURE_EXTENSION).length +
+    getStructureFlags(room, STRUCTURE_TOWER).length;
+  if (currentCount >= fillableStructureTargetCount || !room.controller) return;
+
+  const storages = getStructureFlags(room, STRUCTURE_STORAGE);
+  const positionsRequiringSpace = storages
+    .map(s => s.pos)
+    .concat([room.controller.pos])
+    .concat(room.find(FIND_SOURCES).map(s => s.pos));
+  const existingPositions = storages.concat(getStructureFlags(room, STRUCTURE_EXTENSION));
+  const randomIndex = Math.floor(Math.random() * existingPositions.length);
+  const startPos = existingPositions[randomIndex]?.pos;
+  const allowSwampProbability = 0.05; //allow & discourage
+  let margin = 7;
+  while (margin > 2 && Math.random() < 0.3) margin--; //allow & discourage
+  if (!startPos) {
+    console.log(room, "flagFillables missing startPos");
+    return;
+  }
+  const plains = getSurroundingPlains(startPos, 1, 1, Math.random() < allowSwampProbability);
+  for (const pos of plains) {
+    const plains2 = getSurroundingPlains(pos, 1, 1, Math.random() < allowSwampProbability).filter(
+      p => p.x >= 0 + margin && p.x <= 49 - margin && p.y >= 0 + margin && p.y <= 49 - margin
+    );
+    for (const pos2 of plains2) {
+      const plains3 = getSurroundingPlains(pos2, 1, 1, Math.random() < allowSwampProbability).filter(
+        p => p.x >= 0 + margin && p.x <= 49 - margin && p.y >= 0 + margin && p.y <= 49 - margin
+      );
+      for (const pos3 of plains3) {
+        const flagCount = pos3.lookFor(LOOK_FLAGS).length;
+        if (flagCount < 1 && pos3.findInRange(positionsRequiringSpace, 2).length < 1) {
+          flagStructure(pos3, roadOrExtension(pos3));
+        }
+      }
+    }
+  }
+}
+
+function roadOrExtension(pos: RoomPosition): string {
+  return (pos.x - pos.y) % 4 === 0 || (pos.x + pos.y) % 4 === 0 ? STRUCTURE_ROAD : STRUCTURE_EXTENSION;
+}
+
+function getStructureFlags(room: Room, structureType: string) {
+  return room.find(FIND_FLAGS).filter(flag => flag.name.startsWith(structureType + "_"));
 }
