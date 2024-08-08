@@ -46,6 +46,7 @@ declare global {
   type EnergySource = Resource | Ruin | StructureContainer | StructureLink | StructureStorage | Tombstone;
 
   interface Memory {
+    color: Record<string, ColorConstant>;
     cpuLog: Record<string, CpuLogEntry>;
     cpuUsedRatio: number;
     hostileCreepCost: number;
@@ -834,7 +835,8 @@ function handleRoom(room: Room) {
     room.memory.costMatrix = getCostMatrix(room.name).serialize();
   if (Math.random() < 0.1 && utils.gotSpareCpu()) handleRoomObservers(room);
   utils.handleHostilesInRoom(room);
-  if (utils.canOperateInRoom(room) && Math.random() < 0.3 && utils.gotSpareCpu()) utils.constructInRoom(room);
+  if (room.controller?.my && utils.canOperateInRoom(room) && Math.random() < 0.3 && utils.gotSpareCpu())
+    utils.constructInRoom(room);
   utils.handleLinks(room);
   if (!room.memory.score) utils.updateRoomScore(room);
   if (Math.random() < 0.001) utils.updateRoomRepairTargets(room);
@@ -1488,13 +1490,12 @@ function purgeFlagsMemory() {
 }
 
 function purgeFlags() {
-  //utils.logCpu("purgeFlags()");
   for (const flag of Object.values(Game.flags)) {
+    // flag.remove(); //TODO: REMOVE AFTER DEBUGGING
     const name = flag.name;
     if (name.startsWith("traffic_")) flag.remove();
     if (name.startsWith("creep_") && !(name.substring(6) in Game.creeps)) flag.remove();
   }
-  //utils.logCpu("purgeFlags()");
 }
 
 function getStorage(room: Room): StructureContainer | StructureStorage | undefined | null {

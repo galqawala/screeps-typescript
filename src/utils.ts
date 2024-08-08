@@ -849,9 +849,9 @@ export function getHpRatio(obj: Structure): number {
 export function constructInRoom(room: Room): void {
   const structureTypesByPriority = [
     STRUCTURE_SPAWN,
-    STRUCTURE_EXTENSION,
-    STRUCTURE_TOWER,
     STRUCTURE_STORAGE,
+    STRUCTURE_TOWER,
+    STRUCTURE_EXTENSION,
     STRUCTURE_LINK,
     STRUCTURE_OBSERVER
   ];
@@ -1325,98 +1325,9 @@ function getExits(room: Room) {
   return exits;
 }
 
-function isValidClusterPos(structurePosCount: number, pos: RoomPosition, room: Room, posInfos: ClusterPos[]) {
-  if (structurePosCount < 8) return false;
-  if (pos.findInRange(FIND_SOURCES, 3).length > 0) return false;
-  if (room.controller && pos.getRangeTo(room.controller.pos) < 5) return false;
-  if (posInfos.some(cp => cp.content === "cluster" && cp.pos.getRangeTo(pos) < 3)) return false;
-  return true;
-}
-
-function updateRoomLayout(room: Room, allowSwamp = false) {
-  clearClusters(room);
+function updateRoomLayout(room: Room) {
   if (!room.controller) return;
-  console.log("Planning clusters for room:", room);
-  let posInfos = getInitialClusterPaths(room);
-  if (!posInfos || posInfos.length < 1) return;
-  for (;;) {
-    const clusterIndex = posInfos.findIndex(position => !position.scanned);
-    if (clusterIndex === -1) break;
-    const pos = posInfos[clusterIndex].pos;
-    posInfos[clusterIndex].scanned = true;
-    if (pos.x < 4 && pos.x > 45 && pos.y < 4 && pos.y > 45) continue;
-    const plains = getSurroundingPlains(posInfos[clusterIndex].pos, 1, 1, allowSwamp).filter(
-      plainPos => plainPos.x >= 4 && plainPos.x <= 45 && plainPos.y >= 4 && plainPos.y <= 45
-    );
-    const structureIndexes: number[] = [];
-    for (const spot of plains) {
-      const spotIndex = posInfos.findIndex(pi => pi.pos.x === spot.x && pi.pos.y === spot.y);
-      if (spotIndex > -1) {
-        if (!posInfos[spotIndex].content) structureIndexes.push(spotIndex);
-      } else {
-        posInfos.push({ pos: spot, scanned: false, content: undefined });
-        structureIndexes.push(posInfos.length - 1);
-      }
-    }
-    if (!isValidClusterPos(structureIndexes.length, pos, room, posInfos)) continue;
-    posInfos = addPathToCluster(pos, posInfos, room);
-    for (const index of structureIndexes) if (!posInfos[index].content) posInfos[index].content = "structure";
-    posInfos[clusterIndex].content = "cluster";
-    const structureCount = posInfos.filter(pi => pi.content === "structure").length;
-    if (structureCount >= clusterStructureTargetCount) {
-      posInfos = addClusterForExistingSpawn(posInfos, room);
-      flagClusters(room, posInfos);
-      clusterReport(room, posInfos.filter(pi => pi.content === "cluster").length, structureCount);
-      return;
-    }
-  }
-  if (!allowSwamp) updateRoomLayout(room, true);
-}
-
-function addPathToCluster(pos: RoomPosition, posInfos: ClusterPos[], room: Room) {
-  const path = getClusterPath(pos, posInfos, room);
-  for (const step of path) {
-    const stepIndex = posInfos.findIndex(pi => pi.pos.x === step.x && pi.pos.y === step.y);
-    if (stepIndex > -1) {
-      if (posInfos[stepIndex].content !== "cluster") posInfos[stepIndex].content = "path";
-    } else {
-      posInfos.push({ pos: step, scanned: false, content: "path" });
-    }
-  }
-  return posInfos;
-}
-
-function getClusterPath(pos: RoomPosition, posInfos: ClusterPos[], room: Room) {
-  return PathFinder.search(
-    pos,
-    posInfos
-      .filter(pi => pi.content === "cluster")
-      .map(pi => ({ pos: pi.pos, range: 1 }))
-      .concat(room.find(FIND_SOURCES).map(source => ({ pos: source.pos, range: 1 })))
-  ).path;
-}
-
-function flagClusters(room: Room, posInfos: ClusterPos[]) {
-  for (const info of posInfos) {
-    if (!info.content) continue;
-    const coords = getGlobalCoords(info.pos);
-    const name = info.content + "_" + coords.x.toString() + "_" + coords.y.toString();
-    if (info.content === "cluster") {
-      info.pos.createFlag(name, COLOR_WHITE, COLOR_YELLOW);
-    } else if (info.content === "structure") {
-      info.pos.createFlag(name, COLOR_RED, COLOR_YELLOW);
-    } else if (info.content === "path") {
-      info.pos.createFlag(name, COLOR_GREY, COLOR_BROWN);
-    }
-  }
-}
-
-function hasClusters(room: Room) {
-  const flags = room.find(FIND_FLAGS);
-  for (const flag of flags) {
-    if (flag.name.startsWith("cluster_")) return true;
-  }
-  return false;
+  if (!(room.name + "_" + STRUCTURE_STORAGE in Game.flags)) flagStorage(room);
 }
 
 export function clearClusters(room: Room): void {
@@ -1429,10 +1340,6 @@ export function clearClusters(room: Room): void {
     )
       flag.remove();
   }
-}
-
-function clusterReport(room: Room, clusterCount: number, count: number) {
-  msg(room, "planned " + clusterCount.toString() + " clusters with " + count.toString() + " structures");
 }
 
 function getPosForClusterStructure(room: Room, structureType: StructureConstant): RoomPosition | undefined {
@@ -1664,4 +1571,54 @@ export function updateEnergy(): void {
   Memory.totalEnergyRatioDelta = Memory.totalEnergyRatio - oldRatio;
   if (Memory.totalEnergyRatioDelta > 0.004 || Memory.totalEnergyRatio >= 1)
     Memory.lackedEnergySinceTime = Game.time;
+}
+
+function flagStorage(room: Room) {
+  const controllerPos = room.controller?.pos;
+  if (!controllerPos) return;
+  const positions =
+    getSurroundingPlains(controllerPos, 2, 2, false) ?? getSurroundingPlains(controllerPos, 2, 2, true);
+  const ranked = positions
+    .map(pos => ({
+      pos,
+      space: getSurroundingPlains(pos, 1, 1, false).length * 10 + getSurroundingPlains(pos, 1, 1, true).length
+    })) /* persist sort values */
+    .sort((a, b) => b.space - a.space); /* sort desc */ /* remove sort values */
+  for (const rank of ranked) console.log(Object.entries(rank));
+  if (ranked.length > 0) flagStructure(ranked.map(({ pos }) => pos)[0], STRUCTURE_STORAGE);
+}
+
+function flagStructure(pos: RoomPosition, structureType: string) {
+  pos.createFlag(
+    pos.roomName + "_" + structureType,
+    getColor(structureType + "1"),
+    getColor(structureType + "2")
+  );
+}
+
+function getColor(seed: string): ColorConstant {
+  if (!Memory.color) Memory.color = {};
+  let color = Memory.color[seed];
+  if (color) return color;
+  color = getRandomColor();
+  Memory.color[seed] = color;
+  return color;
+}
+
+function getRandomColor(): ColorConstant {
+  const colors = [
+    COLOR_RED,
+    COLOR_PURPLE,
+    COLOR_BLUE,
+    COLOR_CYAN,
+    COLOR_GREEN,
+    COLOR_YELLOW,
+    COLOR_ORANGE,
+    COLOR_BROWN,
+    COLOR_GREY,
+    COLOR_WHITE
+  ];
+
+  const randomIndex = Math.floor(Math.random() * colors.length);
+  return colors[randomIndex];
 }
