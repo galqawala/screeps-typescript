@@ -1033,10 +1033,10 @@ function updateFlagClaim() {
   }
   if ("claim" in Game.flags) return;
 
-  const controlledRooms = Object.values(Game.rooms).filter(room => room.controller && room.controller.my);
-  if (controlledRooms.length >= Game.gcl.level) return;
+  const myRooms = Object.values(Game.rooms).filter(room => room.controller && room.controller.my);
+  if (myRooms.length >= Game.gcl.level) return;
 
-  const bestRoomName = getRoomToClaim(controlledRooms);
+  const bestRoomName = getRoomToClaim(myRooms);
 
   if (!bestRoomName) return;
   if (!(bestRoomName in Game.rooms)) return;
@@ -1046,22 +1046,21 @@ function updateFlagClaim() {
   controller.pos.createFlag("claim", COLOR_WHITE, COLOR_BLUE);
 }
 
-function getRoomToClaim(controlledRooms: Room[]) {
+function getRoomToClaim(aroundRooms: Room[]) {
   let bestScore = Number.NEGATIVE_INFINITY;
   let bestRoomName;
 
-  for (const room of controlledRooms) {
-    if (!room.controller) continue;
-    if (!room.controller.my) continue;
+  for (const room of aroundRooms) {
     const exits = Game.map.describeExits(room.name);
-    const accessibleRoomNames = Object.values(exits).filter(
+    const claimableRoomNames = Object.values(exits).filter(
       roomName =>
         utils.isRoomSafe(roomName) &&
         Memory.rooms[roomName]?.canOperate &&
-        utils.getRoomStatus(roomName) === utils.getRoomStatus(room.name)
+        utils.getRoomStatus(roomName) === utils.getRoomStatus(room.name) &&
+        !aroundRooms.map(room => room.name).includes(roomName) &&
+        utils.canOperateInSurroundingRooms(roomName)
     );
-    for (const nearRoomName of accessibleRoomNames) {
-      if (controlledRooms.filter(controlledRoom => controlledRoom.name === nearRoomName).length > 0) continue;
+    for (const nearRoomName of claimableRoomNames) {
       const score = Memory.rooms[nearRoomName].score;
       if (bestScore < score) {
         bestScore = score;
