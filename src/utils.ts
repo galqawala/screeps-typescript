@@ -78,13 +78,6 @@ export function isOwnedStoreStructure(
   return "store" in item;
 }
 
-export function isEmpty(object: Structure | Creep | Ruin | Resource | Tombstone): boolean {
-  if (!object) return false;
-  const store = getStore(object) as StoreBase<RESOURCE_ENERGY, false>;
-  if (!store) return false;
-  return store.getUsedCapacity(RESOURCE_ENERGY) <= 0;
-}
-
 function getStore(object: Creep | AnyStructure | Resource | Ruin | Tombstone | Structure) {
   if ("store" in object) return object.store;
   if ("getUsedCapacity" in object) return object;
@@ -936,7 +929,7 @@ export function handleHostilesInRoom(room: Room): void {
       room
         .find(FIND_HOSTILE_STRUCTURES)
         .filter(isTower)
-        .filter(tower => !isEmpty(tower)).length < 1);
+        .filter(tower => getEnergy(tower) > 0).length < 1);
   if (!room.memory.claimIsSafe) enableSafeModeIfNeed(room);
   //logCpu("handleHostilesInRoom(" + room.name + ")");
 }
@@ -964,7 +957,7 @@ export function enableSafeModeIfNeed(room: Room): void {
   const towerCount = room
     .find(FIND_MY_STRUCTURES)
     .filter(isTower)
-    .filter(tower => !isEmpty(tower)).length;
+    .filter(tower => getEnergy(tower) > 0).length;
   if (towerCount > 0) return;
 
   // save the one simultaneous safe mode for a room with higher RCL?
@@ -1018,7 +1011,7 @@ export function handleLinks(room: Room): void {
     const upstreamLink = links[upstreamIndex];
     const downstreamLink = links[downstreamIndex];
 
-    if (isEmpty(upstreamLink) || upstreamLink.cooldown) {
+    if (getEnergy(upstreamLink) < 1 || upstreamLink.cooldown) {
       upstreamIndex++;
     } else if (getFillRatio(downstreamLink) >= 0.9) {
       downstreamIndex--;
@@ -1548,7 +1541,7 @@ function destroyUnnecessaryContainers(room: Room) {
     if (source.pos.findInRange(FIND_MY_STRUCTURES, 2).filter(s => isLink(s)).length > 0) {
       source.pos
         .findInRange(FIND_STRUCTURES, 2)
-        .filter(target => isContainer(target) && !isStorageSubstitute(target) && isEmpty(target))
+        .filter(target => isContainer(target) && !isStorageSubstitute(target) && getEnergy(target) < 1)
         .forEach(structure => {
           msg(structure, "Removing this container as there's a link");
           structure.destroy();

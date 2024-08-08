@@ -85,6 +85,8 @@ declare global {
     score: number;
     stickyEnergy: Record<Id<AnyStoreStructure>, number>;
     stickyEnergyDelta: Record<Id<AnyStoreStructure>, number>;
+    towerLastTarget: Id<Creep | PowerCreep>;
+    towerLastTargetHits: number;
     towerMaxRange: number;
   }
 
@@ -272,7 +274,7 @@ function handleUpgrader(creep: Creep) {
   if (!controller) return;
   creep.memory.upgrade = controller.id;
   // actions
-  if (utils.isEmpty(creep)) upgraderRetrieveEnergy(creep);
+  if (utils.getEnergy(creep) < 1) upgraderRetrieveEnergy(creep);
   if (controller) {
     const outcome = creep.upgradeController(controller);
     if (outcome === ERR_NOT_IN_RANGE) move(creep, controller);
@@ -288,10 +290,10 @@ function upgraderRetrieveEnergy(creep: Creep) {
 }
 
 function handleWorker(creep: Creep) {
-  if (utils.isEmpty(creep)) delete creep.memory.build;
+  if (utils.getEnergy(creep) < 1) delete creep.memory.build;
   else if (utils.isFull(creep)) delete creep.memory.retrieve;
 
-  if (utils.isEmpty(creep)) {
+  if (utils.getEnergy(creep) < 1) {
     workerRetrieveEnergy(creep);
     return;
   }
@@ -325,7 +327,7 @@ function repair(creep: Creep) {
 function workerRetrieveEnergy(creep: Creep) {
   if (
     creep.room.storage &&
-    !utils.isEmpty(creep.room.storage) &&
+    utils.getEnergy(creep.room.storage) > 0 &&
     retrieveEnergy(creep, creep.room.storage) === ERR_NOT_IN_RANGE
   ) {
     move(creep, creep.room.storage);
@@ -507,7 +509,7 @@ function handleCarrier(creep: Creep) {
   if (!creep.memory.room) creep.memory.room = creep.pos.roomName;
   if (followMemorizedPath(creep)) return;
   if (utils.isFull(creep)) creep.memory.delivering = true;
-  else if (utils.isEmpty(creep)) creep.memory.delivering = false;
+  else if (utils.getEnergy(creep) < 1) creep.memory.delivering = false;
 
   if (creep.pos.roomName !== creep.memory.room) {
     creep.memory.path = utils.getPath(creep.pos, new RoomPosition(25, 25, creep.memory.room), 20);
@@ -619,7 +621,7 @@ function handleTransferer(creep: Creep) {
     recycleCreep(creep);
     return;
   }
-  if (utils.isEmpty(creep)) {
+  if (utils.getEnergy(creep) < 1) {
     if (retrieveEnergy(creep, upstream, true) === ERR_NOT_IN_RANGE) {
       if (!utils.isRoomSafe(upstream.pos.roomName) && creep.pos.roomName !== upstream.pos.roomName) {
         recycleCreep(creep);
@@ -878,32 +880,48 @@ function spawnWorkers(room: Room) {
 }
 
 function handleRoomTowers(room: Room) {
-  //1% chance to reset to max range so we can retry dealing damage with all towers
-  if (Math.random() < 0.01) room.memory.towerMaxRange = 50;
-
-  const towers = room.find(FIND_MY_STRUCTURES).filter(utils.isTower);
-  for (const tower of towers) {
-    // target the closest hostile creep
-    const creep = tower.pos.findClosestByRange(FIND_HOSTILE_CREEPS);
-    if (
-      creep &&
-      tower.pos.getRangeTo(creep.pos) <= room.memory.towerMaxRange &&
-      utils.engageTarget(tower, creep) === OK
-    ) {
-      if (creep.hits >= creep.hitsMax) room.memory.towerMaxRange -= 1;
-      continue;
-    }
-    // target the closest hostile power creep
-    const powerCreep = tower.pos.findClosestByRange(FIND_HOSTILE_POWER_CREEPS);
-    if (
-      powerCreep &&
-      tower.pos.getRangeTo(powerCreep.pos) <= room.memory.towerMaxRange &&
-      utils.engageTarget(tower, powerCreep) === OK
-    ) {
-      if (powerCreep.hits >= powerCreep.hitsMax) room.memory.towerMaxRange--;
-      continue;
-    }
+  const defaultRange = 50;
+  if (!room.memory.towerMaxRange) room.memory.towerMaxRange = defaultRange;
+  else {
+    const lastTarget = Game.getObjectById(room.memory.towerLastTarget);
+    if (lastTarget && lastTarget.hits >= room.memory.towerLastTargetHits) room.memory.towerMaxRange -= 1;
   }
+
+  const towers = room
+    .find(FIND_MY_STRUCTURES)
+    .filter(utils.isTower)
+    .filter(tower => utils.getEnergy(tower) > 0);
+  if (towers.length < 1) return;
+  if (towers.filter(tower => utils.isFull(tower)).length > 0) room.memory.towerMaxRange = defaultRange;
+
+  let hostiles: (Creep | PowerCreep)[] = room.find(FIND_HOSTILE_CREEPS);
+  Array.prototype.push.apply(hostiles, room.find(FIND_HOSTILE_POWER_CREEPS));
+
+  let target = hostiles
+    .filter(hostile => hostile.pos.findInRange(towers, room.memory.towerMaxRange).length > 0)
+    .sort((a, b) => a.hits - b.hits)[0]; //weakest
+  if (!target) return;
+
+  room.memory.towerLastTarget = target.id;
+  room.memory.towerLastTargetHits = target.hits;
+
+  logTarget(room, towers, target);
+  for (const tower of towers) utils.engageTarget(tower, target);
+}
+
+function logTarget(room: Room, towers: StructureTower[], target: Creep | PowerCreep) {
+  console.log(
+    room,
+    towers.length,
+    "towers targeting hostile",
+    target,
+    "(",
+    target.hits,
+    "/",
+    target.hitsMax,
+    "hits) within range of",
+    room.memory.towerMaxRange
+  );
 }
 
 function handleRoomObservers(room: Room) {
@@ -1080,7 +1098,7 @@ function needInfantry() {
               room
                 .find(FIND_MY_STRUCTURES)
                 .filter(utils.isTower)
-                .filter(t => !utils.isEmpty(t)).length
+                .filter(t => utils.getEnergy(t) > 0).length
           ),
         0 /* initial*/
       ) >= utils.getCreepCountByRole("infantry")
@@ -1676,25 +1694,25 @@ function getNearbyEnergySource(pos: RoomPosition) {
   //utils.logCpu("getNearbyEnergySource(" + pos.toString() + ")");
   let sources: (Resource | AnyStoreStructure | Tombstone | Ruin)[] = pos
     .findInRange(FIND_DROPPED_RESOURCES, 1)
-    .filter(container => !utils.isEmpty(container));
+    .filter(container => utils.getEnergy(container) > 0);
   sources = sources.concat(
     pos
       .findInRange(FIND_STRUCTURES, 1)
       .filter(utils.isContainer)
       .filter(container => !utils.isStorageSubstitute(container))
-      .filter(container => !utils.isEmpty(container))
+      .filter(container => utils.getEnergy(container) > 0)
   );
   sources = sources.concat(
     pos.findInRange(FIND_TOMBSTONES, 1, {
       filter(object) {
-        return !utils.isEmpty(object);
+        return utils.getEnergy(object) > 0;
       }
     })
   );
   sources = sources.concat(
     pos.findInRange(FIND_RUINS, 1, {
       filter(object) {
-        return !utils.isEmpty(object);
+        return utils.getEnergy(object) > 0;
       }
     })
   );
@@ -1709,7 +1727,7 @@ function getNearbyEnergySource(pos: RoomPosition) {
       .findInRange(FIND_STRUCTURES, 1)
       .filter(utils.isStoreStructure)
       .filter(s => utils.isContainer(s) || utils.isStorage(s) || utils.isLink(s))
-      .filter(container => !utils.isEmpty(container))[0];
+      .filter(container => utils.getEnergy(container) > 0)[0];
     //utils.logCpu("getNearbyEnergySource(" + pos.toString() + ")");
     if (source) return source;
   }
@@ -1810,18 +1828,18 @@ function getCarrierEnergySources(
         .find(FIND_STRUCTURES)
         .filter(utils.isContainer)
         .filter(container => !utils.isStorageSubstitute(container))
-        .filter(container => !utils.isEmpty(container))
+        .filter(container => utils.getEnergy(container) > 0)
     )
     .concat(room.find(FIND_DROPPED_RESOURCES))
-    .concat(room.find(FIND_TOMBSTONES).filter(container => !utils.isEmpty(container)))
-    .concat(room.find(FIND_RUINS).filter(container => !utils.isEmpty(container)));
+    .concat(room.find(FIND_TOMBSTONES).filter(container => utils.getEnergy(container) > 0))
+    .concat(room.find(FIND_RUINS).filter(container => utils.getEnergy(container) > 0));
   if (room.energyAvailable < room.energyCapacityAvailable) {
     containers = containers.concat(
       room
         .find(FIND_STRUCTURES)
         .filter(utils.isStoreStructure)
         .filter(s => utils.isContainer(s) || utils.isStorage(s) || utils.isLink(s))
-        .filter(container => !utils.isEmpty(container))
+        .filter(container => utils.getEnergy(container) > 0)
     );
   }
   return containers;
