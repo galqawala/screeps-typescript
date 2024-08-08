@@ -490,26 +490,6 @@ export function needRepair(structure: Structure): boolean {
   return true;
 }
 
-export function getConstructionSites(): ConstructionSite[] {
-  let sites: ConstructionSite[] = [];
-  for (const i in Game.rooms) {
-    const room = Game.rooms[i];
-    if (!isRoomSafe(room.name)) continue;
-    sites = sites.concat(room.find(FIND_MY_CONSTRUCTION_SITES));
-  }
-  return sites;
-}
-
-// export function isUnderRepair(structure: Structure): boolean {
-//   if (!structure) return false;
-//   if (!structure.id) return false;
-//   const creepsRepairingIt = Object.values(Game.creeps).filter(function (creep) {
-//     return creep.memory.action === "repair" && creep.memory.destination === structure.id;
-//   }).length;
-//   if (creepsRepairingIt) return true;
-//   return false;
-// }
-
 export function canOperateInRoom(room: Room): boolean {
   if (!room.controller) return true; // no controller
   if (room.controller.my) return true; // my controller
@@ -867,7 +847,6 @@ export function getHpRatio(obj: Structure): number {
 }
 
 export function constructInRoom(room: Room): void {
-  //logCpu("constructInRoom(" + room.name + ")");
   const structureTypesByPriority = [
     STRUCTURE_SPAWN,
     STRUCTURE_EXTENSION,
@@ -891,13 +870,8 @@ export function constructInRoom(room: Room): void {
     const pos = getPosForStorage(room);
     if (pos) pos.createConstructionSite(STRUCTURE_CONTAINER);
   }
-  if (hasClusters(room)) {
-    if (getConstructionSites().length <= 0) destroyStructuresOutsideClusters(room);
-  } else {
-    planClusters(room);
-  }
+  updateRoomLayout(room);
   destroyUnnecessaryContainers(room);
-  //logCpu("constructInRoom(" + room.name + ")");
 }
 
 export function constructRoads(): void {
@@ -1359,7 +1333,7 @@ function isValidClusterPos(structurePosCount: number, pos: RoomPosition, room: R
   return true;
 }
 
-function planClusters(room: Room, allowSwamp = false) {
+function updateRoomLayout(room: Room, allowSwamp = false) {
   clearClusters(room);
   if (!room.controller) return;
   console.log("Planning clusters for room:", room);
@@ -1396,7 +1370,7 @@ function planClusters(room: Room, allowSwamp = false) {
       return;
     }
   }
-  if (!allowSwamp) planClusters(room, true);
+  if (!allowSwamp) updateRoomLayout(room, true);
 }
 
 function addPathToCluster(pos: RoomPosition, posInfos: ClusterPos[], room: Room) {

@@ -74,7 +74,6 @@ declare global {
     needReservers: boolean;
     needTransferers: boolean;
     needUpgraders: boolean;
-    needWorkers: boolean;
   }
 
   interface RoomMemory {
@@ -180,7 +179,6 @@ function updatePlan() {
     needReservers: needReservers(),
     needTransferers: getStoragesRequiringTransferer().length > 0,
     needUpgraders: needUpgraders(),
-    needWorkers: needWorkers(),
     maxRoomEnergy: Math.max(...Object.values(Game.rooms).map(r => r.energyAvailable)),
     maxRoomEnergyCap: Math.max(...Object.values(Game.rooms).map(r => r.energyCapacityAvailable)),
     minTicksToDowngrade: getMinTicksToDowngrade()
@@ -308,6 +306,22 @@ function handleWorker(creep: Creep) {
   return;
 }
 
+function repair(creep: Creep) {
+  const oldDestination = creep.memory.destination;
+  let destination;
+  let repairTarget;
+  if (typeof oldDestination === "string") destination = Game.getObjectById(oldDestination);
+  if (destination instanceof Structure && utils.needRepair(destination)) repairTarget = destination;
+  if (!repairTarget) repairTarget = getRepairTarget(creep);
+  if (repairTarget) {
+    creep.memory.lastActiveTime = Game.time;
+    if (creep.repair(repairTarget) === ERR_NOT_IN_RANGE) move(creep, repairTarget);
+    utils.setDestination(creep, repairTarget);
+    return true;
+  }
+  return false;
+}
+
 function workerRetrieveEnergy(creep: Creep) {
   if (
     creep.room.storage &&
@@ -321,27 +335,11 @@ function workerRetrieveEnergy(creep: Creep) {
         return utils.isContainer(object) && utils.getEnergy(object) > 0;
       }
     });
-    if (container && retrieveEnergy(creep, container) === ERR_NOT_IN_RANGE) {
-      move(creep, container);
+    if (container) {
+      if (retrieveEnergy(creep, container) === ERR_NOT_IN_RANGE) move(creep, container);
     } else {
       const resource = creep.pos.findClosestByRange(FIND_DROPPED_RESOURCES);
-      if (resource && retrieveEnergy(creep, resource) === ERR_NOT_IN_RANGE) {
-        move(creep, resource);
-      } else {
-        const closestStorage = Object.values(Game.rooms)
-          .filter(room => room.storage && utils.getEnergy(room.storage) > 0)
-          .map(room => ({
-            storage: room.storage,
-            sort: utils.getGlobalRange(creep.pos, utils.getPos(room.storage))
-          })) /* persist sort values */
-          .sort((a, b) => a.sort - b.sort) /* sort */
-          .map(({ storage }) => storage) /* remove sort values */[0];
-        if (closestStorage && retrieveEnergy(creep, closestStorage) === ERR_NOT_IN_RANGE) {
-          move(creep, closestStorage);
-        } else if (utils.isStuck(creep)) {
-          utils.moveRandomDirection(creep);
-        }
-      }
+      if (resource && retrieveEnergy(creep, resource) === ERR_NOT_IN_RANGE) move(creep, resource);
     }
   }
 }
@@ -354,8 +352,7 @@ function build(creep: Creep) {
     if (!destination) delete creep.memory.build;
   }
   if (!destination || !(destination instanceof ConstructionSite)) {
-    destination = getBuildSite(creep, false);
-    if (!destination) destination = getBuildSite(creep, true);
+    destination = getBuildSite(creep);
     if (destination) utils.setDestination(creep, destination);
   }
   if (destination instanceof ConstructionSite) {
@@ -369,94 +366,57 @@ function build(creep: Creep) {
   return false;
 }
 
-function getBuildSite(creep: Creep, allowMultipleBuilders: boolean) {
-  //utils.logCpu("getBuildSite(" + creep.name + "," + allowMultipleBuilders.toString() + ")");
-  const constructionSite = utils
-    .getConstructionSites()
-    .filter(
-      site =>
-        allowMultipleBuilders ||
-        Object.values(Game.creeps).filter(builder => builder.memory.build === site.id).length < 1
-    )
-    .map(value => ({
-      value,
-      sort: utils.getGlobalRange(creep.pos, utils.getPos(value))
+function getBuildSite(creep: Creep) {
+  const room = getCreepTargetRoom(creep);
+  if (!room) return;
+  return room
+    .find(FIND_MY_CONSTRUCTION_SITES)
+    .map(site => ({
+      site,
+      sort: utils.getGlobalRange(creep.pos, utils.getPos(site)) * (getBuildSitePriority(site) * 100)
     })) /* persist sort values */
     .sort((a, b) => a.sort - b.sort) /* sort */
-    .map(({ value }) => value) /* remove sort values */[0];
-  //utils.logCpu("getBuildSite(" + creep.name + "," + allowMultipleBuilders.toString() + ")");
-  return constructionSite;
+    .map(({ site }) => site) /* remove sort values */[0];
 }
 
-function repair(creep: Creep) {
-  //utils.logCpu("repair(" + creep.name + ")");
-  const oldDestination = creep.memory.destination;
-  let destination;
-  let repairTarget;
-  if (typeof oldDestination === "string") destination = Game.getObjectById(oldDestination);
-  if (destination instanceof Structure && utils.needRepair(destination)) repairTarget = destination;
-  if (!repairTarget) repairTarget = getRepairTarget(creep.pos);
-  if (repairTarget) {
-    //utils.logCpu("repair(" + creep.name + ") tgt");
-    creep.memory.lastActiveTime = Game.time;
-    if (creep.repair(repairTarget) === ERR_NOT_IN_RANGE) move(creep, repairTarget);
-    utils.setDestination(creep, repairTarget);
-    //utils.logCpu("repair(" + creep.name + ") tgt");
-    //utils.logCpu("repair(" + creep.name + ")");
-    return true;
-  }
-  //utils.logCpu("repair(" + creep.name + ")");
-  return false;
+function getCreepTargetRoom(creep: Creep) {
+  if (creep.memory.room) return Game.rooms[creep.memory.room];
+  return;
 }
 
 function dismantle(creep: Creep) {
-  //utils.logCpu("dismantle(" + creep.name + ")");
   const flag = Game.flags.dismantle;
   if (!flag || !flag.room) return false;
+  if (flag.pos.roomName !== creep.memory.room) return false;
   const targets = flag.pos.lookFor(LOOK_STRUCTURES);
   if (targets.length < 1) return false;
   const target = targets[0];
   creep.memory.lastActiveTime = Game.time;
   if (creep.dismantle(target) === ERR_NOT_IN_RANGE) {
     move(creep, target);
-    //utils.logCpu("dismantle(" + creep.name + ")");
     return true;
   }
-  //utils.logCpu("dismantle(" + creep.name + ")");
   return false;
 }
 
-function getRepairTarget(pos: RoomPosition) {
-  //utils.logCpu("getRepairTarget(" + pos.toString() + ")");
-  const sources = [];
-  let ids: Id<Structure<StructureConstant>>[] = [];
-  for (const room of Object.values(Game.rooms)) {
-    if (utils.isRoomSafe(room.name)) {
-      ids = ids.concat(room.memory.repairTargets);
-    }
-  }
-  if (ids) {
-    for (const id of ids) {
-      const source = Game.getObjectById(id);
-      if (source) sources.push(source);
-    }
-    const closest = sources
-      .map(value => ({
-        value,
-        sort: utils.getGlobalRange(pos, utils.getPos(value))
-      })) /* persist sort values */
-      .sort((a, b) => a.sort - b.sort) /* sort */
-      .map(({ value }) => value) /* remove sort values */[0];
+function getRepairTarget(creep: Creep) {
+  const room = getCreepTargetRoom(creep);
+  if (!room) return;
+  const closest = room.memory.repairTargets
+    ?.map(id => Game.getObjectById(id))
+    .filter(target => target)
+    .map(target => ({
+      target,
+      sort: utils.getGlobalRange(creep.pos, utils.getPos(target)) + (target?.hits ?? 1)
+    })) /* persist sort values */
+    .sort((a, b) => a.sort - b.sort) /* sort */
+    .map(({ target }) => target) /* remove sort values */[0];
 
-    if (closest) {
-      const index = Memory.rooms[closest.pos.roomName].repairTargets.indexOf(closest.id);
-      if (index > -1) Memory.rooms[closest.pos.roomName].repairTargets.splice(index, 1);
-    }
-    //utils.logCpu("getRepairTarget(" + pos.toString() + ")");
-    return closest;
+  if (closest) {
+    const index = Memory.rooms[closest.pos.roomName].repairTargets.indexOf(closest.id);
+    if (index > -1) Memory.rooms[closest.pos.roomName].repairTargets.splice(index, 1);
   }
-  //utils.logCpu("getRepairTarget(" + pos.toString() + ")");
-  return;
+  return closest;
 }
 
 function hasEnoughEnergyForAnotherUpgrader(controller: StructureController) {
@@ -879,6 +839,7 @@ function handleRoom(room: Room) {
   utils.checkRoomCanOperate(room);
   if (Math.random() < 0.1 && utils.gotSpareCpu()) updateStickyEnergy(room);
   spawnCarriers(room);
+  spawnWorkers(room);
   if (Math.random() < 0.1 && utils.gotSpareCpu()) handleRoads(room);
   ("");
 }
@@ -893,10 +854,10 @@ function handleRoads(room: Room) {
 function spawnCarriers(room: Room) {
   const max = 3;
   if (room.controller?.my) {
-    const carriers = Object.values(Game.creeps).filter(
+    const count = Object.values(Game.creeps).filter(
       creep => creep.name.startsWith("C") && creep.memory.room === room.name
     ).length;
-    if (carriers >= max) return;
+    if (count >= max) return;
     const fullContainers = room
       .find(FIND_STRUCTURES)
       .filter(utils.isContainer)
@@ -904,6 +865,15 @@ function spawnCarriers(room: Room) {
     if (fullContainers > 0) {
       spawnCarrier(room);
     }
+  }
+}
+
+function spawnWorkers(room: Room) {
+  if (room.controller?.my) {
+    const count = Object.values(Game.creeps).filter(
+      creep => creep.name.startsWith("W") && creep.memory.room === room.name
+    ).length;
+    if (count < 1) spawnWorker(room);
   }
 }
 
@@ -1013,8 +983,6 @@ function spawnCreeps() {
     spawnCreep("infantry", Math.max(Memory.hostileCreepCost / 2, Memory.plan.maxRoomEnergy));
   } else if (Memory.plan?.needExplorers && spawnRole("explorer", 0, [MOVE])) {
     Memory.plan.needExplorers = false;
-  } else if (Memory.plan?.needWorkers) {
-    spawnCreep("worker", budget);
   } else if (Memory.plan?.needReservers && budget >= utils.getBodyCost(["claim", "move"])) {
     spawnReserver();
   } else if (Memory.plan?.needUpgraders) {
@@ -1321,7 +1289,6 @@ function spawnHarvester() {
   if (!harvestPos) return;
   utils.constructContainerIfNeed(harvestPos);
   const memory = {
-    role: roleToSpawn,
     sourceId: source.id,
     stroke: utils.hslToHex(Math.random() * 360, 100, 50),
     strokeWidth: 0.1 + 0.1 * (Math.random() % 4),
@@ -1357,7 +1324,6 @@ function spawnTransferer() {
 function getTransferrerMem(retrieve: Id<StructureLink>, transferTo: Id<StructureStorage>, pos: RoomPosition) {
   return {
     retrieve,
-    role: "transferer" as Role,
     transferTo,
     stroke: utils.hslToHex(Math.random() * 360, 100, 50),
     strokeWidth: 0.1 + 0.1 * (Math.random() % 4),
@@ -1365,17 +1331,17 @@ function getTransferrerMem(retrieve: Id<StructureLink>, transferTo: Id<Structure
   };
 }
 
-function getSpawn(energyRequired: number, targetPos: RoomPosition | undefined) {
+function getSpawn(energyRequired: number, targetPos: RoomPosition | undefined, maxRange = 100) {
   return Object.values(Game.spawns)
     .filter(spawn => spawn.room.energyAvailable >= energyRequired && !spawn.spawning)
-    .map(value => ({
-      value,
-      sort: targetPos
-        ? utils.getGlobalRange(value.pos, targetPos)
-        : Math.random() - value.room.energyAvailable
+    .filter(s => s.pos.roomName === targetPos?.roomName || utils.isRoomSafe(s.pos.roomName))
+    .map(spawn => ({
+      spawn: spawn,
+      range: utils.getGlobalRange(spawn.pos, targetPos)
     })) /* persist sort values */
-    .sort((a, b) => a.sort - b.sort) /* sort */
-    .map(({ value }) => value) /* remove sort values */[0];
+    .filter(spawnRange => spawnRange.range <= maxRange)
+    .sort((a, b) => a.range - b.range) /* sort */
+    .map(({ spawn }) => spawn) /* remove sort values */[0];
 }
 
 function spawnCreep(
@@ -1418,7 +1384,6 @@ function getInitialCreepMem(
     action: task?.action,
     destination: task?.destination && "id" in task?.destination ? task?.destination?.id : undefined,
     pos,
-    role: roleToSpawn,
     stroke: utils.hslToHex(Math.random() * 360, 100, 50),
     strokeWidth: 0.1 + 0.1 * (Math.random() % 4),
     upgrade: upgradeTarget?.id
@@ -1554,9 +1519,7 @@ function getClusterStructures(clusterPos: RoomPosition) {
 }
 
 function getCarrierEnergySource(creep: Creep) {
-  const roomName = creep.memory.room;
-  if (!roomName) return;
-  const room = Game.rooms[roomName];
+  const room = getCreepTargetRoom(creep);
   if (!room) return;
   return getCarrierEnergySources(room)
     .map(source => ({
@@ -1802,35 +1765,34 @@ function followMemorizedPath(creep: Creep) {
 function spawnUpgrader(urgentOnly = false) {
   const upgradeTarget = getControllerToUpgrade(undefined, urgentOnly);
   if (!upgradeTarget) return;
-  const spawn = Object.values(Game.spawns)
-    .map(value => ({
-      value,
-      sort: utils.getGlobalRange(value.pos, upgradeTarget.pos)
-    })) /* persist sort values */
-    .sort((a, b) => a.sort - b.sort) /* sort */
-    .map(({ value }) => value) /* remove sort values */[0];
+  const spawn = getSpawn(0, upgradeTarget.pos);
   if (!spawn) return;
   return spawnCreep("upgrader", spawn.room.energyAvailable, undefined, undefined, upgradeTarget, spawn);
 }
 
 function spawnCarrier(targetRoom: Room) {
   const targetPos = getStorage(targetRoom)?.pos ?? targetRoom.controller?.pos;
-  const spawn = Object.values(Game.spawns)
-    .filter(s => s.pos.roomName === targetRoom.name || utils.isRoomSafe(s.pos.roomName))
-    .filter(s => !s.spawning)
-    .map(spawn => ({
-      spawn: spawn,
-      range: utils.getGlobalRange(spawn.pos, targetPos)
-    })) /* persist sort values */
-    .filter(spawnRange => spawnRange.range < 100)
-    .sort((a, b) => a.range - b.range) /* sort */
-    .map(({ spawn }) => spawn) /* remove sort values */[0];
+  const spawn = getSpawn(0, targetPos);
   if (!spawn) return false;
 
   const roleToSpawn: Role = "carrier";
   const memory = {
     pos: spawn.pos,
-    role: roleToSpawn,
+    stroke: utils.hslToHex(Math.random() * 360, 100, 50),
+    strokeWidth: 0.1 + 0.1 * (Math.random() % 4),
+    room: targetRoom.name
+  };
+  return spawnCreep(roleToSpawn, spawn.room.energyAvailable, undefined, undefined, undefined, spawn, memory);
+}
+
+function spawnWorker(targetRoom: Room) {
+  const targetPos = getStorage(targetRoom)?.pos ?? targetRoom.controller?.pos;
+  const spawn = getSpawn(0, targetPos);
+  if (!spawn) return false;
+
+  const roleToSpawn: Role = "worker";
+  const memory = {
+    pos: spawn.pos,
     stroke: utils.hslToHex(Math.random() * 360, 100, 50),
     strokeWidth: 0.1 + 0.1 * (Math.random() % 4),
     room: targetRoom.name
@@ -1878,4 +1840,27 @@ function getStoragesRequiringTransferer() {
             (creep.ticksToLive || 100) > 30
         ).length <= 0
     );
+}
+
+function getBuildSitePriority(site: ConstructionSite<BuildableStructureConstant>) {
+  const prioritizedTypes = [
+    STRUCTURE_SPAWN,
+    STRUCTURE_TOWER,
+    STRUCTURE_STORAGE,
+    STRUCTURE_CONTAINER,
+    STRUCTURE_EXTENSION,
+    STRUCTURE_ROAD,
+    STRUCTURE_LINK,
+    STRUCTURE_WALL,
+    STRUCTURE_RAMPART,
+    STRUCTURE_EXTRACTOR,
+    STRUCTURE_OBSERVER,
+    STRUCTURE_POWER_SPAWN,
+    STRUCTURE_LAB,
+    STRUCTURE_TERMINAL,
+    STRUCTURE_NUKER,
+    STRUCTURE_FACTORY
+  ];
+  const index = prioritizedTypes.indexOf(site.structureType);
+  return index < 0 ? 100 : index + 1;
 }
