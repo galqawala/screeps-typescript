@@ -376,7 +376,7 @@ function getBuildSite(creep: Creep) {
     .find(FIND_MY_CONSTRUCTION_SITES)
     .map(site => ({
       site,
-      sort: utils.getGlobalRange(creep.pos, utils.getPos(site)) * (getBuildSitePriority(site) * 100)
+      sort: utils.getGlobalRange(creep.pos, utils.getPos(site)) + getBuildSitePriority(site) * 50
     })) /* persist sort values */
     .sort((a, b) => a.sort - b.sort) /* sort */
     .map(({ site }) => site) /* remove sort values */[0];
