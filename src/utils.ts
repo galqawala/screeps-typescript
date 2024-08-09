@@ -1347,6 +1347,7 @@ function updateRoomLayout(room: Room) {
   if (getStructureFlags(room, STRUCTURE_STORAGE).length < 1) flagStorage(room);
   flagContainers(room);
   flagFillables(room);
+  flagSpawns(room);
 }
 
 export function getObjectDescription(obj: Destination | undefined | string | Room): string {
@@ -1524,7 +1525,15 @@ function flagStorage(room: Room) {
   const positions = getPositionsAroundWithTerrainSpace(controllerPos, 2, 2, 1, 1);
   const storagePos = positions[0];
   const containerPos = positions[1];
-  if (storagePos) flagStructure(storagePos, STRUCTURE_STORAGE);
+  if (storagePos) {
+    flagStructure(storagePos, STRUCTURE_STORAGE);
+    if (!storagePos.findInRange(FIND_FLAGS, 2).find(flag => flag.name.startsWith(STRUCTURE_LINK + "_"))) {
+      const linkPosition = getPositionsAroundWithTerrainSpace(storagePos, 2, 2, 1, 1).find(
+        pos => pos.lookFor(LOOK_FLAGS).length < 1 && !isPosEqual(containerPos, pos)
+      );
+      if (linkPosition) flagStructure(linkPosition, STRUCTURE_LINK);
+    }
+  }
   if (containerPos) flagStructure(containerPos, STRUCTURE_CONTAINER);
 }
 
@@ -1575,17 +1584,15 @@ function flagFillables(room: Room) {
   const positionsRequiringSpace = storages
     .map(s => s.pos)
     .concat([room.controller.pos])
-    .concat(getStructureFlags(room, STRUCTURE_CONTAINER).map(s => s.pos));
+    .concat(getStructureFlags(room, STRUCTURE_CONTAINER).map(s => s.pos))
+    .concat(getStructureFlags(room, STRUCTURE_LINK).map(s => s.pos));
   const existingPositions = storages.concat(getStructureFlags(room, STRUCTURE_EXTENSION));
   const randomIndex = Math.floor(Math.random() * existingPositions.length);
   const startPos = existingPositions[randomIndex]?.pos;
-  const allowSwampProbability = 0.05; //allow & discourage
+  const allowSwampProbability = 0.04; //allow & discourage
   let exitMargin = 7;
   while (exitMargin > 1 && Math.random() < 0.2) exitMargin--; //allow & discourage
-  if (!startPos) {
-    console.log(room, "flagFillables missing startPos");
-    return;
-  }
+  if (!startPos) return;
   const plains = getSurroundingPlains(startPos, 1, 1, Math.random() < allowSwampProbability).filter(
     p => p.findInRange(FIND_EXIT, exitMargin).length < 1
   );
@@ -1621,6 +1628,24 @@ function flagContainers(room: Room) {
     .filter(source => source.pos.findInRange(FIND_STRUCTURES, 1).filter(isContainer).length < 1);
   for (const source of sourcesWithoutContainer) {
     const containerPos = getPositionsAroundWithTerrainSpace(source.pos, 1, 1, 1, 1)[0];
-    if (containerPos) flagStructure(containerPos, STRUCTURE_CONTAINER);
+    if (containerPos) {
+      flagStructure(containerPos, STRUCTURE_CONTAINER);
+      if (!containerPos.findInRange(FIND_FLAGS, 1).find(flag => flag.name.startsWith(STRUCTURE_LINK + "_"))) {
+        const linkPosition = getPositionsAroundWithTerrainSpace(containerPos, 1, 1, 1, 1).find(
+          pos => pos.lookFor(LOOK_FLAGS).length < 1
+        );
+        if (linkPosition) flagStructure(linkPosition, STRUCTURE_LINK);
+      }
+    }
   }
+}
+
+function flagSpawns(room: Room) {
+  if (getStructureFlags(room, STRUCTURE_SPAWN).length >= CONTROLLER_STRUCTURES[STRUCTURE_SPAWN][8]) return;
+  const controllerPos = room.controller?.pos;
+  if (!controllerPos) return;
+  const extension = controllerPos.findClosestByRange(getStructureFlags(room, STRUCTURE_EXTENSION));
+  if (!extension) return;
+  flagStructure(extension.pos, STRUCTURE_SPAWN);
+  extension.remove();
 }
