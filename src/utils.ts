@@ -222,13 +222,12 @@ export function shouldMaintainStatsFor(pos: RoomPosition): boolean {
   return pos.x % sections === Math.floor(Game.time / interval) % sections;
 }
 
-export function getPositionsAround(
+export function getAccessiblePositionsAround(
   origin: RoomPosition,
   rangeMin: number,
   rangeMax: number,
   excludeBlocked: boolean
 ): RoomPosition[] {
-  //logCpu("getPositionsAround(" + origin.toString() + ")");
   const terrain = new Room.Terrain(origin.roomName);
   const spots: RoomPosition[] = [];
 
@@ -245,11 +244,61 @@ export function getPositionsAround(
       spots.push(pos);
     }
   }
-  //logCpu("getPositionsAround(" + origin.toString() + ")");
   return spots
     .map(value => ({ value, sort: Math.random() })) /* persist sort values */
     .sort((a, b) => b.sort - a.sort) /* sort */
     .map(({ value }) => value); /* remove sort values */
+}
+
+export function getPositionsAround(origin: RoomPosition, rangeMin: number, rangeMax: number): RoomPosition[] {
+  const spots: RoomPosition[] = [];
+
+  const minX = Math.max(0, origin.x - rangeMax);
+  const maxX = Math.min(49, origin.x + rangeMax);
+  const minY = Math.max(0, origin.y - rangeMax);
+  const maxY = Math.min(49, origin.y + rangeMax);
+  for (let x = minX; x <= maxX; x++) {
+    for (let y = minY; y <= maxY; y++) {
+      if (Math.max(Math.abs(origin.x - x), Math.abs(origin.y - y)) < rangeMin) continue;
+      const pos = new RoomPosition(x, y, origin.roomName);
+      spots.push(pos);
+    }
+  }
+  return spots;
+}
+
+export function getPositionsAroundWithTerrainSpace(
+  origin: RoomPosition,
+  positionRangeMin: number,
+  positionRangeMax: number,
+  spaceRangeMin: number,
+  spaceRangeMax: number
+): RoomPosition[] {
+  const terrain = new Room.Terrain(origin.roomName);
+  return getPositionsAround(origin, positionRangeMin, positionRangeMax)
+    .map(pos => ({
+      pos,
+      terrain: terrain.get(pos.x, pos.y)
+    }))
+    .filter(pos => pos.terrain !== TERRAIN_MASK_WALL)
+    .map(item => ({
+      ...item,
+      surroundings: getPositionsAround(item.pos, spaceRangeMin, spaceRangeMax).map(pos2 => ({
+        pos: pos2,
+        terrain: terrain.get(pos2.x, pos2.y)
+      }))
+    }))
+    .map(item => ({
+      ...item,
+      plains: item.surroundings.filter(item2 => item2.terrain === 0).length,
+      swamps: item.surroundings.filter(item2 => item2.terrain === TERRAIN_MASK_SWAMP).length
+    }))
+    .map(item => ({
+      ...item,
+      score: item.swamps + item.plains * 10 + (item.terrain === 0 ? 100 : 0)
+    }))
+    .sort((a, b) => b.score - a.score) /* descending */
+    .map(item => item.pos);
 }
 
 export function setUsername(): void {
@@ -591,7 +640,7 @@ export function getPosForStorage(room: Room): RoomPosition | undefined {
   let bestScore = Number.NEGATIVE_INFINITY;
   let bestPos;
 
-  for (const pos of getPositionsAround(room.controller.pos, 2, 2, true)) {
+  for (const pos of getAccessiblePositionsAround(room.controller.pos, 2, 2, true)) {
     const score =
       (getSurroundingPlains(pos, 1, 1).length -
         pos.findInRange(FIND_STRUCTURES, 1).filter(isObstacle).length) *
@@ -670,44 +719,8 @@ export function getPosForConstruction(
   room: Room,
   structureType: StructureConstant
 ): RoomPosition | undefined {
-  if (structureType === STRUCTURE_LINK) {
-    const linkPos = getPrimaryPosForLink(room);
-    if (linkPos) return linkPos;
-  } else if (structureType === STRUCTURE_STORAGE) {
-    return getPosForStorage(room);
-  } else if (isClusterStructureType(structureType)) {
-    return getPosForClusterStructure(room, structureType);
-  }
-
-  let bestScore = Number.NEGATIVE_INFINITY;
-  let bestPos;
-  const sites = getPotentialConstructionSites(room);
-  for (const { pos, score } of sites) {
-    let finalScore = score;
-    if (structureType === STRUCTURE_LINK) {
-      finalScore = adjustConstructionSiteScoreForLink(score, pos);
-    } else if (structureType === STRUCTURE_OBSERVER && room.storage) {
-      finalScore /= getGlobalRange(pos, room.storage.pos);
-    }
-
-    if (bestScore < finalScore) {
-      bestScore = finalScore;
-      bestPos = pos;
-    }
-  }
-  return bestPos;
-}
-
-function isClusterStructureType(structureType: string) {
-  return (
-    structureType === STRUCTURE_EXTENSION ||
-    structureType === STRUCTURE_SPAWN ||
-    structureType === STRUCTURE_TOWER
-  );
-}
-
-function isClusterStructure(structure: AnyOwnedStructure) {
-  return isSpawnOrExtension(structure) || isTower(structure);
+  //ToDo
+  return undefined;
 }
 
 export function getPotentialConstructionSites(room: Room): ScoredPos[] {
@@ -736,7 +749,7 @@ export function getSurroundingPlains(
   allowSwamp = false
 ): RoomPosition[] {
   const plains = [];
-  const positions = getPositionsAround(pos, rangeMin, rangeMax, true);
+  const positions = getAccessiblePositionsAround(pos, rangeMin, rangeMax, true);
   const terrain = new Room.Terrain(pos.roomName);
   for (const posAround of positions) {
     const type = terrain.get(posAround.x, posAround.y);
@@ -1332,59 +1345,8 @@ function getExits(room: Room) {
 function updateRoomLayout(room: Room) {
   if (!room.controller) return;
   if (getStructureFlags(room, STRUCTURE_STORAGE).length < 1) flagStorage(room);
+  flagContainers(room);
   flagFillables(room);
-}
-
-export function clearClusters(room: Room): void {
-  const flags = room.find(FIND_FLAGS);
-  for (const flag of flags) {
-    if (
-      flag.name.startsWith("cluster_") ||
-      flag.name.startsWith("path_") ||
-      flag.name.startsWith("structure_")
-    )
-      flag.remove();
-  }
-}
-
-function getPosForClusterStructure(room: Room, structureType: StructureConstant): RoomPosition | undefined {
-  const targetPos =
-    structureType === STRUCTURE_TOWER
-      ? new RoomPosition(25, 25, room.name)
-      : room.controller?.pos.findClosestByRange(FIND_SOURCES)?.pos;
-  if (!targetPos) return;
-  const flags = room
-    .find(FIND_FLAGS)
-    .filter(flag => flag.name.startsWith("structure_"))
-    .map(value => ({ value, sort: getGlobalRange(targetPos, value.pos) })) /* persist sort values */
-    .sort((a, b) => a.sort - b.sort) /* sort */
-    .map(({ value }) => value); /* remove sort values */
-  for (const flag of flags) {
-    if (flag.pos.lookFor(LOOK_STRUCTURES).filter(isNotRoad).length > 0) continue;
-    if (flag.pos.lookFor(LOOK_CONSTRUCTION_SITES).length > 0) continue;
-    return flag.pos;
-  }
-  return;
-}
-
-function destroyStructuresOutsideClusters(room: Room) {
-  const center = room.controller?.pos.findClosestByRange(FIND_SOURCES);
-  if (!center) return;
-  const structures = room
-    .find(FIND_MY_STRUCTURES)
-    .filter(isClusterStructure)
-    .map(value => ({ value, sort: getGlobalRange(center.pos, value.pos) })) /* persist sort values */
-    .sort((a, b) => b.sort - a.sort) /* sort */
-    .map(({ value }) => value); /* remove sort values */
-  for (const structure of structures) {
-    if (structure.pos.lookFor(LOOK_FLAGS).filter(flag => flag.name.startsWith("structure_")).length > 0)
-      continue;
-    if (isSpawn(structure) && Object.keys(Game.spawns).length < 2) continue;
-    msg(structure, "Destroying outside planned clusters");
-    structure.destroy();
-    return;
-  }
-  return;
 }
 
 export function getObjectDescription(obj: Destination | undefined | string | Room): string {
@@ -1393,28 +1355,6 @@ export function getObjectDescription(obj: Destination | undefined | string | Roo
   let description = obj.toString();
   if ("pos" in obj) description += " @ " + obj.pos.toString();
   return description;
-}
-
-function addClusterForExistingSpawn(posInfos: ClusterPos[], room: Room): ClusterPos[] {
-  const orphanSpawns = room
-    .find(FIND_MY_STRUCTURES)
-    .filter(
-      spawn =>
-        isSpawn(spawn) &&
-        posInfos.findIndex(pi => pi.content === "cluster" && pi.pos.inRangeTo(spawn.pos.x, spawn.pos.y, 1)) <
-          0
-    );
-  orphanSpawns.forEach(spawn => {
-    const clusterPos = getSurroundingPlains(spawn.pos, 1, 1, false)[0];
-    if (!clusterPos) msg(spawn, "Failed to plan cluster for existing spawn");
-    const index = posInfos.findIndex(pi => pi.pos.x === clusterPos.x && pi.pos.y === clusterPos.y);
-    if (index > -1) {
-      posInfos[index].content = "cluster"; // TypeError: Cannot set property 'content' of undefined
-    } else {
-      posInfos.push({ content: "cluster", pos: clusterPos, scanned: false });
-    }
-  });
-  return posInfos;
 }
 
 export function isAnyoneIdle(role: Role): boolean {
@@ -1581,15 +1521,11 @@ export function updateEnergy(): void {
 function flagStorage(room: Room) {
   const controllerPos = room.controller?.pos;
   if (!controllerPos) return;
-  const positions =
-    getSurroundingPlains(controllerPos, 2, 2, false) ?? getSurroundingPlains(controllerPos, 2, 2, true);
-  const ranked = positions
-    .map(pos => ({
-      pos,
-      space: getSurroundingPlains(pos, 1, 1, false).length * 10 + getSurroundingPlains(pos, 1, 1, true).length
-    })) /* persist sort values */
-    .sort((a, b) => b.space - a.space); /* sort desc */ /* remove sort values */
-  if (ranked.length > 0) flagStructure(ranked.map(({ pos }) => pos)[0], STRUCTURE_STORAGE);
+  const positions = getPositionsAroundWithTerrainSpace(controllerPos, 2, 2, 1, 1);
+  const storagePos = positions[0];
+  const containerPos = positions[1];
+  if (storagePos) flagStructure(storagePos, STRUCTURE_STORAGE);
+  if (containerPos) flagStructure(containerPos, STRUCTURE_CONTAINER);
 }
 
 function flagStructure(pos: RoomPosition, structureType: string) {
@@ -1639,29 +1575,31 @@ function flagFillables(room: Room) {
   const positionsRequiringSpace = storages
     .map(s => s.pos)
     .concat([room.controller.pos])
-    .concat(room.find(FIND_SOURCES).map(s => s.pos));
+    .concat(getStructureFlags(room, STRUCTURE_CONTAINER).map(s => s.pos));
   const existingPositions = storages.concat(getStructureFlags(room, STRUCTURE_EXTENSION));
   const randomIndex = Math.floor(Math.random() * existingPositions.length);
   const startPos = existingPositions[randomIndex]?.pos;
   const allowSwampProbability = 0.05; //allow & discourage
-  let margin = 7;
-  while (margin > 2 && Math.random() < 0.3) margin--; //allow & discourage
+  let exitMargin = 7;
+  while (exitMargin > 1 && Math.random() < 0.2) exitMargin--; //allow & discourage
   if (!startPos) {
     console.log(room, "flagFillables missing startPos");
     return;
   }
-  const plains = getSurroundingPlains(startPos, 1, 1, Math.random() < allowSwampProbability);
+  const plains = getSurroundingPlains(startPos, 1, 1, Math.random() < allowSwampProbability).filter(
+    p => p.findInRange(FIND_EXIT, exitMargin).length < 1
+  );
   for (const pos of plains) {
     const plains2 = getSurroundingPlains(pos, 1, 1, Math.random() < allowSwampProbability).filter(
-      p => p.x >= 0 + margin && p.x <= 49 - margin && p.y >= 0 + margin && p.y <= 49 - margin
+      p => p.findInRange(FIND_EXIT, exitMargin).length < 1
     );
     for (const pos2 of plains2) {
       const plains3 = getSurroundingPlains(pos2, 1, 1, Math.random() < allowSwampProbability).filter(
-        p => p.x >= 0 + margin && p.x <= 49 - margin && p.y >= 0 + margin && p.y <= 49 - margin
+        p => p.findInRange(FIND_EXIT, exitMargin).length < 1
       );
       for (const pos3 of plains3) {
         const flagCount = pos3.lookFor(LOOK_FLAGS).length;
-        if (flagCount < 1 && pos3.findInRange(positionsRequiringSpace, 2).length < 1) {
+        if (flagCount < 1 && pos3.findInRange(positionsRequiringSpace, 1).length < 1) {
           flagStructure(pos3, roadOrExtension(pos3));
         }
       }
@@ -1675,4 +1613,14 @@ function roadOrExtension(pos: RoomPosition): string {
 
 function getStructureFlags(room: Room, structureType: string) {
   return room.find(FIND_FLAGS).filter(flag => flag.name.startsWith(structureType + "_"));
+}
+
+function flagContainers(room: Room) {
+  const sourcesWithoutContainer = room
+    .find(FIND_SOURCES)
+    .filter(source => source.pos.findInRange(FIND_STRUCTURES, 1).filter(isContainer).length < 1);
+  for (const source of sourcesWithoutContainer) {
+    const containerPos = getPositionsAroundWithTerrainSpace(source.pos, 1, 1, 1, 1)[0];
+    if (containerPos) flagStructure(containerPos, STRUCTURE_CONTAINER);
+  }
 }

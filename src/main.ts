@@ -721,7 +721,7 @@ function evadeHostiles(creep: Creep) {
     .map(hostile => hostile.pos)
     .concat(creep.pos.findInRange(FIND_HOSTILE_POWER_CREEPS, 4).map(hostile => hostile.pos));
   if (hostilePositions.length < 1) return;
-  const options = utils.getPositionsAround(creep.pos, 1, 1, true);
+  const options = utils.getAccessiblePositionsAround(creep.pos, 1, 1, true);
   let bestScore = Number.NEGATIVE_INFINITY;
   let bestPos;
   const terrain = new Room.Terrain(creep.pos.roomName);
@@ -1568,7 +1568,7 @@ function getCostMatrix(roomName: string) {
     });
     room.find(FIND_SOURCES).forEach(function (source) {
       // avoid routing around sources
-      const positions = utils.getPositionsAround(source.pos, 1, 1, true);
+      const positions = utils.getAccessiblePositionsAround(source.pos, 1, 1, true);
       for (const pos of positions) {
         if (costs.get(pos.x, pos.y) < 20) costs.set(pos.x, pos.y, 20);
       }
