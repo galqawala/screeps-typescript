@@ -1348,6 +1348,7 @@ function updateRoomLayout(room: Room) {
   flagContainers(room);
   flagFillables(room);
   flagSpawns(room);
+  flagTowers(room);
 }
 
 export function getObjectDescription(obj: Destination | undefined | string | Room): string {
@@ -1647,5 +1648,19 @@ function flagSpawns(room: Room) {
   const extension = controllerPos.findClosestByRange(getStructureFlags(room, STRUCTURE_EXTENSION));
   if (!extension) return;
   flagStructure(extension.pos, STRUCTURE_SPAWN);
+  extension.remove();
+}
+
+function flagTowers(room: Room) {
+  if (getStructureFlags(room, STRUCTURE_TOWER).length >= CONTROLLER_STRUCTURES[STRUCTURE_TOWER][8]) return;
+  const exits = room.find(FIND_EXIT);
+  const randomIndex = Math.floor(Math.random() * exits.length);
+  const exit = exits[randomIndex];
+  if (!exit) return;
+  const extensions = getStructureFlags(room, STRUCTURE_EXTENSION);
+  if (extensions.length < 1) return;
+  const extension = exit.findClosestByPath(extensions);
+  if (!extension) return;
+  flagStructure(extension.pos, STRUCTURE_TOWER);
   extension.remove();
 }
