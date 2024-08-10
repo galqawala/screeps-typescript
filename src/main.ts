@@ -81,6 +81,7 @@ declare global {
     canOperate: boolean;
     claimIsSafe: boolean;
     costMatrix?: number[];
+    costMatrixLayout?: number[];
     repairTargets: Id<Structure>[];
     safeForCreeps: boolean;
     score: number;
@@ -832,7 +833,7 @@ function harvesterSpendEnergy(creep: Creep) {
 function handleRoom(room: Room) {
   handleRoomTowers(room);
   if (!room.memory.costMatrix || Math.random() < 0.03)
-    room.memory.costMatrix = getCostMatrix(room.name).serialize();
+    room.memory.costMatrix = getFreshCostMatrix(room.name).serialize();
   if (Math.random() < 0.1 && utils.gotSpareCpu()) handleRoomObservers(room);
   utils.handleHostilesInRoom(room);
   if (room.controller?.my && utils.canOperateInRoom(room) && Math.random() < 0.3 && utils.gotSpareCpu())
@@ -966,7 +967,7 @@ function move(creep: Creep, destination: Destination, safe = true) {
     plainCost: 2,
     swampCost: 10
   };
-  if (safe) options.costCallback = utils.getCostMatrixSafeCreeps;
+  if (safe) options.costCallback = utils.getCachedCostMatrixSafeCreeps;
   const outcome = creep.moveTo(destination, options);
   //utils.logCpu("move(" + creep.name + ")");
   return outcome;
@@ -1551,7 +1552,7 @@ function getCarrierEnergySource(creep: Creep) {
     .map(({ value }) => value) /* remove sort values */[0];
 }
 
-function getCostMatrix(roomName: string) {
+function getFreshCostMatrix(roomName: string) {
   const room = Game.rooms[roomName];
   const costs = new PathFinder.CostMatrix();
   if (room) {

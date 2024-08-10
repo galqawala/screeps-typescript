@@ -1350,6 +1350,7 @@ function updateRoomLayout(room: Room) {
   flagSpawns(room);
   flagTowers(room);
   flagObserver(room);
+  flagRoads(room);
 }
 
 export function getObjectDescription(obj: Destination | undefined | string | Room): string {
@@ -1430,13 +1431,19 @@ export function moveRandomDirection(creep: Creep): void {
   creep.move(direction);
 }
 
-export function getCostMatrix(roomName: string): CostMatrix {
+export function getCachedCostMatrix(roomName: string): CostMatrix {
   const costMem = Memory.rooms[roomName]?.costMatrix;
   if (costMem) return PathFinder.CostMatrix.deserialize(costMem);
   return new PathFinder.CostMatrix();
 }
 
-export function getCostMatrixSafe(roomName: string): CostMatrix {
+export function getCachedCostMatrixLayout(roomName: string): CostMatrix {
+  const costMem = Memory.rooms[roomName]?.costMatrixLayout;
+  if (costMem) return PathFinder.CostMatrix.deserialize(costMem);
+  return new PathFinder.CostMatrix();
+}
+
+export function getCachedCostMatrixSafe(roomName: string): CostMatrix {
   const costMem = Memory.rooms[roomName]?.costMatrix;
   if (costMem) {
     const costs = PathFinder.CostMatrix.deserialize(costMem);
@@ -1476,8 +1483,8 @@ export function getStorageMin(): number {
   return storageMin;
 }
 
-export function getCostMatrixSafeCreeps(roomName: string): CostMatrix {
-  const costs = getCostMatrixSafe(roomName);
+export function getCachedCostMatrixSafeCreeps(roomName: string): CostMatrix {
+  const costs = getCachedCostMatrixSafe(roomName);
   if (gotSpareCpu()) {
     const room = Game.rooms[roomName];
     // longer the creep has stayed there, less likely it is to move out of the way
@@ -1496,7 +1503,7 @@ export function getPath(from: RoomPosition, to: RoomPosition, range = 0, safe = 
     {
       plainCost: 2,
       swampCost: 10,
-      roomCallback: safe ? getCostMatrixSafe : getCostMatrix
+      roomCallback: safe ? getCachedCostMatrixSafe : getCachedCostMatrix
     }
   ).path;
 }
@@ -1679,4 +1686,72 @@ function flagObserver(room: Room) {
     pos => pos.lookFor(LOOK_FLAGS).length < 1
   );
   if (pos) flagStructure(pos, STRUCTURE_OBSERVER);
+}
+
+function flagRoads(room: Room) {
+  let fromPositions;
+  let toPositions;
+  if (Math.random() < 0.5) {
+    // connect storage and container by road
+    fromPositions = getStructureFlags(room, STRUCTURE_STORAGE);
+    toPositions = getStructureFlags(room, STRUCTURE_CONTAINER);
+  } else {
+    // make sure all roads are connected to each other
+    const roads = getStructureFlags(room, STRUCTURE_ROAD);
+    fromPositions = roads;
+    toPositions = roads;
+  }
+  const from = fromPositions[Math.floor(Math.random() * fromPositions.length)];
+  const to = toPositions[Math.floor(Math.random() * toPositions.length)];
+  if (!from || !to) return;
+  room.memory.costMatrixLayout = getFreshCostMatrixLayout(room).serialize();
+  const path = PathFinder.search(
+    from.pos,
+    { pos: to.pos, range: 0 },
+    {
+      //planned road: 1, planned structure: 20
+      plainCost: 2,
+      swampCost: 10,
+      roomCallback: getCachedCostMatrixLayout
+    }
+  ).path;
+  const newRoads = path.filter(
+    pos => pos.lookFor(LOOK_FLAGS).filter(flag => flag.name.startsWith(STRUCTURE_ROAD + "_")).length < 1
+  );
+  for (const pos of newRoads) {
+    flagStructure(pos, STRUCTURE_ROAD);
+    const obstacles = pos.lookFor(LOOK_FLAGS).filter(flag => structureFlagIsObstacle(flag));
+    for (const obstacle of obstacles) obstacle.remove();
+  }
+}
+
+function getFreshCostMatrixLayout(room: Room) {
+  const costs = new PathFinder.CostMatrix();
+  if (!room) return costs;
+  const flags = room.find(FIND_FLAGS);
+  const roads = flags.filter(flag => flag.name.startsWith(STRUCTURE_ROAD + "_"));
+  for (const road of roads) costs.set(road.pos.x, road.pos.y, 1);
+  const obstacles = flags.filter(flag => structureFlagIsObstacle(flag));
+  //try to avoid structures, but go through them if alternatives are too far
+  for (const structure of obstacles) costs.set(structure.pos.x, structure.pos.y, 20);
+  return costs;
+}
+
+function structureFlagIsObstacle(flag: Flag) {
+  const structureTypes = [
+    "constructedWall",
+    "extension",
+    "factory",
+    "lab",
+    "link",
+    "nuker",
+    "observer",
+    "powerBank",
+    "powerSpawn",
+    "spawn",
+    "storage",
+    "terminal",
+    "tower"
+  ];
+  return structureTypes.some(type => flag.name.startsWith(type + "_"));
 }
