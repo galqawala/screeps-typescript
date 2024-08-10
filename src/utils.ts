@@ -1349,6 +1349,7 @@ function updateRoomLayout(room: Room) {
   flagFillables(room);
   flagSpawns(room);
   flagTowers(room);
+  flagObserver(room);
 }
 
 export function getObjectDescription(obj: Destination | undefined | string | Room): string {
@@ -1663,4 +1664,19 @@ function flagTowers(room: Room) {
   if (!extension) return;
   flagStructure(extension.pos, STRUCTURE_TOWER);
   extension.remove();
+}
+
+function flagObserver(room: Room) {
+  if (getStructureFlags(room, STRUCTURE_OBSERVER).length >= CONTROLLER_STRUCTURES[STRUCTURE_OBSERVER][8])
+    return;
+  const extensions = getStructureFlags(room, STRUCTURE_EXTENSION);
+  if (extensions.length < 1) return;
+  const randomIndex = Math.floor(Math.random() * extensions.length);
+  const extension = extensions[randomIndex];
+  if (!extension) return;
+  const allowSwampProbability = 0.04; //allow & discourage
+  const pos = getSurroundingPlains(extension.pos, 1, 1, Math.random() < allowSwampProbability).find(
+    pos => pos.lookFor(LOOK_FLAGS).length < 1
+  );
+  if (pos) flagStructure(pos, STRUCTURE_OBSERVER);
 }
