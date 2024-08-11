@@ -447,35 +447,6 @@ export function setDestinationFlag(name: string, pos: RoomPosition): void {
   }
 }
 
-export function getHarvestSpotForSource(source: Source): RoomPosition | undefined {
-  const room = Game.rooms[source.pos.roomName];
-  let bestSpot;
-  let bestScore = Number.NEGATIVE_INFINITY;
-  const targetPos = source.pos;
-  const range = 1;
-  const terrain = new Room.Terrain(room.name);
-
-  for (let x = targetPos.x - range; x <= targetPos.x + range; x++) {
-    for (let y = targetPos.y - range; y <= targetPos.y + range; y++) {
-      if (x === targetPos.x && y === targetPos.y) continue;
-      if (terrain.get(x, y) === TERRAIN_MASK_WALL) continue;
-      const pos = new RoomPosition(x, y, room.name);
-      if (blockedByStructure(pos)) continue;
-      const score =
-        (hasStructureInRange(pos, STRUCTURE_LINK, 1, true) ? 2 : 0) +
-        pos.lookFor(LOOK_STRUCTURES).filter(structure => structure.structureType === STRUCTURE_CONTAINER)
-          .length +
-        pos.findInRange(FIND_SOURCES, 1).length;
-      if (bestScore < score) {
-        bestScore = score;
-        bestSpot = pos;
-      }
-    }
-  }
-
-  return bestSpot;
-}
-
 export function sourceHasHarvester(source: Source): boolean {
   for (const i in Game.creeps) {
     const creep = Game.creeps[i];

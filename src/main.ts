@@ -1319,7 +1319,7 @@ function spawnHarvester() {
   }
   if (!spawn || !body) return;
   const name = utils.getNameForCreep(roleToSpawn);
-  const harvestPos = utils.getHarvestSpotForSource(source);
+  let harvestPos = getHarvestPos(source);
   if (!harvestPos) return;
   const memory = {
     sourceId: source.id,
@@ -1910,9 +1910,80 @@ function getBuildSitePriority(site: ConstructionSite<BuildableStructureConstant>
 }
 
 function getSignText(): string {
-  // Why not have your .ts file have a function to randomly select a line as its sole export, then mix the hardcoded and memory ones together?
-  let texts = ["Steamrolled by Ruto"];
+  // The sign text. The string is cut off after 100 characters.
+  let texts = [
+    "By the Beard!",
+    "Come on guys! Rock and Stone!",
+    "Did I hear a Rock and Stone?",
+    "Eh, it's not good, it doesn't look good",
+    "For Karl!",
+    "For Rock and Stone!",
+    "For Teamwork!",
+    "For those about to Rock and Stone, we salute you!",
+    "Galaxies finest!",
+    "Gimmie a Rock... and Stone!",
+    "Gimmie an R! Gimmie an S! Gimmie a Rock. And. Stone!",
+    "I can't control it, we're going down!",
+    "If I had a credit for every Rock and Stone.",
+    "If you don't Rock and Stone, you ain't comin' home!",
+    "If you Rock and Stone, you're never alone!",
+    "Last one to Rock and Stone pays for the first round!",
+    "Leave No Dwarf Behind!",
+    "Let's Rock and Stone!",
+    "Like that! Rock and Stone!",
+    "May-May-Ma-Mayday-Mayday",
+    "Mother control, I can't, I can't control it",
+    "None can stand before us!",
+    "Not good, this is not good!",
+    "Rock and roll and stone!",
+    "Rock and roll!",
+    "Rock and Stone everyone!",
+    "Rock and Stone forever!",
+    "Rock and Stone in the Heart!",
+    "Rock and Stone like there's no tomorrow!",
+    "Rock and Stone to the Bone!",
+    "Rock and Stone you beautiful dwarf!",
+    "Rock and Stone, Brother!",
+    "Rock and Stone, the pretty sound of teamwork!",
+    "Rock and Stone! It never gets old.",
+    "Rock and Stone!",
+    "Rock and Stone... Yeeaaahhh!",
+    "Rock and Stone.",
+    "Rock and... Stone!",
+    "Rock me like a Stone!",
+    "Rock on!",
+    "Rock solid!",
+    "Rock! (burp) And! (burp) Stone! (burp)",
+    "ROCK! AND! STONE!",
+    "ROCK... AND... STONE!",
+    "Rock... Solid!",
+    "Rockitty Rock and Stone!",
+    "Stone and Rock! ...Oh, wait...",
+    "Stone.",
+    "That's it lads! Rock and Stone!",
+    "We are unbreakable!",
+    "We fight for Rock and Stone!",
+    "We rock!",
+    "We're the best!",
+    "Yeaahhh! Rock and Stone!",
+    "Yeah, yeah, Rock and Stone."
+  ];
   if (Memory.signTexts) texts = texts.concat(Memory.signTexts);
   const randomIndex = Math.floor(Math.random() * texts.length);
   return texts[randomIndex];
+}
+
+function getHarvestPos(source: Source) {
+  const positions = utils.getPositionsAroundWithTerrainSpace(source.pos, 1, 1, 1, 1);
+  return (
+    positions.find(
+      /*container here*/
+      pos => pos.lookFor(LOOK_FLAGS).filter(f => f.name.startsWith(STRUCTURE_CONTAINER + "_")).length > 0
+    ) ??
+    positions.find(
+      /*next to link*/
+      pos => pos.findInRange(FIND_FLAGS, 1).filter(f => f.name.startsWith(STRUCTURE_LINK + "_")).length > 0
+    ) ??
+    positions[0] /*space around*/
+  );
 }
