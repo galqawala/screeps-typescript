@@ -1,3 +1,5 @@
+// Memory.printCpuInfo=true;
+
 // Type guards
 export function isOwnedStructure(structure: Structure): structure is AnyOwnedStructure {
   return (structure as { my?: boolean }).my !== undefined;
@@ -1343,15 +1345,29 @@ function getExits(room: Room) {
 }
 
 function updateRoomLayout(room: Room) {
+  //only move on to the next phase once earlier phases are complete (we don't want to build ramparts around partial base for example)
+  // Game.rooms.E53S2.memory.resetLayout=true;
+  if (room.memory.resetLayout) {
+    resetLayout(room);
+    return;
+  }
   if (!room.controller) return;
-  if (getStructureFlags(room, STRUCTURE_STORAGE).length < 1) flagStorage(room);
-  flagContainers(room);
-  flagFillables(room);
-  flagSpawns(room);
-  flagTowers(room);
-  flagObserver(room);
-  flagRoads(room);
-  flagRampartsOnStructures(room);
+  if (!flagStorage(room)) return;
+  if (!flagSourceContainers(room)) return;
+  if (!flagSourceLinks(room)) return;
+  if (!flagFillables(room)) return;
+  if (!flagSpawns(room)) return;
+  if (!flagTowers(room)) return;
+  if (!flagObserver(room)) return;
+  if (!flagRoads(room)) return;
+  if (!flagRampartsOnStructures(room)) return;
+  if (!flagRampartsAroundBase(room)) return;
+}
+
+function resetLayout(room: Room) {
+  const flags = room.find(FIND_FLAGS);
+  for (const flag of flags) flag.remove();
+  delete room.memory.resetLayout;
 }
 
 export function getObjectDescription(obj: Destination | undefined | string | Room): string {
@@ -1444,6 +1460,12 @@ export function getCachedCostMatrixLayout(roomName: string): CostMatrix {
   return new PathFinder.CostMatrix();
 }
 
+export function getCachedCostMatrixRamparts(roomName: string): CostMatrix {
+  const costMem = Memory.rooms[roomName]?.costMatrixRamparts;
+  if (costMem) return PathFinder.CostMatrix.deserialize(costMem);
+  return new PathFinder.CostMatrix();
+}
+
 export function getCachedCostMatrixSafe(roomName: string): CostMatrix {
   const costMem = Memory.rooms[roomName]?.costMatrix;
   if (costMem) {
@@ -1530,13 +1552,15 @@ export function updateEnergy(): void {
 }
 
 function flagStorage(room: Room) {
+  const structureType = STRUCTURE_STORAGE;
+  if (getStructureFlags(room, structureType).length >= CONTROLLER_STRUCTURES[structureType][8]) return true;
   const controllerPos = room.controller?.pos;
-  if (!controllerPos) return;
+  if (!controllerPos) return false;
   const positions = getPositionsAroundWithTerrainSpace(controllerPos, 2, 2, 1, 1);
   const storagePos = positions[0];
   const containerPos = positions[1];
   if (storagePos) {
-    flagStructure(storagePos, STRUCTURE_STORAGE);
+    flagStructure(storagePos, structureType);
     if (!storagePos.findInRange(FIND_FLAGS, 2).find(flag => flag.name.startsWith(STRUCTURE_LINK + "_"))) {
       const linkPosition = getPositionsAroundWithTerrainSpace(storagePos, 2, 2, 1, 1).find(
         pos => pos.lookFor(LOOK_FLAGS).length < 1 && !isPosEqual(containerPos, pos)
@@ -1545,6 +1569,7 @@ function flagStorage(room: Room) {
     }
   }
   if (containerPos) flagStructure(containerPos, STRUCTURE_CONTAINER);
+  return false;
 }
 
 function flagStructure(pos: RoomPosition, structureType: string) {
@@ -1584,11 +1609,12 @@ function getRandomColor(): ColorConstant {
 }
 
 function flagFillables(room: Room) {
+  // flag spawns, extensions and towers as extensions initially and in a later phase change some into spawns and towers
   const currentCount =
     getStructureFlags(room, STRUCTURE_SPAWN).length +
     getStructureFlags(room, STRUCTURE_EXTENSION).length +
     getStructureFlags(room, STRUCTURE_TOWER).length;
-  if (currentCount >= fillableStructureTargetCount || !room.controller) return;
+  if (currentCount >= fillableStructureTargetCount || !room.controller) return true;
 
   const storages = getStructureFlags(room, STRUCTURE_STORAGE);
   const positionsRequiringSpace = storages
@@ -1599,10 +1625,10 @@ function flagFillables(room: Room) {
   const existingPositions = storages.concat(getStructureFlags(room, STRUCTURE_EXTENSION));
   const randomIndex = Math.floor(Math.random() * existingPositions.length);
   const startPos = existingPositions[randomIndex]?.pos;
-  const allowSwampProbability = 0.04; //allow & discourage
+  const allowSwampProbability = 0.02; //allow & discourage
   let exitMargin = 7;
   while (exitMargin > 1 && Math.random() < 0.2) exitMargin--; //allow & discourage
-  if (!startPos) return;
+  if (!startPos) return false;
   const plains = getSurroundingPlains(startPos, 1, 1, Math.random() < allowSwampProbability).filter(
     p => p.findInRange(FIND_EXIT, exitMargin).length < 1
   );
@@ -1622,6 +1648,7 @@ function flagFillables(room: Room) {
       }
     }
   }
+  return false;
 }
 
 function roadOrExtension(pos: RoomPosition): string {
@@ -1632,64 +1659,93 @@ function getStructureFlags(room: Room, structureType: string) {
   return room.find(FIND_FLAGS).filter(flag => flag.name.startsWith(structureType + "_"));
 }
 
-function flagContainers(room: Room) {
-  const sourcesWithoutContainer = room
+function flagSourceContainers(room: Room) {
+  const structureType = STRUCTURE_CONTAINER;
+  const sourcesWithout = room
     .find(FIND_SOURCES)
-    .filter(source => source.pos.findInRange(FIND_STRUCTURES, 1).filter(isContainer).length < 1);
-  for (const source of sourcesWithoutContainer) {
+    .filter(
+      source =>
+        source.pos.findInRange(FIND_FLAGS, 1).filter(flag => flag.name.startsWith(structureType + "_"))
+          .length < 1
+    );
+  if (sourcesWithout.length < 1) return true;
+  for (const source of sourcesWithout) {
     const containerPos = getPositionsAroundWithTerrainSpace(source.pos, 1, 1, 1, 1)[0];
-    if (containerPos) {
-      flagStructure(containerPos, STRUCTURE_CONTAINER);
-      if (!containerPos.findInRange(FIND_FLAGS, 1).find(flag => flag.name.startsWith(STRUCTURE_LINK + "_"))) {
-        const linkPosition = getPositionsAroundWithTerrainSpace(containerPos, 1, 1, 1, 1).find(
-          pos => pos.lookFor(LOOK_FLAGS).length < 1
-        );
-        if (linkPosition) flagStructure(linkPosition, STRUCTURE_LINK);
-      }
+    if (containerPos) flagStructure(containerPos, structureType);
+  }
+  return false;
+}
+
+function flagSourceLinks(room: Room) {
+  const structureType = STRUCTURE_LINK;
+  const sources = room.find(FIND_SOURCES);
+  const containersWithoutLink = [];
+  for (const source of sources) {
+    const containers = source.pos
+      .findInRange(FIND_FLAGS, 1)
+      .filter(flag => flag.name.startsWith(STRUCTURE_CONTAINER + "_"));
+    for (const container of containers) {
+      if (
+        container.pos.findInRange(FIND_FLAGS, 1).filter(flag => flag.name.startsWith(structureType + "_"))
+          .length < 1
+      )
+        containersWithoutLink.push(container);
     }
   }
+  if (containersWithoutLink.length < 1) return true;
+  for (const container of containersWithoutLink) {
+    const containerPos = getPositionsAroundWithTerrainSpace(container.pos, 1, 1, 1, 1)[0];
+    if (containerPos) flagStructure(containerPos, structureType);
+  }
+  return false;
 }
 
 function flagSpawns(room: Room) {
-  if (getStructureFlags(room, STRUCTURE_SPAWN).length >= CONTROLLER_STRUCTURES[STRUCTURE_SPAWN][8]) return;
+  const structureType = STRUCTURE_SPAWN;
+  if (getStructureFlags(room, structureType).length >= CONTROLLER_STRUCTURES[structureType][8]) return true;
   const controllerPos = room.controller?.pos;
-  if (!controllerPos) return;
+  if (!controllerPos) return false;
   const extension = controllerPos.findClosestByRange(getStructureFlags(room, STRUCTURE_EXTENSION));
-  if (!extension) return;
-  flagStructure(extension.pos, STRUCTURE_SPAWN);
+  if (!extension) return false;
+  flagStructure(extension.pos, structureType);
   extension.remove();
+  return false;
 }
 
 function flagTowers(room: Room) {
-  if (getStructureFlags(room, STRUCTURE_TOWER).length >= CONTROLLER_STRUCTURES[STRUCTURE_TOWER][8]) return;
+  const structureType = STRUCTURE_TOWER;
+  if (getStructureFlags(room, structureType).length >= CONTROLLER_STRUCTURES[structureType][8]) return true;
   const exits = room.find(FIND_EXIT);
   const randomIndex = Math.floor(Math.random() * exits.length);
   const exit = exits[randomIndex];
-  if (!exit) return;
+  if (!exit) return false;
   const extensions = getStructureFlags(room, STRUCTURE_EXTENSION);
-  if (extensions.length < 1) return;
+  if (extensions.length < 1) return false;
   const extension = exit.findClosestByPath(extensions);
-  if (!extension) return;
-  flagStructure(extension.pos, STRUCTURE_TOWER);
+  if (!extension) return false;
+  flagStructure(extension.pos, structureType);
   extension.remove();
+  return false;
 }
 
 function flagObserver(room: Room) {
-  if (getStructureFlags(room, STRUCTURE_OBSERVER).length >= CONTROLLER_STRUCTURES[STRUCTURE_OBSERVER][8])
-    return;
+  const structureType = STRUCTURE_OBSERVER;
+  if (getStructureFlags(room, structureType).length >= CONTROLLER_STRUCTURES[structureType][8]) return true;
   const extensions = getStructureFlags(room, STRUCTURE_EXTENSION);
-  if (extensions.length < 1) return;
+  if (extensions.length < 1) return false;
   const randomIndex = Math.floor(Math.random() * extensions.length);
   const extension = extensions[randomIndex];
-  if (!extension) return;
-  const allowSwampProbability = 0.04; //allow & discourage
+  if (!extension) return false;
+  const allowSwampProbability = 0.02; //allow & discourage
   const pos = getSurroundingPlains(extension.pos, 1, 1, Math.random() < allowSwampProbability).find(
     pos => pos.lookFor(LOOK_FLAGS).length < 1
   );
-  if (pos) flagStructure(pos, STRUCTURE_OBSERVER);
+  if (pos) flagStructure(pos, structureType);
+  return false;
 }
 
 function flagRoads(room: Room) {
+  const structureType = STRUCTURE_ROAD;
   let fromPositions;
   let toPositions;
   if (Math.random() < 0.5) {
@@ -1698,13 +1754,13 @@ function flagRoads(room: Room) {
     toPositions = getStructureFlags(room, STRUCTURE_CONTAINER);
   } else {
     // make sure all roads are connected to each other
-    const roads = getStructureFlags(room, STRUCTURE_ROAD);
+    const roads = getStructureFlags(room, structureType);
     fromPositions = roads;
     toPositions = roads;
   }
   const from = fromPositions[Math.floor(Math.random() * fromPositions.length)];
   const to = toPositions[Math.floor(Math.random() * toPositions.length)];
-  if (!from || !to) return;
+  if (!from || !to) return false;
   room.memory.costMatrixLayout = getFreshCostMatrixLayout(room).serialize();
   const path = PathFinder.search(
     from.pos,
@@ -1714,18 +1770,20 @@ function flagRoads(room: Room) {
       plainCost: 3,
       swampCost: 10,
       roomCallback: getCachedCostMatrixLayout,
-      heuristicWeight: 1 /* lower is more accurate, but uses more CPU */
+      heuristicWeight: 1 /* lower is more accurate, but uses more CPU */,
+      maxRooms: 1
     }
   ).path;
   const newRoads = path.filter(
-    pos => pos.lookFor(LOOK_FLAGS).filter(flag => flag.name.startsWith(STRUCTURE_ROAD + "_")).length < 1
+    pos => pos.lookFor(LOOK_FLAGS).filter(flag => flag.name.startsWith(structureType + "_")).length < 1
   );
   if (newRoads.length > 1) room.memory.polyPoints = path;
   for (const pos of newRoads) {
-    flagStructure(pos, STRUCTURE_ROAD);
+    flagStructure(pos, structureType);
     const obstacles = pos.lookFor(LOOK_FLAGS).filter(flag => structureFlagIsObstacle(flag));
     for (const obstacle of obstacles) obstacle.remove();
   }
+  return true;
 }
 
 function getFreshCostMatrixLayout(room: Room) {
@@ -1737,6 +1795,14 @@ function getFreshCostMatrixLayout(room: Room) {
   const obstacles = flags.filter(flag => structureFlagIsObstacle(flag));
   //try to avoid structures, but go through them if alternatives are too far
   for (const structure of obstacles) costs.set(structure.pos.x, structure.pos.y, 20);
+  return costs;
+}
+
+function getFreshCostMatrixRamparts(room: Room) {
+  const costs = new PathFinder.CostMatrix();
+  if (!room) return costs;
+  const ramparts = getStructureFlags(room, STRUCTURE_RAMPART);
+  for (const rampart of ramparts) costs.set(rampart.pos.x, rampart.pos.y, 255);
   return costs;
 }
 
@@ -1771,7 +1837,24 @@ function structureFlagRequiresRampart(flag: Flag) {
   return structureTypes.some(type => flag.name.startsWith(type + "_"));
 }
 
+function structureFlagIsBase(flag: Flag) {
+  const structureTypes = [
+    STRUCTURE_EXTENSION,
+    STRUCTURE_SPAWN,
+    STRUCTURE_STORAGE,
+    STRUCTURE_TOWER,
+    STRUCTURE_OBSERVER,
+    STRUCTURE_POWER_SPAWN,
+    STRUCTURE_LAB,
+    STRUCTURE_TERMINAL,
+    STRUCTURE_NUKER,
+    STRUCTURE_FACTORY
+  ];
+  return structureTypes.some(type => flag.name.startsWith(type + "_"));
+}
+
 function flagRampartsOnStructures(room: Room) {
+  const structureType = STRUCTURE_RAMPART;
   const rampartsRequired = room
     .find(FIND_FLAGS)
     .filter(
@@ -1779,7 +1862,35 @@ function flagRampartsOnStructures(room: Room) {
         structureFlagRequiresRampart(structureRequiringRampart) &&
         structureRequiringRampart.pos
           .lookFor(LOOK_FLAGS)
-          .filter(rampart => rampart.name.startsWith(STRUCTURE_RAMPART + "_")).length < 1
+          .filter(rampart => rampart.name.startsWith(structureType + "_")).length < 1
     );
-  for (const flag of rampartsRequired) flagStructure(flag.pos, STRUCTURE_RAMPART);
+  for (const flag of rampartsRequired) flagStructure(flag.pos, structureType);
+  return true;
+}
+
+function flagRampartsAroundBase(room: Room) {
+  const exits = room.find(FIND_EXIT);
+  const randomIndex = Math.floor(Math.random() * exits.length);
+  const exit = exits[randomIndex];
+  if (!exit) return false;
+  const goals = room
+    .find(FIND_FLAGS)
+    .filter(flag => structureFlagIsBase(flag))
+    .map(flag => ({
+      pos: flag.pos,
+      range: 3
+    }));
+  if (goals.length < 1) return false;
+  room.memory.costMatrixRamparts = getFreshCostMatrixRamparts(room).serialize();
+  const pathResult = PathFinder.search(exit, goals, {
+    plainCost: 1,
+    swampCost: 1,
+    roomCallback: getCachedCostMatrixRamparts,
+    heuristicWeight: 1 /* lower is more accurate, but uses more CPU */,
+    maxRooms: 1
+  });
+  if (pathResult.incomplete) return true;
+  const rampartPos = pathResult.path[pathResult.path.length - 1];
+  if (rampartPos) flagStructure(rampartPos, STRUCTURE_RAMPART);
+  return false;
 }

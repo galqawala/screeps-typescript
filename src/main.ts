@@ -1,3 +1,5 @@
+// Memory.printCpuInfo=true;
+
 // When compiling TS to JS and bundling with rollup, the line numbers and file names in error messages change
 // This utility uses source maps to get the line numbers and file names of the original, TS source code
 import * as utils from "utils";
@@ -82,8 +84,10 @@ declare global {
     claimIsSafe: boolean;
     costMatrix?: number[];
     costMatrixLayout?: number[];
+    costMatrixRamparts?: number[];
     polyPoints: RoomPosition[] /* visualize paths for debugging etc. */;
     repairTargets: Id<Structure>[];
+    resetLayout?: boolean;
     safeForCreeps: boolean;
     score: number;
     stickyEnergy: Record<Id<AnyStoreStructure>, number>;
@@ -141,7 +145,11 @@ declare global {
 export const loop = ErrorMapper.wrapLoop(() => {
   Memory.cpuLog = {}; // before everything!
   utils.logCpu("main");
-  for (const r in Game.rooms) handleRoom(Game.rooms[r]);
+  const rooms = Object.values(Game.rooms)
+    .map(value => ({ value, sort: Math.random() })) /* persist sort values */
+    .sort((a, b) => a.sort - b.sort) /* sort */
+    .map(({ value }) => value); /* remove sort values */
+  for (const room of rooms) handleRoom(room); //handle rooms in random order to give each a fair change of gotSpareCpu()
   if ((Memory.maxTickLimit || 0) < Game.cpu.tickLimit) Memory.maxTickLimit = Game.cpu.tickLimit;
   if (Math.random() < 0.1) {
     for (const key in Memory.rooms) {
@@ -839,8 +847,7 @@ function handleRoom(room: Room) {
     room.memory.costMatrix = getFreshCostMatrix(room.name).serialize();
   if (Math.random() < 0.1 && utils.gotSpareCpu()) handleRoomObservers(room);
   utils.handleHostilesInRoom(room);
-  if (room.controller?.my && utils.canOperateInRoom(room) && Math.random() < 0.3 && utils.gotSpareCpu())
-    utils.constructInRoom(room);
+  if (room.controller?.my && utils.canOperateInRoom(room) && utils.gotSpareCpu()) utils.constructInRoom(room);
   utils.handleLinks(room);
   if (!room.memory.score) utils.updateRoomScore(room);
   if (Math.random() < 0.001) utils.updateRoomRepairTargets(room);
@@ -1486,16 +1493,13 @@ function getBodyForInfantry(energyAvailable: number) {
 }
 
 function purgeFlagsMemory() {
-  //utils.logCpu("purgeFlagsMemory()");
   for (const key in Memory.flags) {
     if (!Game.flags[key]) delete Memory.flags[key];
   }
-  //utils.logCpu("purgeFlagsMemory()");
 }
 
 function purgeFlags() {
   for (const flag of Object.values(Game.flags)) {
-    // flag.remove(); //TODO: REMOVE AFTER DEBUGGING
     const name = flag.name;
     if (name.startsWith("traffic_")) flag.remove();
     if (name.startsWith("creep_") && !(name.substring(6) in Game.creeps)) flag.remove();
