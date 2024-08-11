@@ -447,16 +447,6 @@ export function setDestinationFlag(name: string, pos: RoomPosition): void {
   }
 }
 
-export function constructContainerIfNeed(harvestPos: RoomPosition): void {
-  if (
-    harvestPos.lookFor(LOOK_STRUCTURES).filter(s => s.structureType !== STRUCTURE_ROAD).length <= 0 &&
-    harvestPos.lookFor(LOOK_CONSTRUCTION_SITES).length <= 0 &&
-    !hasStructureInRange(harvestPos, STRUCTURE_LINK, 1, true)
-  ) {
-    harvestPos.createConstructionSite(STRUCTURE_CONTAINER);
-  }
-}
-
 export function getHarvestSpotForSource(source: Source): RoomPosition | undefined {
   const room = Game.rooms[source.pos.roomName];
   let bestSpot;
@@ -861,73 +851,6 @@ export function getHpRatio(obj: Structure): number {
   return 0;
 }
 
-export function constructInRoom(room: Room): void {
-  const structureTypesByPriority = [
-    STRUCTURE_SPAWN,
-    STRUCTURE_STORAGE,
-    STRUCTURE_TOWER,
-    STRUCTURE_EXTENSION,
-    STRUCTURE_LINK,
-    STRUCTURE_OBSERVER
-  ];
-  for (const structureType of structureTypesByPriority) {
-    // max one per tick to prevent trying to place multiple structures in the same coords
-    if (construct(room, structureType)) {
-      console.log("Constructing in ", room);
-      return;
-    }
-  }
-
-  if (
-    room.controller &&
-    room.controller.my &&
-    CONTROLLER_STRUCTURES[STRUCTURE_STORAGE][room.controller.level] < 1 &&
-    !hasStructureInRange(room.controller.pos, STRUCTURE_CONTAINER, 3, true)
-  ) {
-    // container instead of storage
-    const pos = getPosForStorage(room);
-    if (pos) pos.createConstructionSite(STRUCTURE_CONTAINER);
-  }
-  updateRoomLayout(room);
-  destroyUnnecessaryContainers(room);
-}
-
-export function constructRoads(): void {
-  // construct roads between two random points of interest not too far from each other
-  //logCpu("constructRoads()");
-  let pointsOfInterest = Object.values(Game.flags)
-    .filter(
-      flag =>
-        flag.name.startsWith("cluster_") &&
-        flag.room &&
-        flag.pos.findInRange(FIND_MY_STRUCTURES, 1).length > 0
-    )
-    .map(flag => flag.pos);
-  for (const room of Object.values(Game.rooms)) {
-    pointsOfInterest = pointsOfInterest.concat(
-      room
-        .find(FIND_STRUCTURES)
-        .filter(isContainer)
-        .map(container => container.pos)
-    );
-  }
-  //logCpu("constructRoads()");
-  if (pointsOfInterest.length < 2) return;
-  pointsOfInterest = pointsOfInterest
-    .map(value => ({ value, sort: Math.random() })) /* persist sort values */
-    .sort((a, b) => b.sort - a.sort) /* sort */
-    .map(({ value }) => value); /* remove sort values */
-  const from = pointsOfInterest.shift();
-  const to = pointsOfInterest.find(pos => getGlobalRange(from, pos) <= 60);
-  //logCpu("constructRoads()");
-  if (!from || !to) return;
-  const path = getPath(from, to);
-  for (const pos of path) {
-    pos.createConstructionSite(STRUCTURE_ROAD);
-  }
-  //logCpu("constructRoads()");
-}
-
 export function checkRoomCanOperate(room: Room): void {
   //logCpu("checkRoomCanOperate(" + room.name + ")");
   const value = canOperateInRoom(room);
@@ -1197,27 +1120,6 @@ export function getBodyCost(body: BodyPartConstant[]): number {
   }, 0);
 }
 
-export function construct(room: Room, structureType: BuildableStructureConstant): boolean {
-  if (needStructure(room, structureType)) {
-    const pos = getPosForConstruction(room, structureType);
-    if (!pos) return false;
-    if (structureType !== STRUCTURE_ROAD) {
-      pos.lookFor(LOOK_STRUCTURES).forEach(existingStructure => {
-        if (
-          existingStructure instanceof StructureExtension ||
-          existingStructure instanceof StructureContainer
-        ) {
-          msg(existingStructure, "Destroying to make space for: " + structureType, true);
-          existingStructure.destroy();
-        }
-      });
-    }
-    const outcome = pos.createConstructionSite(structureType);
-    if (structureType !== STRUCTURE_ROAD) return outcome === OK;
-  }
-  return false;
-}
-
 export function needStructure(room: Room, structureType: BuildableStructureConstant): boolean {
   if (!room.controller) return false; // no controller
   if (!room.controller.my && room.controller.owner) return false; // owned by others
@@ -1344,7 +1246,7 @@ function getExits(room: Room) {
   return exits;
 }
 
-function updateRoomLayout(room: Room) {
+export function updateRoomLayout(room: Room) {
   //only move on to the next phase once earlier phases are complete (we don't want to build ramparts around partial base for example)
   // Game.rooms.E53S2.memory.resetLayout=true;
   if (room.memory.resetLayout) {
@@ -1364,7 +1266,8 @@ function updateRoomLayout(room: Room) {
   if (!flagRoads(room)) return;
   if (!flagRampartsOnStructures(room)) return;
   if (!flagRampartsAroundBase(room)) return;
-  unFlagUnnecessaryContainers(room);
+  if (!unFlagUnnecessaryContainers(room)) return;
+  if (!createConstructionSitesOnFlags(room)) return;
 }
 
 function resetLayout(room: Room) {
@@ -1927,6 +1830,7 @@ function unFlagUnnecessaryContainers(room: Room) {
     container => !isContainerFlagNecessary(container)
   );
   for (const container of unnecessaryContainers) container.remove();
+  return unnecessaryContainers.length < 1;
 }
 
 function isContainerFlagNecessary(container: Flag) {
@@ -1953,4 +1857,56 @@ function isEnoughLinksAvailable(room: Room) {
     CONTROLLER_STRUCTURES[STRUCTURE_LINK][room?.controller?.level ?? 0] >=
     room.find(FIND_SOURCES).length + CONTROLLER_STRUCTURES[STRUCTURE_STORAGE][room?.controller?.level ?? 0]
   );
+}
+
+function createConstructionSitesOnFlags(room: Room) {
+  const allSites = Object.values(Game.constructionSites);
+  if (allSites.length >= 100) return true; //globally maxed out
+  const roomSites = allSites.filter(site => site.pos.roomName === room.name);
+  // The maximum number of construction sites per player is 100. Don't spend them all in one room.
+  if (roomSites.length >= 1 && roomSites.length >= 100 / Object.keys(Game.rooms).length) return true;
+  const prioritizedTypes = [
+    STRUCTURE_SPAWN,
+    STRUCTURE_TOWER,
+    STRUCTURE_STORAGE,
+    STRUCTURE_CONTAINER,
+    STRUCTURE_EXTENSION,
+    STRUCTURE_ROAD,
+    STRUCTURE_LINK,
+    STRUCTURE_WALL,
+    STRUCTURE_RAMPART,
+    STRUCTURE_EXTRACTOR,
+    STRUCTURE_OBSERVER,
+    STRUCTURE_POWER_SPAWN,
+    STRUCTURE_LAB,
+    STRUCTURE_TERMINAL,
+    STRUCTURE_NUKER,
+    STRUCTURE_FACTORY
+  ];
+  for (const structureType of prioritizedTypes) {
+    if (!needStructure(room, structureType)) continue;
+    const flag = getStructureFlags(room, structureType).find(
+      f =>
+        f.pos
+          .look()
+          .filter(
+            content =>
+              content.constructionSite?.structureType === structureType ||
+              content.structure?.structureType === structureType
+          ).length < 1 /* Planned position doesn't have the planned structure or construction site for it */
+    );
+    if (flag && flag.pos.createConstructionSite(structureType) === OK) {
+      console.log(flag, flag.pos, "Construction site created!");
+      return false; /* one/tick so that look() returns up-to-date data */
+    } else if (flag) {
+      console.log(flag, flag?.pos, "Failed to create a construction site!");
+    }
+  }
+  return true;
+}
+
+export function removeConstructionSitesOnRoomsWithoutVisibility() {
+  const sites = Object.values(Game.constructionSites).filter(site => !site.room);
+  for (const site of sites) site.remove();
+  return true;
 }

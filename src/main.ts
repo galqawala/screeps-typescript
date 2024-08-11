@@ -153,13 +153,18 @@ export const loop = ErrorMapper.wrapLoop(() => {
   if ((Memory.maxTickLimit || 0) < Game.cpu.tickLimit) Memory.maxTickLimit = Game.cpu.tickLimit;
   if (Math.random() < 0.1) {
     for (const key in Memory.rooms) {
-      if (!Game.rooms[key]) delete Memory.rooms[key].costMatrix;
+      if (!Game.rooms[key]) {
+        delete Memory.rooms[key].costMatrix;
+        delete Memory.rooms[key].costMatrixLayout;
+        delete Memory.rooms[key].costMatrixRamparts;
+      }
     }
     for (const key in Memory.creeps) {
       if (!Game.creeps[key]) delete Memory.creeps[key];
     }
     purgeFlags();
     purgeFlagsMemory();
+    utils.removeConstructionSitesOnRoomsWithoutVisibility();
   }
   if (!Memory.username) utils.setUsername();
   checkWipeOut();
@@ -170,7 +175,6 @@ export const loop = ErrorMapper.wrapLoop(() => {
   updateFlagReserve();
   if (utils.gotSpareCpu()) updateFlagDismantle();
   handleCreeps();
-  if (Math.random() < 0.01 || utils.gotSpareCpu()) utils.constructRoads();
   if (Game.time % 10 === 0) utils.updateEnergy();
   Memory.cpuUsedRatio = Game.cpu.getUsed() / Game.cpu.limit;
   utils.logCpu("main");
@@ -847,7 +851,8 @@ function handleRoom(room: Room) {
     room.memory.costMatrix = getFreshCostMatrix(room.name).serialize();
   if (Math.random() < 0.1 && utils.gotSpareCpu()) handleRoomObservers(room);
   utils.handleHostilesInRoom(room);
-  if (room.controller?.my && utils.canOperateInRoom(room) && utils.gotSpareCpu()) utils.constructInRoom(room);
+  if (room.controller?.my && utils.canOperateInRoom(room) && utils.gotSpareCpu())
+    utils.updateRoomLayout(room);
   utils.handleLinks(room);
   if (!room.memory.score) utils.updateRoomScore(room);
   if (Math.random() < 0.001) utils.updateRoomRepairTargets(room);
@@ -1317,7 +1322,6 @@ function spawnHarvester() {
   const name = utils.getNameForCreep(roleToSpawn);
   const harvestPos = utils.getHarvestSpotForSource(source);
   if (!harvestPos) return;
-  utils.constructContainerIfNeed(harvestPos);
   const memory = {
     sourceId: source.id,
     stroke: utils.hslToHex(Math.random() * 360, 100, 50),
