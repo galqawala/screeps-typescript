@@ -164,7 +164,7 @@ export const loop = ErrorMapper.wrapLoop(() => {
     }
     purgeFlags();
     purgeFlagsMemory();
-    utils.removeConstructionSitesOnRoomsWithoutVisibility();
+    utils.removeConstructionSitesInRoomsWithoutVisibility();
   }
   if (!Memory.username) utils.setUsername();
   checkWipeOut();

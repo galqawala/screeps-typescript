@@ -1268,6 +1268,7 @@ export function updateRoomLayout(room: Room) {
   if (!flagRampartsAroundBase(room)) return;
   if (!unFlagUnnecessaryContainers(room)) return;
   if (!createConstructionSitesOnFlags(room)) return;
+  if (!removeConstructionSitesWithoutFlags(room)) return;
 }
 
 function resetLayout(room: Room) {
@@ -1895,17 +1896,24 @@ function createConstructionSitesOnFlags(room: Room) {
               content.structure?.structureType === structureType
           ).length < 1 /* Planned position doesn't have the planned structure or construction site for it */
     );
-    if (flag && flag.pos.createConstructionSite(structureType) === OK) {
-      console.log(flag, flag.pos, "Construction site created!");
+    if (flag && flag.pos.createConstructionSite(structureType) === OK)
       return false; /* one/tick so that look() returns up-to-date data */
-    } else if (flag) {
-      console.log(flag, flag?.pos, "Failed to create a construction site!");
-    }
   }
   return true;
 }
 
-export function removeConstructionSitesOnRoomsWithoutVisibility() {
+function removeConstructionSitesWithoutFlags(room: Room) {
+  const sitesToRemove = room
+    .find(FIND_MY_CONSTRUCTION_SITES)
+    .filter(
+      site =>
+        site.pos.lookFor(LOOK_FLAGS).filter(flag => flag.name.startsWith(site.structureType + "_")).length < 1
+    );
+  for (const site of sitesToRemove) site.remove();
+  return true;
+}
+
+export function removeConstructionSitesInRoomsWithoutVisibility() {
   const sites = Object.values(Game.constructionSites).filter(site => !site.room);
   for (const site of sites) site.remove();
   return true;
