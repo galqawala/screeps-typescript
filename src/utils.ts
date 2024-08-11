@@ -520,32 +520,6 @@ export function isRoomSafe(roomName: string): boolean {
   return Memory.rooms[roomName]?.safeForCreeps ?? true;
 }
 
-export function getExit(
-  pos: RoomPosition,
-  safeOnly = true,
-  harvestableOnly = true
-): RoomPosition | null | undefined {
-  if (!pos) return;
-  const exits = Game.map.describeExits(pos.roomName);
-  const accessibleRooms = Object.values(exits).filter(
-    roomName =>
-      (!safeOnly || isRoomSafe(roomName)) &&
-      (!harvestableOnly || Memory.rooms[roomName].canOperate) &&
-      getRoomStatus(roomName) === getRoomStatus(pos.roomName)
-  );
-  const getDestinationRoomName = accessibleRooms[Math.floor(Math.random() * accessibleRooms.length)];
-  const findExit = Game.map.findExit(pos.roomName, getDestinationRoomName);
-  if (findExit === ERR_NO_PATH) {
-    msg(pos, "getExit(): no path between rooms: " + pos.roomName + " - " + getDestinationRoomName);
-  } else if (findExit === ERR_INVALID_ARGS) {
-    msg(pos, "getExit() passed invalid arguments to Game.map.findExit()");
-  } else {
-    const exit = pos.findClosestByRange(findExit);
-    if (exit && isRoomPosition(exit)) return exit;
-  }
-  return;
-}
-
 export function getPosOfLinkByTheController(controller: StructureController): RoomPosition | undefined {
   let targetPos;
   const linkFilter = {

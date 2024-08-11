@@ -266,7 +266,11 @@ function handleExplorer(creep: Creep) {
     const outcome = creep.signController(controller, getSignText());
     if (outcome === ERR_NOT_IN_RANGE) move(creep, controller);
   } else if (creep.pos.roomName !== creep.memory.pos?.roomName || !moveTowardMemory(creep)) {
-    const destination = utils.getExit(creep.pos, !creep.ticksToLive || creep.ticksToLive > 300, false);
+    const accessibleExits = creep.room
+      .find(FIND_EXIT)
+      .filter(exit => exit.lookFor(LOOK_STRUCTURES).filter(utils.isObstacle).length < 1);
+    const randomIndex = Math.floor(Math.random() * accessibleExits.length);
+    const destination = accessibleExits[randomIndex];
     if (destination) {
       move(creep, destination);
       utils.setDestination(creep, destination);
