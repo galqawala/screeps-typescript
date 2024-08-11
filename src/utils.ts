@@ -1353,6 +1353,8 @@ function updateRoomLayout(room: Room) {
   }
   if (!room.controller) return;
   if (!flagStorage(room)) return;
+  if (!flagStorageSubstituteContainer(room)) return;
+  if (!flagLinkForStorage(room)) return;
   if (!flagSourceContainers(room)) return;
   if (!flagSourceLinks(room)) return;
   if (!flagFillables(room)) return;
@@ -1362,6 +1364,7 @@ function updateRoomLayout(room: Room) {
   if (!flagRoads(room)) return;
   if (!flagRampartsOnStructures(room)) return;
   if (!flagRampartsAroundBase(room)) return;
+  unFlagUnnecessaryContainers(room);
 }
 
 function resetLayout(room: Room) {
@@ -1556,19 +1559,42 @@ function flagStorage(room: Room) {
   if (getStructureFlags(room, structureType).length >= CONTROLLER_STRUCTURES[structureType][8]) return true;
   const controllerPos = room.controller?.pos;
   if (!controllerPos) return false;
-  const positions = getPositionsAroundWithTerrainSpace(controllerPos, 2, 2, 1, 1);
-  const storagePos = positions[0];
-  const containerPos = positions[1];
-  if (storagePos) {
-    flagStructure(storagePos, structureType);
-    if (!storagePos.findInRange(FIND_FLAGS, 2).find(flag => flag.name.startsWith(STRUCTURE_LINK + "_"))) {
-      const linkPosition = getPositionsAroundWithTerrainSpace(storagePos, 2, 2, 1, 1).find(
-        pos => pos.lookFor(LOOK_FLAGS).length < 1 && !isPosEqual(containerPos, pos)
-      );
-      if (linkPosition) flagStructure(linkPosition, STRUCTURE_LINK);
-    }
+  const pos = getPositionsAroundWithTerrainSpace(controllerPos, 2, 2, 1, 1).find(
+    pos => pos.lookFor(LOOK_FLAGS).length < 1
+  );
+  if (pos) flagStructure(pos, structureType);
+  return false;
+}
+
+function flagLinkForStorage(room: Room) {
+  const structureType = STRUCTURE_LINK;
+  const withoutLink = getStructureFlags(room, STRUCTURE_STORAGE).filter(
+    storage =>
+      storage.pos.findInRange(FIND_FLAGS, 2).filter(flag => flag.name.startsWith(structureType + "_"))
+        .length < 1
+  );
+  if (withoutLink.length < 1) return true;
+  for (const storage of withoutLink) {
+    const pos = getPositionsAroundWithTerrainSpace(storage.pos, 2, 2, 1, 1)[0];
+    if (pos) flagStructure(pos, structureType);
   }
-  if (containerPos) flagStructure(containerPos, STRUCTURE_CONTAINER);
+  return false;
+}
+
+function flagStorageSubstituteContainer(room: Room) {
+  if (CONTROLLER_STRUCTURES[STRUCTURE_STORAGE][room?.controller?.level ?? 0] > 0) return true; //we don't need a container, when a storage is available
+  const structureType = STRUCTURE_CONTAINER;
+  const controller = room.controller;
+  if (!controller) return false;
+  if (
+    controller.pos.findInRange(FIND_FLAGS, 2).filter(flag => flag.name.startsWith(structureType + "_"))
+      .length > 0
+  )
+    return true; //already got a container
+  const pos = getPositionsAroundWithTerrainSpace(controller.pos, 2, 2, 1, 1).find(
+    pos => pos.lookFor(LOOK_FLAGS).length < 1
+  );
+  if (pos) flagStructure(pos, structureType);
   return false;
 }
 
@@ -1660,6 +1686,7 @@ function getStructureFlags(room: Room, structureType: string) {
 }
 
 function flagSourceContainers(room: Room) {
+  if (isEnoughLinksAvailable(room)) return true; //we don't need a container, when enough links are available for all sources & storage
   const structureType = STRUCTURE_CONTAINER;
   const sourcesWithout = room
     .find(FIND_SOURCES)
@@ -1668,7 +1695,7 @@ function flagSourceContainers(room: Room) {
         source.pos.findInRange(FIND_FLAGS, 1).filter(flag => flag.name.startsWith(structureType + "_"))
           .length < 1
     );
-  if (sourcesWithout.length < 1) return true;
+  if (sourcesWithout.length < 1) return true; //no sources without container
   for (const source of sourcesWithout) {
     const containerPos = getPositionsAroundWithTerrainSpace(source.pos, 1, 1, 1, 1)[0];
     if (containerPos) flagStructure(containerPos, structureType);
@@ -1679,23 +1706,22 @@ function flagSourceContainers(room: Room) {
 function flagSourceLinks(room: Room) {
   const structureType = STRUCTURE_LINK;
   const sources = room.find(FIND_SOURCES);
-  const containersWithoutLink = [];
+  const harvestSpotsWithoutLink = [];
   for (const source of sources) {
     const containers = source.pos
       .findInRange(FIND_FLAGS, 1)
       .filter(flag => flag.name.startsWith(STRUCTURE_CONTAINER + "_"));
-    for (const container of containers) {
-      if (
-        container.pos.findInRange(FIND_FLAGS, 1).filter(flag => flag.name.startsWith(structureType + "_"))
-          .length < 1
-      )
-        containersWithoutLink.push(container);
-    }
+    const harvestSpot = containers[0]?.pos ?? getPositionsAroundWithTerrainSpace(source.pos, 1, 1, 1, 1)[0];
+    if (
+      harvestSpot.findInRange(FIND_FLAGS, 1).filter(flag => flag.name.startsWith(structureType + "_"))
+        .length < 1
+    )
+      harvestSpotsWithoutLink.push(harvestSpot);
   }
-  if (containersWithoutLink.length < 1) return true;
-  for (const container of containersWithoutLink) {
-    const containerPos = getPositionsAroundWithTerrainSpace(container.pos, 1, 1, 1, 1)[0];
-    if (containerPos) flagStructure(containerPos, structureType);
+  if (harvestSpotsWithoutLink.length < 1) return true;
+  for (const harvestPos of harvestSpotsWithoutLink) {
+    const targetPos = getPositionsAroundWithTerrainSpace(harvestPos, 1, 1, 1, 1)[0];
+    if (targetPos) flagStructure(targetPos, structureType);
   }
   return false;
 }
@@ -1893,4 +1919,38 @@ function flagRampartsAroundBase(room: Room) {
   const rampartPos = pathResult.path[pathResult.path.length - 1];
   if (rampartPos) flagStructure(rampartPos, STRUCTURE_RAMPART);
   return false;
+}
+
+function unFlagUnnecessaryContainers(room: Room) {
+  const structureType = STRUCTURE_CONTAINER;
+  const unnecessaryContainers = getStructureFlags(room, structureType).filter(
+    container => !isContainerFlagNecessary(container)
+  );
+  for (const container of unnecessaryContainers) container.remove();
+}
+
+function isContainerFlagNecessary(container: Flag) {
+  const room = container.room;
+  if (!room) return;
+
+  const nearbySources = container.pos.findInRange(FIND_SOURCES, 1);
+  if (nearbySources.length > 0 && !isEnoughLinksAvailable(room)) return true;
+
+  const controller = room.controller;
+  if (
+    controller &&
+    container.pos.getRangeTo(controller) <= 2 &&
+    CONTROLLER_STRUCTURES[STRUCTURE_STORAGE][room?.controller?.level ?? 0] < 1
+  )
+    return true;
+
+  return false;
+}
+
+function isEnoughLinksAvailable(room: Room) {
+  //we are able to build one link for each storage and source
+  return (
+    CONTROLLER_STRUCTURES[STRUCTURE_LINK][room?.controller?.level ?? 0] >=
+    room.find(FIND_SOURCES).length + CONTROLLER_STRUCTURES[STRUCTURE_STORAGE][room?.controller?.level ?? 0]
+  );
 }
