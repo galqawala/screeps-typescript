@@ -1710,14 +1710,16 @@ function flagRoads(room: Room) {
     { pos: to.pos, range: 0 },
     {
       //planned road: 1, planned structure: 20
-      plainCost: 2,
+      plainCost: 3,
       swampCost: 10,
-      roomCallback: getCachedCostMatrixLayout
+      roomCallback: getCachedCostMatrixLayout,
+      heuristicWeight: 1 /* lower is more accurate, but uses more CPU */
     }
   ).path;
   const newRoads = path.filter(
     pos => pos.lookFor(LOOK_FLAGS).filter(flag => flag.name.startsWith(STRUCTURE_ROAD + "_")).length < 1
   );
+  if (newRoads.length > 1) room.memory.polyPoints = path;
   for (const pos of newRoads) {
     flagStructure(pos, STRUCTURE_ROAD);
     const obstacles = pos.lookFor(LOOK_FLAGS).filter(flag => structureFlagIsObstacle(flag));

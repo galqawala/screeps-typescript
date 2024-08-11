@@ -82,6 +82,7 @@ declare global {
     claimIsSafe: boolean;
     costMatrix?: number[];
     costMatrixLayout?: number[];
+    polyPoints: RoomPosition[] /* visualize paths for debugging etc. */;
     repairTargets: Id<Structure>[];
     safeForCreeps: boolean;
     score: number;
@@ -831,6 +832,8 @@ function harvesterSpendEnergy(creep: Creep) {
 }
 
 function handleRoom(room: Room) {
+  const polyPoints = room.memory.polyPoints;
+  if (polyPoints) new RoomVisual(room.name).poly(polyPoints);
   handleRoomTowers(room);
   if (!room.memory.costMatrix || Math.random() < 0.03)
     room.memory.costMatrix = getFreshCostMatrix(room.name).serialize();
