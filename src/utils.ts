@@ -507,7 +507,7 @@ export function canOperateInRoom(room: Room): boolean {
 
 export function canOperateInSurroundingRooms(roomName: string): boolean {
   return (
-    Object.values(Game.map.describeExits(roomName)).filter(roomName => !Memory.rooms[roomName].canOperate)
+    Object.values(Game.map.describeExits(roomName)).filter(roomName => !Memory.rooms[roomName]?.canOperate)
       .length < 1
   );
 }

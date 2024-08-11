@@ -74,7 +74,6 @@ declare global {
     maxRoomEnergy: number;
     maxRoomEnergyCap: number;
     minTicksToDowngrade: number;
-    needExplorers: boolean;
     needHarvesters: boolean;
     needInfantry: boolean;
     needReservers: boolean;
@@ -185,7 +184,6 @@ export const loop = ErrorMapper.wrapLoop(() => {
 });
 
 function updatePlan() {
-  //utils.logCpu("updatePlan");
   const storageMin = utils.getStorageMin();
   const allSpawnsFull = areAllSpawnsFull();
   const needHarvesters = getSourceToHarvest() ? true : false;
@@ -193,7 +191,6 @@ function updatePlan() {
     controllersToReserve: utils.getControllersToReserve().map(controller => controller.id),
     fillSpawnsFromStorage: storageMin >= 800000 && !allSpawnsFull,
     fillStorage: (storageMin < 150000 && !needHarvesters) || allSpawnsFull,
-    needExplorers: needExplorers(),
     needHarvesters: storageMin < 900000 && needHarvesters,
     needInfantry: needInfantry(),
     needReservers: needReservers(),
@@ -203,41 +200,32 @@ function updatePlan() {
     maxRoomEnergyCap: Math.max(...Object.values(Game.rooms).map(r => r.energyCapacityAvailable)),
     minTicksToDowngrade: getMinTicksToDowngrade()
   };
-  //utils.logCpu("updatePlan");
 }
 
 function getMinTicksToDowngrade() {
-  //utils.logCpu("getMinTicksToDowngrade");
   const value = Math.min(
     ...Object.values(Game.rooms)
       .filter(room => room.controller && room.controller.my)
       .map(room => room.controller?.ticksToDowngrade || Number.POSITIVE_INFINITY)
   );
-  //utils.logCpu("getMinTicksToDowngrade");
   return value;
 }
 
 function needExplorers() {
-  //utils.logCpu("needExplorers()");
-  const value =
+  return (
     utils.getCreepCountByRole("explorer") < 1 &&
     Object.values(Game.rooms).filter(
       room =>
         room.controller &&
         room.controller.my &&
         CONTROLLER_STRUCTURES[STRUCTURE_OBSERVER][room.controller.level] > 0
-    ).length < 1;
-  //utils.logCpu("needExplorers()");
-  return value;
+    ).length < 1
+  );
 }
 
 function areAllSpawnsFull() {
-  //utils.logCpu("areAllSpawnsFull()");
-  for (const room of Object.values(Game.rooms)) {
-    //utils.logCpu("areAllSpawnsFull()");
+  for (const room of Object.values(Game.rooms))
     if (room.energyAvailable < room.energyCapacityAvailable) return false;
-  }
-  //utils.logCpu("areAllSpawnsFull()");
   return true;
 }
 
@@ -267,6 +255,11 @@ function handleCreeps() {
 }
 
 function handleExplorer(creep: Creep) {
+  if (utils.isStuck(creep)) {
+    delete creep.memory.path; // replan
+    utils.moveRandomDirection(creep);
+    return;
+  }
   creep.notifyWhenAttacked(false);
   const controller = creep.room.controller;
   if (controller && (controller.sign?.username ?? "") !== Memory.username) {
@@ -500,7 +493,6 @@ function countUpgradersAssigned(controllerId: Id<StructureController>) {
 }
 
 function moveTowardMemory(creep: Creep) {
-  //utils.logCpu("moveTowardMemory(" + creep.name + ")");
   let destination: Destination = Game.flags["creep_" + creep.name];
   if (!destination) {
     const destinationMemory = creep.memory.destination;
@@ -512,10 +504,8 @@ function moveTowardMemory(creep: Creep) {
   if (destination) {
     move(creep, destination);
     if (utils.getGlobalRange(creep.pos, destination.pos) <= 1) utils.resetDestination(creep);
-    //utils.logCpu("moveTowardMemory(" + creep.name + ")");
     return true;
   }
-  //utils.logCpu("moveTowardMemory(" + creep.name + ")");
   return false;
 }
 
@@ -968,7 +958,6 @@ function handleRoomObservers(room: Room) {
 }
 
 function move(creep: Creep, destination: Destination, safe = true) {
-  //utils.logCpu("move(" + creep.name + ")");
   const options: MoveToOpts = {
     // bit of randomness to prevent creeps from moving the same way at same time to pass each other
     reusePath: Math.round(Memory.maxTickLimit - Game.cpu.tickLimit + Math.random()),
@@ -983,7 +972,6 @@ function move(creep: Creep, destination: Destination, safe = true) {
   };
   if (safe) options.costCallback = utils.getCachedCostMatrixSafeCreeps;
   const outcome = creep.moveTo(destination, options);
-  //utils.logCpu("move(" + creep.name + ")");
   return outcome;
 }
 
@@ -1016,8 +1004,8 @@ function spawnCreeps() {
     spawnHarvester();
   } else if (Memory.plan?.needInfantry) {
     spawnCreep("infantry", Math.max(Memory.hostileCreepCost / 2, Memory.plan.maxRoomEnergy));
-  } else if (Memory.plan?.needExplorers && spawnRole("explorer", 0, [MOVE])) {
-    Memory.plan.needExplorers = false;
+  } else if (needExplorers() && spawnCreep("explorer", undefined, [MOVE])) {
+    console.log("explorer spawned");
   } else if (Memory.plan?.needReservers && budget >= utils.getBodyCost(["claim", "move"])) {
     spawnReserver();
   } else if (Memory.plan?.needUpgraders) {
@@ -1086,16 +1074,6 @@ function getRoomToClaim(aroundRooms: Room[]) {
     }
   }
   return bestRoomName;
-}
-
-function spawnRole(roleToSpawn: Role, minBudget = 0, body: undefined | BodyPartConstant[] = undefined) {
-  const budget = Math.floor(
-    Math.min(
-      Math.max(utils.getCostOfCurrentCreepsInTheRole(roleToSpawn), minBudget),
-      Memory.plan?.maxRoomEnergyCap
-    )
-  );
-  return spawnCreep(roleToSpawn, budget, body, undefined);
 }
 
 function needInfantry() {
@@ -1367,10 +1345,10 @@ function getTransferrerMem(retrieve: Id<StructureLink>, transferTo: Id<Structure
 function getSpawn(energyRequired: number, targetPos: RoomPosition | undefined, maxRange = 100) {
   return Object.values(Game.spawns)
     .filter(spawn => spawn.room.energyAvailable >= energyRequired && !spawn.spawning)
-    .filter(s => s.pos.roomName === targetPos?.roomName || utils.isRoomSafe(s.pos.roomName))
+    .filter(s => !targetPos || s.pos.roomName === targetPos?.roomName || utils.isRoomSafe(s.pos.roomName))
     .map(spawn => ({
       spawn: spawn,
-      range: utils.getGlobalRange(spawn.pos, targetPos)
+      range: targetPos ? utils.getGlobalRange(spawn.pos, targetPos) : 0
     })) /* persist sort values */
     .filter(spawnRange => spawnRange.range <= maxRange)
     .sort((a, b) => a.range - b.range) /* sort */
@@ -1379,17 +1357,18 @@ function getSpawn(energyRequired: number, targetPos: RoomPosition | undefined, m
 
 function spawnCreep(
   roleToSpawn: Role,
-  energyAvailable: number,
+  energyRequired?: number,
   body: undefined | BodyPartConstant[] = undefined,
   task: Task | undefined = undefined,
   upgradeTarget: StructureController | undefined = undefined,
   spawn: StructureSpawn | undefined = undefined,
   memory: CreepMemory | undefined = undefined
 ) {
-  if (energyAvailable < 50) return false;
-  if (!body) body = getBody(roleToSpawn, energyAvailable);
+  if (!energyRequired && body) energyRequired = utils.getBodyCost(body);
+  if (!energyRequired || energyRequired < 50) return false;
+  if (!body) body = getBody(roleToSpawn, energyRequired);
   const name = utils.getNameForCreep(roleToSpawn);
-  if (!spawn) spawn = getSpawn(energyAvailable, utils.getPos(task?.destination));
+  if (!spawn) spawn = getSpawn(energyRequired, utils.getPos(task?.destination));
   if (!spawn) return false;
   if (spawn.spawning) return false;
   if (!body || utils.getBodyCost(body) > spawn.room.energyAvailable || !body.includes(MOVE)) return false;
@@ -1402,7 +1381,7 @@ function spawnCreep(
     return true;
   } else {
     utils.msg(spawn, "Failed to spawn creep: " + outcome.toString() + " with body " + body.toString());
-    console.log("body", body, "energyAvailable", energyAvailable);
+    console.log("body", body, "energyAvailable", energyRequired);
     return false;
   }
 }
@@ -1566,16 +1545,17 @@ function getFreshCostMatrix(roomName: string) {
   const room = Game.rooms[roomName];
   const costs = new PathFinder.CostMatrix();
   if (room) {
-    room.find(FIND_STRUCTURES).forEach(function (struct) {
-      const cost = getStructurePathCost(struct);
-      if (cost) costs.set(struct.pos.x, struct.pos.y, cost);
-    });
     room.find(FIND_CONSTRUCTION_SITES).forEach(function (struct) {
       // consider construction sites as complete structures
       // same structure types block or don't block movement as complete buildings
       // incomplete roads don't give the speed bonus, but we should still prefer them to avoid planning for additional roads
       const cost = getStructurePathCost(struct);
-      if (cost) costs.set(struct.pos.x, struct.pos.y, cost);
+      // correctly handle blocking structure and unfinished road in the same coords
+      if (cost && cost > costs.get(struct.pos.x, struct.pos.y)) costs.set(struct.pos.x, struct.pos.y, cost);
+    });
+    room.find(FIND_STRUCTURES).forEach(function (struct) {
+      const cost = getStructurePathCost(struct);
+      if (cost && cost > costs.get(struct.pos.x, struct.pos.y)) costs.set(struct.pos.x, struct.pos.y, cost);
     });
     room.find(FIND_SOURCES).forEach(function (source) {
       // avoid routing around sources
