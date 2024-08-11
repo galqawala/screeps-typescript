@@ -59,6 +59,7 @@ declare global {
     ownedRoomCount: number;
     plan: Plan;
     printCpuInfo: boolean;
+    signTexts: string[];
     totalEnergy: number;
     totalEnergyCap: number;
     totalEnergyRatio: number;
@@ -266,28 +267,25 @@ function handleCreeps() {
 }
 
 function handleExplorer(creep: Creep) {
-  //utils.logCpu("handleExplorer(" + creep.name + ")");
   creep.notifyWhenAttacked(false);
-  if (creep.pos.roomName !== creep.memory.pos?.roomName || !moveTowardMemory(creep)) {
-    //utils.logCpu("handleExplorer(" + creep.name + ") getExit");
+  const controller = creep.room.controller;
+  if (controller && (controller.sign?.username ?? "") !== Memory.username) {
+    const outcome = creep.signController(controller, getSignText());
+    if (outcome === ERR_NOT_IN_RANGE) move(creep, controller);
+  } else if (creep.pos.roomName !== creep.memory.pos?.roomName || !moveTowardMemory(creep)) {
     const destination = utils.getExit(creep.pos, !creep.ticksToLive || creep.ticksToLive > 300, false);
-    //utils.logCpu("handleExplorer(" + creep.name + ") getExit");
     if (destination) {
       move(creep, destination);
       utils.setDestination(creep, destination);
     }
   }
-  //utils.logCpu("handleExplorer(" + creep.name + ")");
 }
 
 function handleUpgrader(creep: Creep) {
-  //utils.logCpu("handleUpgrader(" + creep.name + ")");
-  // controller
   const controllerId = creep.memory.upgrade;
   let controller;
   if (controllerId) controller = Game.getObjectById(controllerId);
   if (!controller) controller = getControllerToUpgrade(creep.pos, false);
-  //utils.logCpu("handleUpgrader(" + creep.name + ")");
   if (!controller) return;
   creep.memory.upgrade = controller.id;
   // actions
@@ -296,7 +294,6 @@ function handleUpgrader(creep: Creep) {
     const outcome = creep.upgradeController(controller);
     if (outcome === ERR_NOT_IN_RANGE) move(creep, controller);
   }
-  //utils.logCpu("handleUpgrader(" + creep.name + ")");
 }
 
 function upgraderRetrieveEnergy(creep: Creep) {
@@ -1910,4 +1907,12 @@ function getBuildSitePriority(site: ConstructionSite<BuildableStructureConstant>
   ];
   const index = prioritizedTypes.indexOf(site.structureType);
   return index < 0 ? 100 : index + 1;
+}
+
+function getSignText(): string {
+  // Why not have your .ts file have a function to randomly select a line as its sole export, then mix the hardcoded and memory ones together?
+  let texts = ["Steamrolled by Ruto"];
+  if (Memory.signTexts) texts = texts.concat(Memory.signTexts);
+  const randomIndex = Math.floor(Math.random() * texts.length);
+  return texts[randomIndex];
 }
