@@ -1351,6 +1351,7 @@ function updateRoomLayout(room: Room) {
   flagTowers(room);
   flagObserver(room);
   flagRoads(room);
+  flagRampartsOnStructures(room);
 }
 
 export function getObjectDescription(obj: Destination | undefined | string | Room): string {
@@ -1756,4 +1757,29 @@ function structureFlagIsObstacle(flag: Flag) {
     "tower"
   ];
   return structureTypes.some(type => flag.name.startsWith(type + "_"));
+}
+
+function structureFlagRequiresRampart(flag: Flag) {
+  const structureTypes = [
+    STRUCTURE_FACTORY,
+    STRUCTURE_LAB,
+    STRUCTURE_SPAWN,
+    STRUCTURE_STORAGE,
+    STRUCTURE_TERMINAL,
+    STRUCTURE_TOWER
+  ];
+  return structureTypes.some(type => flag.name.startsWith(type + "_"));
+}
+
+function flagRampartsOnStructures(room: Room) {
+  const rampartsRequired = room
+    .find(FIND_FLAGS)
+    .filter(
+      structureRequiringRampart =>
+        structureFlagRequiresRampart(structureRequiringRampart) &&
+        structureRequiringRampart.pos
+          .lookFor(LOOK_FLAGS)
+          .filter(rampart => rampart.name.startsWith(STRUCTURE_RAMPART + "_")).length < 1
+    );
+  for (const flag of rampartsRequired) flagStructure(flag.pos, STRUCTURE_RAMPART);
 }
