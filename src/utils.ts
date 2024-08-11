@@ -1269,6 +1269,7 @@ export function updateRoomLayout(room: Room) {
   if (!unFlagUnnecessaryContainers(room)) return;
   if (!createConstructionSitesOnFlags(room)) return;
   if (!removeConstructionSitesWithoutFlags(room)) return;
+  if (!destroyStructuresWithoutFlags(room)) return;
 }
 
 function resetLayout(room: Room) {
@@ -1916,5 +1917,25 @@ function removeConstructionSitesWithoutFlags(room: Room) {
 export function removeConstructionSitesInRoomsWithoutVisibility() {
   const sites = Object.values(Game.constructionSites).filter(site => !site.room);
   for (const site of sites) site.remove();
+  return true;
+}
+
+function destroyStructuresWithoutFlags(room: Room) {
+  const spawnCount = Object.values(Game.spawns).filter(s => s.pos.roomName === room.name).length;
+  const structuresToRemove = room
+    .find(FIND_MY_STRUCTURES)
+    .filter(
+      s => s.pos.lookFor(LOOK_FLAGS).filter(flag => flag.name.startsWith(s.structureType + "_")).length < 1
+    );
+  for (const structure of structuresToRemove) {
+    if (structure.structureType === STRUCTURE_SPAWN) {
+      if (spawnCount > 1) {
+        structure.destroy(); //spawn
+        return false;
+      }
+    } else {
+      structure.destroy(); //not spawn
+    }
+  }
   return true;
 }
