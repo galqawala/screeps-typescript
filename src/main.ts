@@ -51,9 +51,12 @@ declare global {
     color: Record<string, ColorConstant>;
     cpuLog: Record<string, CpuLogEntry>;
     cpuUsedRatio: number;
+    haveCreeps: boolean;
+    haveSpawns: boolean;
     hostileCreepCost: number;
     lackedEnergySinceTime: number;
     maxTickLimit: number;
+    ownedRoomCount: number;
     plan: Plan;
     printCpuInfo: boolean;
     totalEnergy: number;
@@ -61,7 +64,6 @@ declare global {
     totalEnergyRatio: number;
     totalEnergyRatioDelta: number;
     username: string;
-    wipeOut: boolean;
   }
 
   interface Plan {
@@ -1590,7 +1592,6 @@ function getFreshCostMatrix(roomName: string) {
 }
 
 function updateStickyEnergy(room: Room) {
-  //utils.logCpu("updateStickyEnergy(" + room.name + ")");
   const containers = room.find(FIND_STRUCTURES).filter(utils.isStoreStructure);
   const values: Record<Id<AnyStoreStructure>, number> = {};
   const deltas: Record<Id<AnyStoreStructure>, number> = {};
@@ -1603,15 +1604,31 @@ function updateStickyEnergy(room: Room) {
   }
   room.memory.stickyEnergy = values;
   room.memory.stickyEnergyDelta = deltas;
-  //utils.logCpu("updateStickyEnergy(" + room.name + ")");
 }
 
 function checkWipeOut() {
-  const count = Object.keys(Game.creeps).length;
-  const wipeOut = count < 1;
-  if (Memory.wipeOut !== wipeOut) {
-    Memory.wipeOut = wipeOut;
-    utils.msg("checkWipeOut()", "We have " + count.toString() + " creeps!", true);
+  const haveCreeps = Object.keys(Game.creeps).length > 0;
+  const haveSpawns = Object.keys(Game.spawns).length > 0;
+  const ownedRoomCount = Object.values(Game.rooms).filter(room => room.controller?.my).length;
+
+  if (
+    (Memory.haveCreeps ?? false) !== haveCreeps ||
+    (Memory.haveSpawns ?? false) !== haveSpawns ||
+    (Memory.ownedRoomCount ?? 0) !== ownedRoomCount
+  ) {
+    utils.msg(
+      "checkWipeOut()",
+      "haveCreeps: " +
+        haveCreeps.toString() +
+        ", haveSpawns: " +
+        haveSpawns.toString() +
+        ", ownedRoomCount: " +
+        ownedRoomCount.toString(),
+      true
+    );
+    Memory.haveCreeps = haveCreeps;
+    Memory.haveSpawns = haveSpawns;
+    Memory.ownedRoomCount = ownedRoomCount;
   }
 }
 
