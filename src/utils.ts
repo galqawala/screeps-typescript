@@ -770,15 +770,17 @@ export function setDestination(creep: Creep, destination: Destination): void {
 export function updateRoomRepairTargets(room: Room): void {
   const structures = room.find(FIND_STRUCTURES);
   const constructing = room.find(FIND_MY_CONSTRUCTION_SITES).length > 0;
+  const repairBatchHits = 2000;
   room.memory.maxHitsToRepair = constructing
-    ? 1000
+    ? repairBatchHits
     : structures
         .filter(
           s =>
             s.hits < s.hitsMax /*below max hits*/ &&
             (("my" in s && s.my) /*my structure*/ || room.controller?.my) /*my room*/
         )
-        .reduce((min, structure) => Math.min(min, structure.hits), Number.POSITIVE_INFINITY) + 1000;
+        .reduce((min, structure) => Math.min(min, structure.hits), Number.POSITIVE_INFINITY) +
+      repairBatchHits;
   const targets: Structure[] = structures.filter(
     target =>
       needRepair(target) &&
