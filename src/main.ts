@@ -85,8 +85,10 @@ declare global {
     canOperate: boolean;
     claimIsSafe: boolean;
     costMatrix?: number[];
+    costMatrixCreeps?: number[];
     costMatrixLayout?: number[];
     costMatrixRamparts?: number[];
+    maxHitsToRepair: number;
     polyPoints: RoomPosition[] /* visualize paths for debugging etc. */;
     repairTargets: Id<Structure>[];
     resetLayout?: boolean;
@@ -840,15 +842,17 @@ function handleRoom(room: Room) {
   const polyPoints = room.memory.polyPoints;
   if (polyPoints) new RoomVisual(room.name).poly(polyPoints);
   handleRoomTowers(room);
-  if (!room.memory.costMatrix || Math.random() < 0.03)
+  if (!room.memory.costMatrix || Math.random() < 0.03) {
     room.memory.costMatrix = getFreshCostMatrix(room.name).serialize();
+    room.memory.costMatrixCreeps = getFreshCostMatrixCreeps(room.name).serialize();
+  }
   if (Math.random() < 0.1 && utils.gotSpareCpu()) handleRoomObservers(room);
   utils.handleHostilesInRoom(room);
   if (room.controller?.my && utils.canOperateInRoom(room) && utils.gotSpareCpu())
     utils.updateRoomLayout(room);
   utils.handleLinks(room);
   if (!room.memory.score) utils.updateRoomScore(room);
-  if (Math.random() < 0.001) utils.updateRoomRepairTargets(room);
+  if (Math.random() < 0.08) utils.updateRoomRepairTargets(room);
   utils.checkRoomCanOperate(room);
   if (Math.random() < 0.1 && utils.gotSpareCpu()) updateStickyEnergy(room);
   spawnCarriers(room);
@@ -961,7 +965,7 @@ function handleRoomObservers(room: Room) {
   //utils.logCpu("handleRoomObservers(" + room.name + ")");
 }
 
-function move(creep: Creep, destination: Destination, safe = true) {
+function move(creep: Creep, destination: Destination) {
   const options: MoveToOpts = {
     // bit of randomness to prevent creeps from moving the same way at same time to pass each other
     reusePath: Math.round(Memory.maxTickLimit - Game.cpu.tickLimit + Math.random()),
@@ -972,9 +976,9 @@ function move(creep: Creep, destination: Destination, safe = true) {
       strokeWidth: creep.memory.strokeWidth
     },
     plainCost: 2,
-    swampCost: 10
+    swampCost: 10,
+    costCallback: utils.getCachedCostMatrixCreeps
   };
-  if (safe) options.costCallback = utils.getCachedCostMatrixSafeCreeps;
   const outcome = creep.moveTo(destination, options);
   return outcome;
 }
@@ -1008,8 +1012,8 @@ function spawnCreeps() {
     spawnHarvester();
   } else if (Memory.plan?.needInfantry) {
     spawnCreep("infantry", Math.max(Memory.hostileCreepCost / 2, Memory.plan.maxRoomEnergy));
-  } else if (needExplorers() && spawnCreep("explorer", undefined, [MOVE])) {
-    console.log("explorer spawned");
+  } else if (needExplorers() && utils.gotSpareCpu()) {
+    spawnCreep("explorer", undefined, [MOVE]);
   } else if (Memory.plan?.needReservers && budget >= utils.getBodyCost(["claim", "move"])) {
     spawnReserver();
   } else if (Memory.plan?.needUpgraders) {
@@ -1567,6 +1571,31 @@ function getFreshCostMatrix(roomName: string) {
       for (const pos of positions) {
         if (costs.get(pos.x, pos.y) < 20) costs.set(pos.x, pos.y, 20);
       }
+    });
+  }
+  return costs;
+}
+
+function getFreshCostMatrixCreeps(roomName: string) {
+  const room = Game.rooms[roomName];
+  const costs = new PathFinder.CostMatrix();
+  if (room) {
+    room.find(FIND_CONSTRUCTION_SITES).forEach(function (struct) {
+      // consider construction sites as complete structures
+      // same structure types block or don't block movement as complete buildings
+      // incomplete roads don't give the speed bonus, but we should still prefer them to avoid planning for additional roads
+      const cost = getStructurePathCost(struct);
+      // correctly handle blocking structure and unfinished road in the same coords
+      if (cost && cost > costs.get(struct.pos.x, struct.pos.y)) costs.set(struct.pos.x, struct.pos.y, cost);
+    });
+    room.find(FIND_STRUCTURES).forEach(function (struct) {
+      const cost = getStructurePathCost(struct);
+      if (cost && cost > costs.get(struct.pos.x, struct.pos.y)) costs.set(struct.pos.x, struct.pos.y, cost);
+    });
+    room.find(FIND_CREEPS).forEach(function (creep) {
+      const lastMoveTime = creep.memory?.lastMoveTime;
+      const cost = lastMoveTime ? Game.time - lastMoveTime : 5;
+      if (cost && cost > costs.get(creep.pos.x, creep.pos.y)) costs.set(creep.pos.x, creep.pos.y, cost);
     });
   }
   return costs;

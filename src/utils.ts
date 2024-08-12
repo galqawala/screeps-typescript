@@ -416,7 +416,7 @@ export function getCostOfCurrentCreepsInTheRole(role: Role): number {
   return (
     Object.values(Game.creeps).reduce(
       (aggregated, creep) =>
-        aggregated + (creep.name.startsWith(role.charAt(0).toLowerCase()) ? getCreepCost(creep) : 0),
+        aggregated + (creep.name.startsWith(role.charAt(0).toUpperCase()) ? getCreepCost(creep) : 0),
       0 /* initial*/
     ) || 0
   );
@@ -474,7 +474,7 @@ export function getTotalCreepCapacity(role: Role | undefined): number {
   return Object.values(Game.creeps).reduce(
     (aggregated, creep) =>
       aggregated +
-      (!role || creep.name.startsWith(role.charAt(0).toLowerCase())
+      (!role || creep.name.startsWith(role.charAt(0).toUpperCase())
         ? creep.store.getCapacity(RESOURCE_ENERGY)
         : 0),
     0 /* initial*/
@@ -487,11 +487,8 @@ export function needRepair(structure: Structure): boolean {
   if (!structure.hits) return false;
   if (!structure.hitsMax) return false;
   if (structure.hits >= structure.hitsMax) return false;
-  if (isDestructibleWall(structure)) return false;
-  if (isRoad(structure)) {
-    if (structure.pos.lookFor(LOOK_STRUCTURES).filter(isObstacle).length) return false;
-    if (structure.pos.findInRange(FIND_STRUCTURES, 1).filter(isRoad).length <= 1) return false;
-  }
+  if (!structure.room) return false;
+  if (structure.hits > structure.room.memory.maxHitsToRepair) return false;
   return true;
 }
 
@@ -771,12 +768,21 @@ export function setDestination(creep: Creep, destination: Destination): void {
 }
 
 export function updateRoomRepairTargets(room: Room): void {
-  //logCpu("updateRoomRepairTargets(" + room.name + ")");
-  const targets: Structure[] = room.find(FIND_STRUCTURES).filter(
+  const structures = room.find(FIND_STRUCTURES);
+  const constructing = room.find(FIND_MY_CONSTRUCTION_SITES).length > 0;
+  room.memory.maxHitsToRepair = constructing
+    ? 1000
+    : structures
+        .filter(
+          s =>
+            s.hits < s.hitsMax /*below max hits*/ &&
+            (("my" in s && s.my) /*my structure*/ || room.controller?.my) /*my room*/
+        )
+        .reduce((min, structure) => Math.min(min, structure.hits), Number.POSITIVE_INFINITY) + 1000;
+  const targets: Structure[] = structures.filter(
     target =>
       needRepair(target) &&
       (getHpRatio(target) || 1) < 0.9 &&
-      // !isUnderRepair(target) &&
       (target.structureType !== STRUCTURE_CONTAINER || isStorageSubstitute(target)) &&
       (!isRoad(target) || target.pos.findInRange(FIND_MY_CREEPS, 5).length > 0)
   );
@@ -788,7 +794,6 @@ export function updateRoomRepairTargets(room: Room): void {
           creep => creep.name.startsWith("W") && creep.memory.destination === id
         ).length < 1
     );
-  //logCpu("updateRoomRepairTargets(" + room.name + ")");
 }
 
 export function getHpRatio(obj: Structure): number {
@@ -1051,7 +1056,7 @@ export function getCreepCountByRole(role: Role, minTicksToLive = 120): number {
   //logCpu("getCreepCountByRole(" + role + ")");
   const count = Object.values(Game.creeps).filter(function (creep) {
     return (
-      creep.name.startsWith(role.charAt(0).toLowerCase()) &&
+      creep.name.startsWith(role.charAt(0).toUpperCase()) &&
       (!creep.ticksToLive || creep.ticksToLive >= minTicksToLive)
     );
   }).length;
@@ -1235,7 +1240,7 @@ export function isAnyoneIdle(role: Role): boolean {
   return (
     Object.values(Game.creeps).filter(
       c =>
-        (!role || c.name.startsWith(role.charAt(0).toLowerCase())) &&
+        (!role || c.name.startsWith(role.charAt(0).toUpperCase())) &&
         (c.memory.lastActiveTime || 0) < Game.time - 10
     ).length > 0
   );
@@ -1245,7 +1250,7 @@ export function isAnyoneLackingEnergy(role: Role): boolean {
   return (
     Object.values(Game.creeps).filter(
       c =>
-        (!role || c.name.startsWith(role.charAt(0).toLowerCase())) &&
+        (!role || c.name.startsWith(role.charAt(0).toUpperCase())) &&
         (c.memory.lastTimeFull || 0) < Game.time - 100
     ).length > 0
   );
@@ -1307,6 +1312,12 @@ export function getCachedCostMatrix(roomName: string): CostMatrix {
   return new PathFinder.CostMatrix();
 }
 
+export function getCachedCostMatrixCreeps(roomName: string): CostMatrix {
+  const costMem = Memory.rooms[roomName]?.costMatrixCreeps;
+  if (costMem) return PathFinder.CostMatrix.deserialize(costMem);
+  return new PathFinder.CostMatrix();
+}
+
 export function getCachedCostMatrixLayout(roomName: string): CostMatrix {
   const costMem = Memory.rooms[roomName]?.costMatrixLayout;
   if (costMem) return PathFinder.CostMatrix.deserialize(costMem);
@@ -1357,19 +1368,6 @@ export function getStorageMin(): number {
   }
   //logCpu("getStorageMin");
   return storageMin;
-}
-
-export function getCachedCostMatrixSafeCreeps(roomName: string): CostMatrix {
-  const costs = getCachedCostMatrixSafe(roomName);
-  if (gotSpareCpu()) {
-    const room = Game.rooms[roomName];
-    // longer the creep has stayed there, less likely it is to move out of the way
-    if (room)
-      room
-        .find(FIND_CREEPS)
-        .forEach(c => costs.set(c.pos.x, c.pos.y, Game.time - (c.memory?.lastMoveTime || Game.time)));
-  }
-  return costs;
 }
 
 export function getPath(from: RoomPosition, to: RoomPosition, range = 0, safe = true): RoomPosition[] {
@@ -1843,7 +1841,7 @@ function createConstructionSitesOnFlags(room: Room) {
           ).length < 1 /* Planned position doesn't have the planned structure or construction site for it */
     );
     if (flag && flag.pos.createConstructionSite(structureType) === OK)
-      return false; /* one/tick so that look() returns up-to-date data */
+      return false /* one/tick so that look() returns up-to-date data */;
   }
   return true;
 }
