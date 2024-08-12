@@ -444,33 +444,26 @@ function moveTowardMemory(creep: Creep) {
 }
 
 function handleCarrier(creep: Creep) {
+  const freeCap = utils.getFreeCap(creep);
   if (!creep.memory.room) creep.memory.room = creep.pos.roomName;
   if (followMemorizedPath(creep)) return;
-  if (utils.isFull(creep)) creep.memory.delivering = true;
+  if (freeCap < 1) creep.memory.delivering = true;
   else if (utils.getEnergy(creep) < 1) creep.memory.delivering = false;
 
   if (creep.pos.roomName !== creep.memory.room) {
     creep.memory.path = utils.getPath(creep.pos, new RoomPosition(25, 25, creep.memory.room), 20);
     followMemorizedPath(creep);
   } else if (!creep.memory.delivering) {
-    //utils.logCpu("handleCarrier(" + creep.name + ") fetch");
-    const source = getNearbyEnergySource(creep.pos);
+    const source = getNearbyEnergySource(creep.pos, freeCap);
     if (source) {
       delete creep.memory.path;
       retrieveEnergy(creep, source);
     } else {
       const tgt = getCarrierEnergySource(creep);
-      if (tgt) {
-        //utils.logCpu("handleCarrier(" + creep.name + ") moveTo");
-        creep.moveTo(tgt);
-        //utils.logCpu("handleCarrier(" + creep.name + ") moveTo");
-      } else {
-        utils.moveRandomDirection(creep);
-      }
+      if (tgt) creep.moveTo(tgt);
+      else utils.moveRandomDirection(creep);
     }
-    //utils.logCpu("handleCarrier(" + creep.name + ") fetch");
   } else {
-    //utils.logCpu("handleCarrier(" + creep.name + ") deliver");
     const tgt = getStructureToFillHere(creep.pos);
     if (tgt) {
       delete creep.memory.path;
@@ -489,7 +482,6 @@ function handleCarrier(creep: Creep) {
       creep.memory.path = utils.getPath(creep.pos, targetPos);
       followMemorizedPath(creep);
     }
-    //utils.logCpu("handleCarrier(" + creep.name + ") deliver");
   }
 }
 
@@ -1610,37 +1602,34 @@ function getStructureToFill(pos: RoomPosition) {
     .map(({ value }) => value)[0]; /* remove sort values */
 }
 
-function getNearbyEnergySource(pos: RoomPosition) {
-  //utils.logCpu("getNearbyEnergySource(" + pos.toString() + ")");
+function getNearbyEnergySource(pos: RoomPosition, minEnergy: number) {
   let sources: (Resource | AnyStoreStructure | Tombstone | Ruin)[] = pos
     .findInRange(FIND_DROPPED_RESOURCES, 1)
-    .filter(container => utils.getEnergy(container) > 0);
+    .filter(container => utils.getEnergy(container) >= minEnergy);
   sources = sources.concat(
     pos
       .findInRange(FIND_STRUCTURES, 1)
       .filter(utils.isContainer)
       .filter(container => !utils.isStorageSubstitute(container))
-      .filter(container => utils.getEnergy(container) > 0)
+      .filter(container => utils.getEnergy(container) >= minEnergy)
   );
   sources = sources.concat(
     pos.findInRange(FIND_TOMBSTONES, 1, {
       filter(object) {
-        return utils.getEnergy(object) > 0;
+        return utils.getEnergy(object) >= minEnergy;
       }
     })
   );
   sources = sources.concat(
     pos.findInRange(FIND_RUINS, 1, {
       filter(object) {
-        return utils.getEnergy(object) > 0;
+        return utils.getEnergy(object) >= minEnergy;
       }
     })
   );
-  //utils.logCpu("getNearbyEnergySource(" + pos.toString() + ")");
   if (sources.length > 0) return sources[Math.floor(Math.random() * sources.length)];
 
   const room = Game.rooms[pos.roomName];
-  //utils.logCpu("getNearbyEnergySource(" + pos.toString() + ")");
   if (!room) return;
   if (room.energyAvailable < room.energyCapacityAvailable) {
     const source = pos
@@ -1648,10 +1637,8 @@ function getNearbyEnergySource(pos: RoomPosition) {
       .filter(utils.isStoreStructure)
       .filter(s => utils.isContainer(s) || utils.isStorage(s) || utils.isLink(s))
       .filter(container => utils.getEnergy(container) > 0)[0];
-    //utils.logCpu("getNearbyEnergySource(" + pos.toString() + ")");
     if (source) return source;
   }
-  //utils.logCpu("getNearbyEnergySource(" + pos.toString() + ")");
   return;
 }
 
