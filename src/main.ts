@@ -78,7 +78,6 @@ declare global {
     needInfantry: boolean;
     needReservers: boolean;
     needTransferers: boolean;
-    needUpgraders: boolean;
   }
 
   interface RoomMemory {
@@ -116,7 +115,6 @@ declare global {
     stroke: string;
     strokeWidth: number;
     transferTo?: Id<Structure>;
-    upgrade?: Id<StructureController>;
   }
 
   interface Task {
@@ -197,7 +195,6 @@ function updatePlan() {
     needInfantry: needInfantry(),
     needReservers: needReservers(),
     needTransferers: getStoragesRequiringTransferer().length > 0,
-    needUpgraders: needUpgraders(),
     maxRoomEnergy: Math.max(...Object.values(Game.rooms).map(r => r.energyAvailable)),
     maxRoomEnergyCap: Math.max(...Object.values(Game.rooms).map(r => r.energyCapacityAvailable)),
     minTicksToDowngrade: getMinTicksToDowngrade()
@@ -285,25 +282,18 @@ function handleExplorer(creep: Creep) {
 }
 
 function handleUpgrader(creep: Creep) {
-  const controllerId = creep.memory.upgrade;
-  let controller;
-  if (controllerId) controller = Game.getObjectById(controllerId);
-  if (!controller) controller = getControllerToUpgrade(creep.pos, false);
+  if (!creep.memory.room) creep.memory.room = creep.room.name;
+  const controller = Game.rooms[creep.room.name]?.controller;
   if (!controller) return;
-  creep.memory.upgrade = controller.id;
-  // actions
-  if (utils.getEnergy(creep) < 1) upgraderRetrieveEnergy(creep);
-  if (controller) {
+  if (utils.getEnergy(creep) < 1) {
+    const storage = getStorage(creep.room);
+    if (!storage) return;
+    const withdrawOutcome = creep.withdraw(storage, RESOURCE_ENERGY);
+    if (withdrawOutcome === ERR_NOT_IN_RANGE) move(creep, storage);
+  } else {
     const outcome = creep.upgradeController(controller);
     if (outcome === ERR_NOT_IN_RANGE) move(creep, controller);
   }
-}
-
-function upgraderRetrieveEnergy(creep: Creep) {
-  const storage = getStorage(creep.room);
-  if (!storage) return;
-  const withdrawOutcome = creep.withdraw(storage, RESOURCE_ENERGY);
-  if (withdrawOutcome === ERR_NOT_IN_RANGE) move(creep, storage);
 }
 
 function handleWorker(creep: Creep) {
@@ -434,70 +424,6 @@ function getRepairTarget(creep: Creep) {
     if (index > -1) Memory.rooms[closest.pos.roomName].repairTargets.splice(index, 1);
   }
   return closest;
-}
-
-function hasEnoughEnergyForAnotherUpgrader(controller: StructureController) {
-  const store = controller.pos.findClosestByRange(
-    controller.pos.findInRange(FIND_STRUCTURES, 10, {
-      filter(object) {
-        return utils.isStorage(object) || utils.isContainer(object);
-      }
-    })
-  );
-  if (!store) return false;
-  if (!utils.isContainer(store) && !utils.isStorage(store)) return false;
-  const energy = utils.getEnergy(store);
-  if (isNaN(energy) || utils.getFillRatio(store) < 0.1) return false;
-  const assignedWorkParts = Object.values(Game.creeps)
-    .filter(creep => creep.memory.upgrade === controller.id)
-    .reduce((aggregated, item) => aggregated + item.getActiveBodyparts(WORK), 0 /* initial*/);
-  if (utils.getFreeCap(store) < 1 && assignedWorkParts < 1) return true;
-  const energyPerWork = energy / assignedWorkParts;
-  const isEnough = energyPerWork > 180;
-  return isEnough;
-}
-
-function getControllerToUpgrade(pos: RoomPosition | undefined = undefined, urgentOnly = false) {
-  //utils.logCpu("getControllerToUpgrade(" + (pos || "").toString() + "," + urgentOnly.toString() + ")");
-  const targets = [];
-  for (const roomName in Game.rooms) {
-    const room = Game.rooms[roomName];
-    if (!utils.isRoomSafe(roomName)) continue;
-    if (!room.controller) continue;
-    if (!room.controller.my) continue;
-    const ticksToDowngrade = room.controller.ticksToDowngrade;
-    if (urgentOnly && ticksToDowngrade > 4000) continue;
-    const upgraderCount = countUpgradersAssigned(room.controller.id);
-    if (!hasEnoughEnergyForAnotherUpgrader(room.controller) && (ticksToDowngrade > 4000 || upgraderCount > 0))
-      continue;
-    if (isControllerUpgradedEnough(room.controller)) continue;
-    if (upgraderCount >= 5) continue;
-    targets.push(room.controller);
-  }
-  const destination = targets
-    .map(value => ({
-      value,
-      sort:
-        (pos ? utils.getGlobalRange(pos, utils.getPos(value)) : 0) +
-        value.ticksToDowngrade / 20 +
-        Object.values(Game.creeps).filter(creep => creep.memory.upgrade === value.id).length * 100
-    })) /* persist sort values */
-    .sort((a, b) => a.sort - b.sort) /* sort */
-    .map(({ value }) => value) /* remove sort values */[0];
-
-  //utils.logCpu("getControllerToUpgrade(" + (pos || "").toString() + "," + urgentOnly.toString() + ")");
-  return destination;
-}
-
-function isControllerUpgradedEnough(controller: StructureController) {
-  if (controller.progressTotal) return false;
-  if (countUpgradersAssigned(controller.id) > 0) return true;
-  if (controller.ticksToDowngrade > 100000) return true;
-  return false;
-}
-
-function countUpgradersAssigned(controllerId: Id<StructureController>) {
-  return Object.values(Game.creeps).filter(creep => creep.memory.upgrade === controllerId).length;
 }
 
 function moveTowardMemory(creep: Creep) {
@@ -844,7 +770,7 @@ function handleRoom(room: Room) {
   const polyPoints = room.memory.polyPoints;
   if (polyPoints) new RoomVisual(room.name).poly(polyPoints);
   handleRoomTowers(room);
-  if (!room.memory.costMatrix || Math.random() < 0.03) {
+  if (!room.memory.costMatrix || utils.gotSpareCpu()) {
     room.memory.costMatrix = getFreshCostMatrix(room.name).serialize();
     room.memory.costMatrixCreeps = getFreshCostMatrixCreeps(room.name).serialize();
   }
@@ -858,7 +784,8 @@ function handleRoom(room: Room) {
   utils.checkRoomCanOperate(room);
   if (Math.random() < 0.1 && utils.gotSpareCpu()) updateStickyEnergy(room);
   spawnCarriers(room);
-  spawnWorkers(room);
+  spawnByQuota(room, "worker", 1);
+  spawnByQuota(room, "upgrader", 1);
   if (Math.random() < 0.1 && utils.gotSpareCpu()) handleRoads(room);
   ("");
 }
@@ -871,29 +798,27 @@ function handleRoads(room: Room) {
 }
 
 function spawnCarriers(room: Room) {
+  const controller = room.controller;
+  if (!controller || !controller.my) return;
   const max = 3;
-  if (room.controller?.my) {
-    const count = Object.values(Game.creeps).filter(
-      creep => creep.name.startsWith("C") && creep.memory.room === room.name
-    ).length;
-    if (count >= max) return;
-    const fullContainers = room
-      .find(FIND_STRUCTURES)
-      .filter(utils.isContainer)
-      .filter(container => utils.isFull(container) && !utils.isStorageSubstitute(container)).length;
-    if (fullContainers > 0) {
-      spawnCarrier(room);
-    }
-  }
+  const count = Object.values(Game.creeps).filter(
+    creep => creep.name.startsWith("C") && creep.memory.room === room.name
+  ).length;
+  if (count >= max) return;
+  const fullContainers = room
+    .find(FIND_STRUCTURES)
+    .filter(utils.isContainer)
+    .filter(container => utils.isFull(container) && !utils.isStorageSubstitute(container)).length;
+  if (fullContainers > 0) spawnCreepForRoom("carrier", controller.pos);
 }
 
-function spawnWorkers(room: Room) {
-  if (room.controller?.my) {
-    const count = Object.values(Game.creeps).filter(
-      creep => creep.name.startsWith("W") && creep.memory.room === room.name
-    ).length;
-    if (count < 1) spawnWorker(room);
-  }
+function spawnByQuota(room: Room, role: Role, max: number) {
+  const controller = room.controller;
+  if (!controller || !controller.my) return;
+  const count = Object.values(Game.creeps).filter(
+    creep => creep.name.startsWith(role.charAt(0).toUpperCase()) && creep.memory.room === room.name
+  ).length;
+  if (count < max) spawnCreepForRoom(role, controller.pos);
 }
 
 function handleRoomTowers(room: Room) {
@@ -1004,11 +929,8 @@ function pickup(creep: Creep, destination: Destination) {
 }
 
 function spawnCreeps() {
-  //utils.logCpu("spawnCreeps()");
   const budget = utils.gotSpareCpu() ? Memory.plan?.maxRoomEnergy : Memory.plan?.maxRoomEnergyCap;
-  if (spawnUpgrader(true)) {
-    return; // spawning upgrader for urgent need
-  } else if (Memory.plan?.needTransferers) {
+  if (Memory.plan?.needTransferers) {
     spawnTransferer();
   } else if (Memory.plan?.needHarvesters) {
     spawnHarvester();
@@ -1018,10 +940,7 @@ function spawnCreeps() {
     spawnCreep("explorer", undefined, [MOVE]);
   } else if (Memory.plan?.needReservers && budget >= utils.getBodyCost(["claim", "move"])) {
     spawnReserver();
-  } else if (Memory.plan?.needUpgraders) {
-    spawnUpgrader();
   }
-  //utils.logCpu("spawnCreeps()");
 }
 
 function needReservers() {
@@ -1245,29 +1164,6 @@ function updateFlagReserve() {
     targets[0].pos.createFlag("reserve", COLOR_ORANGE, COLOR_WHITE);
   }
   //utils.logCpu("updateFlagReserve()");
-}
-
-function needWorkers() {
-  //utils.logCpu("needWorkers");
-  if (utils.isAnyoneIdle("worker") || utils.isAnyoneLackingEnergy("worker")) return false;
-  const workers = Object.values(Game.creeps).filter(creep => creep.name.startsWith("W"));
-  //utils.logCpu("needWorkers");
-  if (workers.length >= 15) return false;
-  const workParts = workers.reduce(
-    (aggregated, item) => aggregated + item.getActiveBodyparts(WORK),
-    0 /* initial*/
-  );
-  const partsNeeded = Math.ceil(getTotalConstructionWork() / 400 + utils.getTotalRepairTargetCount() / 2);
-  const value =
-    partsNeeded > workParts && (Memory.plan?.minTicksToDowngrade > 4000 || !Memory.plan?.needUpgraders);
-  //utils.logCpu("needWorkers");
-  return value;
-}
-
-function getTotalConstructionWork() {
-  return Object.values(Game.constructionSites)
-    .filter(site => site.room && utils.isRoomSafe(site.room.name))
-    .reduce((aggregated, item) => aggregated + item.progressTotal - item.progress, 0 /* initial*/);
 }
 
 function getSourceToHarvest() {
@@ -1644,23 +1540,6 @@ function checkWipeOut() {
   }
 }
 
-function needUpgraders(): boolean {
-  for (const roomName in Game.rooms) {
-    const room = Game.rooms[roomName];
-    if (!utils.isRoomSafe(roomName)) continue;
-    if (!room.controller) continue;
-    if (!room.controller.my) continue;
-    const ticksToDowngrade = room.controller.ticksToDowngrade;
-    const upgraderCount = countUpgradersAssigned(room.controller.id);
-    if (!hasEnoughEnergyForAnotherUpgrader(room.controller) && (ticksToDowngrade > 4000 || upgraderCount > 0))
-      continue;
-    if (isControllerUpgradedEnough(room.controller)) continue;
-    if (upgraderCount >= 4) continue;
-    return true;
-  }
-  return false;
-}
-
 function downscaleHarvester(body: BodyPartConstant[]): BodyPartConstant[] | null {
   if (body.filter(part => part === "move").length > 1) {
     body.splice(body.indexOf("move"), 1);
@@ -1821,40 +1700,15 @@ function followMemorizedPath(creep: Creep) {
   return;
 }
 
-function spawnUpgrader(urgentOnly = false) {
-  const upgradeTarget = getControllerToUpgrade(undefined, urgentOnly);
-  if (!upgradeTarget) return;
-  const spawn = getSpawn(0, upgradeTarget.pos);
-  if (!spawn) return;
-  return spawnCreep("upgrader", spawn.room.energyAvailable, undefined, undefined, upgradeTarget, spawn);
-}
-
-function spawnCarrier(targetRoom: Room) {
-  const targetPos = getStorage(targetRoom)?.pos ?? targetRoom.controller?.pos;
+function spawnCreepForRoom(roleToSpawn: Role, targetPos: RoomPosition) {
   const spawn = getSpawn(0, targetPos);
   if (!spawn) return false;
 
-  const roleToSpawn: Role = "carrier";
   const memory = {
     pos: spawn.pos,
     stroke: utils.hslToHex(Math.random() * 360, 100, 50),
     strokeWidth: 0.1 + 0.1 * (Math.random() % 4),
-    room: targetRoom.name
-  };
-  return spawnCreep(roleToSpawn, spawn.room.energyAvailable, undefined, undefined, undefined, spawn, memory);
-}
-
-function spawnWorker(targetRoom: Room) {
-  const targetPos = getStorage(targetRoom)?.pos ?? targetRoom.controller?.pos;
-  const spawn = getSpawn(0, targetPos);
-  if (!spawn) return false;
-
-  const roleToSpawn: Role = "worker";
-  const memory = {
-    pos: spawn.pos,
-    stroke: utils.hslToHex(Math.random() * 360, 100, 50),
-    strokeWidth: 0.1 + 0.1 * (Math.random() % 4),
-    room: targetRoom.name
+    room: targetPos.roomName
   };
   return spawnCreep(roleToSpawn, spawn.room.energyAvailable, undefined, undefined, undefined, spawn, memory);
 }
