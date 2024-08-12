@@ -1329,7 +1329,7 @@ export function getCachedCostMatrixRamparts(roomName: string): CostMatrix {
 }
 
 export function getCachedCostMatrixSafe(roomName: string): CostMatrix {
-  const costMem = Memory.rooms[roomName]?.costMatrix;
+  const costMem = Memory.rooms[roomName]?.costMatrixCreeps;
   if (costMem) {
     const costs = PathFinder.CostMatrix.deserialize(costMem);
     const exits = Game.map.describeExits(roomName);
