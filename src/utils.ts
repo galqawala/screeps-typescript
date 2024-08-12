@@ -1103,11 +1103,9 @@ export function resetSpecificDestinationFromCreeps(destination: Destination): vo
 }
 
 export function resetDestination(creep: Creep): void {
-  //logCpu("resetDestination(" + creep.name + ")");
   delete creep.memory.destination;
   const flag = Game.flags["creep_" + creep.name];
   if (flag) flag.remove();
-  //logCpu("resetDestination(" + creep.name + ")");
   return;
 }
 

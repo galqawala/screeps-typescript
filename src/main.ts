@@ -258,7 +258,8 @@ function handleCreeps() {
 
 function handleExplorer(creep: Creep) {
   if (utils.isStuck(creep)) {
-    delete creep.memory.path; // replan
+    delete creep.memory.path;
+    delete creep.memory.destination;
     utils.moveRandomDirection(creep);
     return;
   }
@@ -274,8 +275,11 @@ function handleExplorer(creep: Creep) {
     const randomIndex = Math.floor(Math.random() * accessibleExits.length);
     const destination = accessibleExits[randomIndex];
     if (destination) {
-      move(creep, destination);
-      utils.setDestination(creep, destination);
+      if (move(creep, destination) === ERR_NO_PATH) {
+        delete creep.memory.destination;
+      } else {
+        utils.setDestination(creep, destination);
+      }
     }
   }
 }
@@ -508,8 +512,8 @@ function moveTowardMemory(creep: Creep) {
     }
   }
   if (destination) {
-    move(creep, destination);
-    if (utils.getGlobalRange(creep.pos, destination.pos) <= 1) utils.resetDestination(creep);
+    if (move(creep, destination) === ERR_NO_PATH || utils.getGlobalRange(creep.pos, destination.pos) <= 1)
+      utils.resetDestination(creep);
     return true;
   }
   return false;
