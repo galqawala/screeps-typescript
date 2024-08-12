@@ -377,10 +377,8 @@ function build(creep: Creep) {
   if (destination instanceof ConstructionSite) {
     creep.memory.lastActiveTime = Game.time;
     creep.memory.build = destination.id;
-    if (creep.build(destination) === ERR_NOT_IN_RANGE) {
-      move(creep, destination);
-      return true;
-    }
+    if (creep.build(destination) === ERR_NOT_IN_RANGE) move(creep, destination);
+    return true;
   }
   return false;
 }
