@@ -776,7 +776,7 @@ export function updateRoomRepairTargets(room: Room): void {
     : structures
         .filter(
           s =>
-            s.hits < s.hitsMax /*below max hits*/ &&
+            s.hits < s.hitsMax - 100 /*at least 100 hits to repair*/ &&
             (("my" in s && s.my) /*my structure*/ || room.controller?.my) /*my room*/
         )
         .reduce((min, structure) => Math.min(min, structure.hits), Number.POSITIVE_INFINITY) +
