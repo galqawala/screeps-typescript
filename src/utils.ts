@@ -1095,15 +1095,6 @@ export function getStructureCount(
   return count;
 }
 
-export function resetSpecificDestinationFromCreeps(destination: Destination): void {
-  for (const i in Game.creeps) {
-    const creep = Game.creeps[i];
-    if (creep.memory.destination && "id" in destination && creep.memory.destination === destination.id) {
-      resetDestination(creep);
-    }
-  }
-}
-
 export function resetDestination(creep: Creep): void {
   delete creep.memory.destination;
   const flag = Game.flags["creep_" + creep.name];

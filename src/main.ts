@@ -466,24 +466,10 @@ function handleCarrier(creep: Creep) {
     }
   } else {
     //deliver
-    const localTgt = getStructureToFillHere(creep.pos);
-    if (localTgt) {
-      delete creep.memory.path;
-      transfer(creep, localTgt);
-    } else {
-      const target = getStructureToFill(creep.pos);
-      if (!target) {
-        utils.moveRandomDirection(creep);
-        return;
-      }
-      const targetPos = getPosNear(creep.pos, target.pos);
-      if (!targetPos) {
-        utils.moveRandomDirection(creep);
-        return;
-      }
-      creep.memory.path = utils.getPath(creep.pos, targetPos);
-      followMemorizedPath(creep);
-    }
+    const deliverTo = getStructureToFillHere(creep.pos) ?? getStructureToFill(creep.pos);
+    if (!deliverTo) return;
+    const outcome = transfer(creep, deliverTo);
+    if (outcome === ERR_NOT_IN_RANGE) move(creep, deliverTo);
   }
 }
 
@@ -592,7 +578,6 @@ function transfer(creep: Creep, destination: Creep | Structure<StructureConstant
       utils.resetDestination(destination);
     }
   }
-  if (actionOutcome === OK) utils.resetSpecificDestinationFromCreeps(destination);
   return actionOutcome;
 }
 
@@ -780,6 +765,7 @@ function handleRoom(room: Room) {
   spawnCarriers(room);
   spawnByQuota(room, "worker", 1);
   spawnByQuota(room, "upgrader", 1);
+  spawnCreepWhenStorageFull(room);
   if (Math.random() < 0.1 && utils.gotSpareCpu()) handleRoads(room);
   ("");
 }
@@ -907,7 +893,6 @@ function move(creep: Creep, destination: Destination) {
 function withdraw(creep: Creep, destination: Destination) {
   if (destination instanceof Structure || destination instanceof Tombstone || destination instanceof Ruin) {
     const actionOutcome = creep.withdraw(destination, RESOURCE_ENERGY);
-    if (actionOutcome === OK) utils.resetSpecificDestinationFromCreeps(destination);
     return actionOutcome;
   }
   return ERR_INVALID_TARGET;
@@ -916,7 +901,6 @@ function withdraw(creep: Creep, destination: Destination) {
 function pickup(creep: Creep, destination: Destination) {
   if (destination instanceof Resource) {
     const actionOutcome = creep.pickup(destination);
-    if (actionOutcome === OK) utils.resetSpecificDestinationFromCreeps(destination);
     return actionOutcome;
   }
   return ERR_INVALID_TARGET;
@@ -1842,4 +1826,20 @@ function getHarvestPos(source: Source) {
     ) ??
     positions[0] /*space around*/
   );
+}
+
+function spawnCreepWhenStorageFull(room: Room) {
+  const controller = room.controller;
+  if (!controller || !controller.my) return;
+  if (room.energyAvailable < room.energyCapacityAvailable) return;
+  const storage = getStorage(room);
+  if (!storage || !utils.isFull(storage)) return;
+  const workers = Object.values(Game.creeps).filter(
+    creep => creep.name.startsWith("W") && creep.memory.room === room.name
+  ).length;
+  const upgraders = Object.values(Game.creeps).filter(
+    creep => creep.name.startsWith("U") && creep.memory.room === room.name
+  ).length;
+  if (workers + Math.random() < upgraders + Math.random()) spawnCreepForRoom("worker", controller.pos);
+  else spawnCreepForRoom("upgrader", controller.pos);
 }
