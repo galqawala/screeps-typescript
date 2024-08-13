@@ -1856,7 +1856,7 @@ export function removeConstructionSitesInRoomsWithoutVisibility() {
 function destroyStructuresWithoutFlags(room: Room) {
   const spawnCount = Object.values(Game.spawns).filter(s => s.pos.roomName === room.name).length;
   const structuresToRemove = room
-    .find(FIND_MY_STRUCTURES)
+    .find(FIND_STRUCTURES)
     .filter(
       s => s.pos.lookFor(LOOK_FLAGS).filter(flag => flag.name.startsWith(s.structureType + "_")).length < 1
     );
