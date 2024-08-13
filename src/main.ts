@@ -409,21 +409,21 @@ function dismantle(creep: Creep) {
 function getRepairTarget(creep: Creep) {
   const room = getCreepTargetRoom(creep);
   if (!room) return;
-  const closest = room.memory.repairTargets
-    ?.map(id => Game.getObjectById(id))
-    .filter(target => target)
+  const target = room
+    .find(FIND_STRUCTURES)
+    .filter(target => target.hits < target.hitsMax)
     .map(target => ({
       target,
-      sort: utils.getGlobalRange(creep.pos, utils.getPos(target)) + (target?.hits ?? 1)
+      sort: target.hits
     })) /* persist sort values */
     .sort((a, b) => a.sort - b.sort) /* sort */
     .map(({ target }) => target) /* remove sort values */[0];
 
-  if (closest) {
-    const index = Memory.rooms[closest.pos.roomName].repairTargets.indexOf(closest.id);
-    if (index > -1) Memory.rooms[closest.pos.roomName].repairTargets.splice(index, 1);
+  if (target) {
+    const index = Memory.rooms[target.pos.roomName].repairTargets.indexOf(target.id);
+    if (index > -1) Memory.rooms[target.pos.roomName].repairTargets.splice(index, 1);
   }
-  return closest;
+  return target;
 }
 
 function moveTowardMemory(creep: Creep) {
