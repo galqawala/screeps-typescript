@@ -715,8 +715,8 @@ function handleHarvester(creep: Creep) {
   const flag = Game.flags[flagName];
   if (!utils.isPosEqual(creep.pos, flag.pos)) move(creep, flag);
   if (!creep.memory.workStartTime && utils.getGlobalRange(creep.pos, flag.pos) <= 1)
-    creep.memory.workStartTime =
-      Game.time; /* count as working, even if we have to wait for the previous harvester to die */
+    /* count as working, even if we have to wait for the previous harvester to die */
+    creep.memory.workStartTime = Game.time;
   if (utils.getFillRatio(creep) > 0.5) harvesterSpendEnergy(creep);
   // harvest
   const sourceId = creep.memory.sourceId;
