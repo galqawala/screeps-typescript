@@ -308,7 +308,7 @@ function handleWorker(creep: Creep) {
     creep.memory.lastActiveTime = Game.time;
     creep.repair(repairTarget);
   } else {
-    const result = build(creep) || repair(creep) || dismantle(creep);
+    const result = repair(creep) || build(creep) || dismantle(creep);
     return result;
   }
   return;
