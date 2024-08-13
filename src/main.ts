@@ -69,8 +69,6 @@ declare global {
 
   interface Plan {
     controllersToReserve: Id<StructureController>[];
-    fillSpawnsFromStorage: boolean;
-    fillStorage: boolean;
     maxRoomEnergy: number;
     maxRoomEnergyCap: number;
     minTicksToDowngrade: number;
@@ -112,9 +110,11 @@ declare global {
     retrieve?: Id<Structure | Tombstone | Ruin | Resource>;
     room?: string;
     sourceId?: Id<Source>;
+    spawnStartTime?: number;
     stroke: string;
     strokeWidth: number;
     transferTo?: Id<Structure>;
+    workStartTime?: number;
   }
 
   interface Task {
@@ -184,14 +184,9 @@ export const loop = ErrorMapper.wrapLoop(() => {
 });
 
 function updatePlan() {
-  const storageMin = utils.getStorageMin();
-  const allSpawnsFull = areAllSpawnsFull();
-  const needHarvesters = getSourceToHarvest() ? true : false;
   Memory.plan = {
     controllersToReserve: utils.getControllersToReserve().map(controller => controller.id),
-    fillSpawnsFromStorage: storageMin >= 800000 && !allSpawnsFull,
-    fillStorage: (storageMin < 150000 && !needHarvesters) || allSpawnsFull,
-    needHarvesters: storageMin < 900000 && needHarvesters,
+    needHarvesters: getSourceToHarvest() ? true : false,
     needInfantry: needInfantry(),
     needReservers: needReservers(),
     needTransferers: getStoragesRequiringTransferer().length > 0,
@@ -230,10 +225,9 @@ function areAllSpawnsFull() {
 
 function handleCreeps() {
   utils.logCpu("handleCreeps()");
-  for (const c in Game.creeps) {
-    if (!Game.creeps[c].spawning) {
-      utils.logCpu("creep: " + c);
-      const creep = Game.creeps[c];
+  for (const creep of Object.values(Game.creeps)) {
+    utils.logCpu("creep: " + creep);
+    if (!creep.spawning) {
       const role = creep.name.charAt(0).toLowerCase();
       if (role === "c") handleCarrier(creep);
       else if (role === "e") handleExplorer(creep);
@@ -247,8 +241,10 @@ function handleCreeps() {
       if (!utils.isPosEqual(creep.memory.pos, creep.pos)) creep.memory.lastMoveTime = Game.time;
       if (utils.isFull(creep)) creep.memory.lastTimeFull = Game.time;
       creep.memory.pos = creep.pos;
-      utils.logCpu("creep: " + c);
+    } else if (!creep.memory.spawnStartTime) {
+      creep.memory.spawnStartTime = Game.time;
     }
+    utils.logCpu("creep: " + creep);
   }
   utils.logCpu("handleCreeps()");
 }
@@ -726,7 +722,8 @@ function handleHarvester(creep: Creep) {
     const source = Game.getObjectById(sourceId);
     if (source) {
       const outcome = creep.harvest(source);
-      if (outcome === ERR_NOT_OWNER) recycleCreep(creep);
+      if (outcome === OK && !creep.memory.workStartTime) creep.memory.workStartTime = Game.time;
+      else if (outcome === ERR_NOT_OWNER) recycleCreep(creep);
     }
   }
   // done
@@ -1148,7 +1145,6 @@ function updateFlagReserve() {
 }
 
 function getSourceToHarvest() {
-  //utils.logCpu("getSourceToHarvest()");
   let sources: Source[] = [];
   for (const roomName in Game.rooms) {
     const room = Game.rooms[roomName];
@@ -1159,13 +1155,11 @@ function getSourceToHarvest() {
       room.find(FIND_SOURCES).filter(harvestSource => !utils.sourceHasHarvester(harvestSource))
     );
   }
-  //utils.logCpu("getSourceToHarvest()");
   if (sources.length < 1) return;
   const source = sources
     .map(value => ({ value, sort: value.energy + value.energyCapacity })) /* persist sort values */
     .sort((a, b) => b.sort - a.sort) /* sort */
     .map(({ value }) => value) /* remove sort values */[0];
-  //utils.logCpu("getSourceToHarvest()");
   return source;
 }
 

@@ -448,11 +448,15 @@ export function setDestinationFlag(name: string, pos: RoomPosition): void {
 }
 
 export function sourceHasHarvester(source: Source): boolean {
-  for (const i in Game.creeps) {
-    const creep = Game.creeps[i];
-    if (creep.memory.sourceId === source.id && (creep.ticksToLive || 100) > 30) {
-      return true;
-    }
+  for (const creep of Object.values(Game.creeps)) {
+    if (!creep.memory.sourceId || creep.memory.sourceId !== source.id) continue;
+    const timeToReplace = Math.max(
+      0,
+      (creep.memory.workStartTime ?? 0) -
+        (creep.memory.spawnStartTime ?? 0) -
+        5 /* just in case it had to wait for the previous harvester to die */
+    );
+    if ((creep.ticksToLive ?? 0) > timeToReplace) return true;
   }
   return false;
 }
