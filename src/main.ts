@@ -291,6 +291,8 @@ function handleUpgrader(creep: Creep) {
     if (!storage) return;
     const withdrawOutcome = creep.withdraw(storage, RESOURCE_ENERGY);
     if (withdrawOutcome === ERR_NOT_IN_RANGE) move(creep, getUpgraderSpot(room) ?? storage.pos);
+  } else if (Math.random() < 0.1 && creep.pos.lookFor(LOOK_STRUCTURES).length > 0) {
+    move(creep, getUpgraderSpot(room) ?? controller.pos); //stay out of roads and stuff
   } else {
     const outcome = creep.upgradeController(controller);
     if (outcome === ERR_NOT_IN_RANGE) move(creep, getUpgraderSpot(room) ?? controller.pos);
