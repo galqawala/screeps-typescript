@@ -325,6 +325,7 @@ export function setUsername(): void {
 }
 
 export function logCpu(name: string): void {
+  if (!Memory.cpuLog) return;
   if (!(name in Memory.cpuLog)) {
     Memory.cpuLog[name] = { before: Game.cpu.getUsed(), after: Game.cpu.getUsed() };
   } else {
@@ -487,7 +488,7 @@ export function needRepair(structure: Structure): boolean {
   if (!structure.hitsMax) return false;
   if (structure.hits >= structure.hitsMax) return false;
   if (!structure.room) return false;
-  if (structure.hits > structure.room.memory.maxHitsToRepair) return false;
+  if (structure.hits > (structure.room.memory.maxHitsToRepair ?? 0)) return false;
   return true;
 }
 
@@ -1247,7 +1248,7 @@ export function isAnyoneLackingEnergy(role: Role): boolean {
 }
 
 export function gotSpareCpu(): boolean {
-  return Game.cpu.tickLimit >= Memory.maxTickLimit && Memory.cpuUsedRatio < 0.9;
+  return Game.cpu.tickLimit >= (Memory.maxTickLimit ?? 0) && (Memory.cpuUsedRatio ?? 0) < 0.9;
 }
 
 export function hslToHex(h: number /* deg */, s: number /* % */, l: number /* % */): string {
