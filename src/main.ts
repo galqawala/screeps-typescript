@@ -1562,28 +1562,20 @@ function getStructureToFillHere(pos: RoomPosition) {
 }
 
 function getStructureToFill(pos: RoomPosition) {
-  let targets: AnyStructure[] = [];
   const room = Game.rooms[pos.roomName];
   if (!room) return;
   const spawnMaxed = room.energyAvailable >= room.energyCapacityAvailable;
+  let targets: AnyStructure[] = room
+    .find(FIND_MY_STRUCTURES)
+    .filter(utils.isStoreStructure)
+    .filter(s => !utils.isFull(s) && !utils.isStorage(s))
+    .filter(s => spawnMaxed || !utils.isLink(s));
   if (spawnMaxed) {
     const storage = getStorage(room);
     if (storage && !utils.isFull(storage)) targets.push(storage);
   }
-  targets = targets.concat(
-    room
-      .find(FIND_MY_STRUCTURES)
-      .filter(utils.isStoreStructure)
-      .filter(s => !utils.isFull(s) && !utils.isStorage(s))
-      .filter(s => spawnMaxed || !utils.isLink(s))
-  );
-  return targets
-    .map(value => ({
-      value,
-      sort: utils.getGlobalRange(pos, value.pos)
-    })) /* persist sort values */
-    .sort((a, b) => a.sort - b.sort) /* sort */
-    .map(({ value }) => value)[0]; /* remove sort values */
+  const randomIndex = Math.floor(Math.random() * targets.length);
+  return targets[randomIndex]; //random target to reduce traffic jams
 }
 
 function getNearbyEnergySource(pos: RoomPosition, minEnergy: number) {
