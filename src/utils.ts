@@ -770,7 +770,7 @@ export function setDestination(creep: Creep, destination: Destination): void {
 export function updateRoomRepairTargets(room: Room): void {
   const structures = room.find(FIND_STRUCTURES);
   const constructing = room.find(FIND_MY_CONSTRUCTION_SITES).length > 0;
-  const repairBatchHits = 2000;
+  const repairBatchHits = 3000;
   room.memory.maxHitsToRepair = constructing
     ? repairBatchHits
     : structures

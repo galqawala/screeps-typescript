@@ -282,17 +282,18 @@ function handleExplorer(creep: Creep) {
 }
 
 function handleUpgrader(creep: Creep) {
-  if (!creep.memory.room) creep.memory.room = creep.room.name;
-  const controller = Game.rooms[creep.room.name]?.controller;
+  const room = getCreepTargetRoom(creep);
+  if (!room) return;
+  const controller = room.controller;
   if (!controller) return;
   if (utils.getEnergy(creep) < 1) {
-    const storage = getStorage(creep.room);
+    const storage = getStorage(room);
     if (!storage) return;
     const withdrawOutcome = creep.withdraw(storage, RESOURCE_ENERGY);
-    if (withdrawOutcome === ERR_NOT_IN_RANGE) move(creep, storage);
+    if (withdrawOutcome === ERR_NOT_IN_RANGE) move(creep, getUpgraderSpot(room) ?? storage.pos);
   } else {
     const outcome = creep.upgradeController(controller);
-    if (outcome === ERR_NOT_IN_RANGE) move(creep, controller);
+    if (outcome === ERR_NOT_IN_RANGE) move(creep, getUpgraderSpot(room) ?? controller.pos);
   }
 }
 
@@ -1842,4 +1843,14 @@ function spawnCreepWhenStorageFull(room: Room) {
   ).length;
   if (workers + Math.random() < upgraders + Math.random()) spawnCreepForRoom("worker", controller.pos);
   else spawnCreepForRoom("upgrader", controller.pos);
+}
+
+function getUpgraderSpot(room: any) {
+  const storage = getStorage(room);
+  if (!storage) return;
+  return utils
+    .getSurroundingPlains(storage.pos, 0, 1, true)
+    .map(pos => ({ pos, sort: pos.look().length + Math.random() })) /* persist sort values */
+    .sort((a, b) => a.sort - b.sort) /* sort */
+    .map(({ pos }) => pos)[0]; /* remove sort values */
 }
