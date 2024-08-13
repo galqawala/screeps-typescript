@@ -1367,20 +1367,13 @@ function purgeFlags() {
 }
 
 function getStorage(room: Room): StructureContainer | StructureStorage | undefined | null {
-  if (room.controller) {
-    const storage = room.controller.pos.findClosestByRange(
-      room.controller.pos.findInRange(FIND_STRUCTURES, 10, {
-        filter(object) {
-          return utils.isStorage(object) || utils.isStorageSubstitute(object);
-        }
-      })
-    );
-    if (storage) {
-      if (utils.isStorage(storage)) return storage;
-      else if (utils.isContainer(storage)) return storage;
-    }
-  }
-  return;
+  return (
+    room.storage ??
+    room.controller?.pos
+      .findInRange(FIND_STRUCTURES, 2)
+      .filter(utils.isStorageSubstitute)
+      .filter(utils.isContainer)[0]
+  );
 }
 
 function getClusterStructures(clusterPos: RoomPosition) {
