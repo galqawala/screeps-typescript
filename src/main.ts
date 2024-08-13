@@ -410,7 +410,7 @@ function getRepairTarget(creep: Creep) {
   if (!room) return;
   const target = room
     .find(FIND_STRUCTURES)
-    .filter(target => target.hits < target.hitsMax - 100)
+    .filter(target => target.hits < target.hitsMax - 100 && target.hits < room.memory.maxHitsToRepair)
     .map(target => ({
       target,
       sort: target.hits
