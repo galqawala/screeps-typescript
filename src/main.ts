@@ -783,7 +783,7 @@ function handleRoads(room: Room) {
 function spawnCarriers(room: Room) {
   const controller = room.controller;
   if (!controller || !controller.my) return;
-  const max = 3;
+  const max = 4;
   const count = Object.values(Game.creeps).filter(
     creep => creep.name.startsWith("C") && creep.memory.room === room.name
   ).length;
