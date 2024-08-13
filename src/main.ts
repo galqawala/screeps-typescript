@@ -779,16 +779,14 @@ function handleRoads(room: Room) {
 function spawnCarriers(room: Room) {
   const controller = room.controller;
   if (!controller || !controller.my) return;
-  const max = 4;
   const count = Object.values(Game.creeps).filter(
     creep => creep.name.startsWith("C") && creep.memory.room === room.name
   ).length;
-  if (count >= max) return;
   const fullContainers = room
     .find(FIND_STRUCTURES)
     .filter(utils.isContainer)
     .filter(container => utils.isFull(container) && !utils.isStorageSubstitute(container)).length;
-  if (fullContainers > 0) spawnCreepForRoom("carrier", controller.pos);
+  if (fullContainers > 0 && (count < 1 || utils.gotSpareCpu())) spawnCreepForRoom("carrier", controller.pos);
 }
 
 function spawnByQuota(room: Room, role: Role, max: number) {
