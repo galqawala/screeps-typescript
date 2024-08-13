@@ -454,8 +454,13 @@ function handleCarrier(creep: Creep) {
   const freeCap = utils.getFreeCap(creep);
   if (!creep.memory.room) creep.memory.room = creep.pos.roomName;
   if (followMemorizedPath(creep)) return;
-  if (freeCap < 1) creep.memory.delivering = true;
-  else if (utils.getEnergy(creep) < 1) creep.memory.delivering = false;
+
+  if (freeCap < 1) {
+    creep.memory.delivering = true;
+  } else if (utils.getEnergy(creep) < 1) {
+    creep.memory.delivering = false;
+    delete creep.memory.transferTo;
+  }
 
   if (creep.pos.roomName !== creep.memory.room) {
     creep.memory.path = utils.getPath(creep.pos, new RoomPosition(25, 25, creep.memory.room), 20);
@@ -473,10 +478,17 @@ function handleCarrier(creep: Creep) {
     }
   } else {
     //deliver
-    const deliverTo = getStructureToFillHere(creep.pos) ?? getStructureToFill(creep.pos);
+    const deliverToId = creep.memory.transferTo;
+    let deliverTo;
+    if (typeof deliverToId === "string") deliverTo = Game.getObjectById(deliverToId);
+    if (!deliverTo || utils.isFull(deliverTo))
+      deliverTo = getStructureToFillHere(creep.pos) ?? getStructureToFill(creep.pos);
     if (!deliverTo) return;
     const outcome = transfer(creep, deliverTo);
-    if (outcome === ERR_NOT_IN_RANGE) move(creep, deliverTo);
+    if (outcome === ERR_NOT_IN_RANGE) {
+      move(creep, deliverTo);
+      creep.memory.transferTo = deliverTo.id;
+    }
   }
 }
 
