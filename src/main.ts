@@ -454,20 +454,22 @@ function handleCarrier(creep: Creep) {
     creep.memory.path = utils.getPath(creep.pos, new RoomPosition(25, 25, creep.memory.room), 20);
     followMemorizedPath(creep);
   } else if (!creep.memory.delivering) {
+    //fetch
     const source = getNearbyEnergySource(creep.pos, freeCap);
     if (source) {
       delete creep.memory.path;
       retrieveEnergy(creep, source);
     } else {
-      const tgt = getCarrierEnergySource(creep);
+      const tgt = getCarrierEnergySource(creep, freeCap);
       if (tgt) creep.moveTo(tgt);
       else utils.moveRandomDirection(creep);
     }
   } else {
-    const tgt = getStructureToFillHere(creep.pos);
-    if (tgt) {
+    //deliver
+    const localTgt = getStructureToFillHere(creep.pos);
+    if (localTgt) {
       delete creep.memory.path;
-      transfer(creep, tgt);
+      transfer(creep, localTgt);
     } else {
       const target = getStructureToFill(creep.pos);
       if (!target) {
@@ -1424,16 +1426,14 @@ function getClusterStructures(clusterPos: RoomPosition) {
   return structures;
 }
 
-function getCarrierEnergySource(creep: Creep) {
+function getCarrierEnergySource(creep: Creep, minEnergy: number) {
   const room = getCreepTargetRoom(creep);
   if (!room) return;
   return getCarrierEnergySources(room)
+    .filter(source => utils.getEnergy(source) >= minEnergy)
     .map(source => ({
       value: source,
-      /* prefer close-by sources, full sources and sources that fill us 100% */
-      sort:
-        utils.getGlobalRange(creep.pos, source.pos) *
-        (!utils.hasSpace(source) || utils.getEnergy(source) >= utils.getFreeCap(creep) ? 1 : 100)
+      sort: utils.getGlobalRange(creep.pos, source.pos)
     })) /* persist sort values */
     .sort((a, b) => a.sort - b.sort) /* sort */
     .map(({ value }) => value) /* remove sort values */[0];
