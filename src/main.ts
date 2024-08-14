@@ -782,7 +782,7 @@ function handleRoom(room: Room) {
     utils.updateRoomLayout(room);
   utils.handleLinks(room);
   if (!room.memory.score) utils.updateRoomScore(room);
-  if (Math.random() < 0.08) utils.updateRoomRepairTargets(room);
+  if (Math.random() < 0.2) utils.updateRoomRepairTargets(room);
   utils.checkRoomCanOperate(room);
   if (Math.random() < 0.1 && utils.gotSpareCpu()) updateStickyEnergy(room);
   spawnCarriers(room);
