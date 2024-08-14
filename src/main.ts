@@ -1922,7 +1922,7 @@ function repairRoom(creep: Creep) {
   if (!room) return false;
   const repairTarget = room
     .find(FIND_STRUCTURES)
-    .filter(s => s.hits <= s.hitsMax - 200) /* damage worth moving to */
+    .filter(s => s.hits <= s.hitsMax - 300 || s.hits <= s.hitsMax / 2) /* damage worth moving to */
     .map(target => ({
       target,
       sort: target.hits
