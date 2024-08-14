@@ -481,17 +481,6 @@ export function getTotalCreepCapacity(role: Role | undefined): number {
   );
 }
 
-export function needRepair(structure: Structure): boolean {
-  if (!structure) return false;
-  if (isOwnedStructure(structure) && structure.my === false) return false;
-  if (!structure.hits) return false;
-  if (!structure.hitsMax) return false;
-  if (structure.hits >= structure.hitsMax) return false;
-  if (!structure.room) return false;
-  if (structure.hits > (structure.room.memory.maxHitsToRepair ?? 0)) return false;
-  return true;
-}
-
 export function canOperateInRoom(room: Room): boolean {
   if (!room.controller) return true; // no controller
   if (room.controller.my) return true; // my controller
@@ -765,37 +754,6 @@ export function setDestination(creep: Creep, destination: Destination): void {
     }
   }
   //logCpu("setDestination(" + creep.name + ")");
-}
-
-export function updateRoomRepairTargets(room: Room): void {
-  const structures = room.find(FIND_STRUCTURES);
-  const constructing = room.find(FIND_MY_CONSTRUCTION_SITES).length > 0;
-  const repairBatchHits = 5000;
-  room.memory.maxHitsToRepair = constructing
-    ? repairBatchHits
-    : structures
-        .filter(
-          s =>
-            s.hits < s.hitsMax - 100 /*at least 100 hits to repair*/ &&
-            (("my" in s && s.my) /*my structure*/ || room.controller?.my) /*my room*/
-        )
-        .reduce((min, structure) => Math.min(min, structure.hits), Number.POSITIVE_INFINITY) +
-      repairBatchHits;
-  const targets: Structure[] = structures.filter(
-    target =>
-      needRepair(target) &&
-      (getHpRatio(target) || 1) < 0.9 &&
-      (target.structureType !== STRUCTURE_CONTAINER || isStorageSubstitute(target)) &&
-      (!isRoad(target) || target.pos.findInRange(FIND_MY_CREEPS, 5).length > 0)
-  );
-  room.memory.repairTargets = targets
-    .map(target => target.id)
-    .filter(
-      id =>
-        Object.values(Game.creeps).filter(
-          creep => creep.name.startsWith("W") && creep.memory.destination === id
-        ).length < 1
-    );
 }
 
 export function getHpRatio(obj: Structure): number {
@@ -1133,13 +1091,6 @@ export function updateRoomScore(room: Room): void {
   room.memory.score = score;
 }
 
-export function getTotalRepairTargetCount(): number {
-  return Object.values(Game.rooms).reduce(
-    (aggregated, item) => aggregated + (item.memory.repairTargets?.length || 0),
-    0 /* initial*/
-  );
-}
-
 const fillableStructureTargetCount =
   CONTROLLER_STRUCTURES[STRUCTURE_SPAWN][8] +
   CONTROLLER_STRUCTURES[STRUCTURE_EXTENSION][8] +
@@ -1225,26 +1176,6 @@ export function getObjectDescription(obj: Destination | undefined | string | Roo
   let description = obj.toString();
   if ("pos" in obj) description += " @ " + obj.pos.toString();
   return description;
-}
-
-export function isAnyoneIdle(role: Role): boolean {
-  return (
-    Object.values(Game.creeps).filter(
-      c =>
-        (!role || c.name.startsWith(role.charAt(0).toUpperCase())) &&
-        (c.memory.lastActiveTime || 0) < Game.time - 10
-    ).length > 0
-  );
-}
-
-export function isAnyoneLackingEnergy(role: Role): boolean {
-  return (
-    Object.values(Game.creeps).filter(
-      c =>
-        (!role || c.name.startsWith(role.charAt(0).toUpperCase())) &&
-        (c.memory.lastTimeFull || 0) < Game.time - 100
-    ).length > 0
-  );
 }
 
 export function gotSpareCpu(): boolean {

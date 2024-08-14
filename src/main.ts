@@ -16,17 +16,7 @@ declare global {
     | "upgrader"
     | "worker";
 
-  type Action =
-    | "build"
-    | "harvest"
-    | "moveTo"
-    | "pickup"
-    | "recycleCreep"
-    | "repair"
-    | "reserveController"
-    | "transfer"
-    | "upgradeController"
-    | "withdraw";
+  type Action = "reserveController";
 
   type Destination =
     | AnyStructure
@@ -88,9 +78,8 @@ declare global {
     energyRatio?: number;
     energyRatioDelta?: number;
     lackedEnergySinceTime?: number;
-    maxHitsToRepair?: number;
+    maxHitsToRepair?: number /* repair ramparts & stuff evenly */;
     polyPoints?: RoomPosition[] /* visualize paths for debugging etc. */;
-    repairTargets?: Id<Structure>[];
     resetLayout?: boolean;
     safeForCreeps?: boolean;
     score?: number;
@@ -105,7 +94,6 @@ declare global {
     build?: Id<ConstructionSite>;
     delivering?: boolean;
     destination?: DestinationId | RoomPosition;
-    lastActiveTime?: number;
     lastMoveTime?: number;
     lastTimeFull?: number;
     path?: RoomPosition[];
@@ -311,53 +299,7 @@ function handleWorker(creep: Creep) {
     workerRetrieveEnergy(creep);
     return;
   }
-  const repairTarget = creep.pos.findInRange(FIND_STRUCTURES, 3).filter(utils.needRepair)[0];
-  if (repairTarget) {
-    creep.memory.lastActiveTime = Game.time;
-    creep.repair(repairTarget);
-  } else {
-    const result = repair(creep) || build(creep) || dismantle(creep);
-    return result;
-  }
-  return;
-}
-
-function repair(creep: Creep) {
-  const oldDestination = creep.memory.destination;
-  let destination;
-  let repairTarget;
-  if (typeof oldDestination === "string") destination = Game.getObjectById(oldDestination);
-  if (destination instanceof Structure && utils.needRepair(destination)) repairTarget = destination;
-  if (!repairTarget) repairTarget = getRepairTarget(creep);
-  if (repairTarget) {
-    creep.memory.lastActiveTime = Game.time;
-    if (creep.repair(repairTarget) === ERR_NOT_IN_RANGE) move(creep, repairTarget);
-    utils.setDestination(creep, repairTarget);
-    return true;
-  }
-  return false;
-}
-
-function workerRetrieveEnergy(creep: Creep) {
-  if (
-    creep.room.storage &&
-    utils.getEnergy(creep.room.storage) > 0 &&
-    retrieveEnergy(creep, creep.room.storage) === ERR_NOT_IN_RANGE
-  ) {
-    move(creep, creep.room.storage);
-  } else {
-    const container = creep.pos.findClosestByRange(FIND_STRUCTURES, {
-      filter(object) {
-        return utils.isContainer(object) && utils.getEnergy(object) > 0;
-      }
-    });
-    if (container) {
-      if (retrieveEnergy(creep, container) === ERR_NOT_IN_RANGE) move(creep, container);
-    } else {
-      const resource = creep.pos.findClosestByRange(FIND_DROPPED_RESOURCES);
-      if (resource && retrieveEnergy(creep, resource) === ERR_NOT_IN_RANGE) move(creep, resource);
-    }
-  }
+  return repairLocal(creep) || repairRoom(creep) || build(creep) || dismantle(creep);
 }
 
 function build(creep: Creep) {
@@ -372,7 +314,6 @@ function build(creep: Creep) {
     if (destination) utils.setDestination(creep, destination);
   }
   if (destination instanceof ConstructionSite) {
-    creep.memory.lastActiveTime = Game.time;
     creep.memory.build = destination.id;
     if (creep.build(destination) === ERR_NOT_IN_RANGE) move(creep, destination);
     return true;
@@ -405,32 +346,11 @@ function dismantle(creep: Creep) {
   const targets = flag.pos.lookFor(LOOK_STRUCTURES);
   if (targets.length < 1) return false;
   const target = targets[0];
-  creep.memory.lastActiveTime = Game.time;
   if (creep.dismantle(target) === ERR_NOT_IN_RANGE) {
     move(creep, target);
     return true;
   }
   return false;
-}
-
-function getRepairTarget(creep: Creep) {
-  const room = getCreepTargetRoom(creep);
-  if (!room) return;
-  const target = room
-    .find(FIND_STRUCTURES)
-    .filter(target => target.hits < target.hitsMax - 100 && target.hits < (room.memory.maxHitsToRepair ?? 0))
-    .map(target => ({
-      target,
-      sort: target.hits
-    })) /* persist sort values */
-    .sort((a, b) => a.sort - b.sort) /* sort */
-    .map(({ target }) => target) /* remove sort values */[0];
-
-  if (target) {
-    const index = Memory.rooms[target.pos.roomName].repairTargets?.indexOf(target.id);
-    if (index && index > -1) Memory.rooms[target.pos.roomName].repairTargets?.splice(index, 1);
-  }
-  return target;
 }
 
 function moveTowardMemory(creep: Creep) {
@@ -759,8 +679,6 @@ function harvesterSpendEnergy(creep: Creep) {
     creep.pos.findInRange(FIND_MY_CREEPS, 10).filter(nearbyCreep => nearbyCreep.name.startsWith("W")).length <
     1
   ) {
-    const target = creep.pos.lookFor(LOOK_STRUCTURES).filter(utils.needRepair)[0];
-    if (target) creep.repair(target);
     const site = creep.pos.lookFor(LOOK_CONSTRUCTION_SITES)[0];
     if (site) creep.build(site);
   }
@@ -782,7 +700,6 @@ function handleRoom(room: Room) {
     utils.updateRoomLayout(room);
   utils.handleLinks(room);
   if (!room.memory.score) utils.updateRoomScore(room);
-  if (Math.random() < 0.2) utils.updateRoomRepairTargets(room);
   utils.checkRoomCanOperate(room);
   if (Math.random() < 0.1 && utils.gotSpareCpu()) updateStickyEnergy(room);
   spawnCarriers(room);
@@ -1977,4 +1894,66 @@ function updateRoomEnergy(room: Room): void {
   room.memory.energyRatioDelta = room.memory.energyRatio - oldRatio;
   if (room.memory.energyRatioDelta > 0.004 || room.memory.energyRatio >= 1)
     room.memory.lackedEnergySinceTime = Game.time;
+}
+
+function repairLocal(creep: Creep) {
+  const repairTarget = creep.pos
+    .findInRange(FIND_STRUCTURES, 3)
+    .filter(
+      s =>
+        s.hits < s.hitsMax &&
+        s.hits <
+          (s.room.memory.maxHitsToRepair ?? Number.POSITIVE_INFINITY) /* repair ramparts & stuff evenly */
+    )
+    .map(target => ({
+      target,
+      sort: target.hits
+    })) /* persist sort values */
+    .sort((a, b) => a.sort - b.sort) /* sort */
+    .map(({ target }) => target) /* remove sort values */[0];
+
+  if (!repairTarget) return false;
+  creep.repair(repairTarget);
+  return true;
+}
+
+function repairRoom(creep: Creep) {
+  const room = getCreepTargetRoom(creep);
+  if (!room) return false;
+  const repairTarget = room
+    .find(FIND_STRUCTURES)
+    .filter(s => s.hits <= s.hitsMax - 200) /* damage worth moving to */
+    .map(target => ({
+      target,
+      sort: target.hits
+    })) /* persist sort values */
+    .sort((a, b) => a.sort - b.sort) /* sort */
+    .map(({ target }) => target) /* remove sort values */[0];
+
+  if (!repairTarget) return false;
+  room.memory.maxHitsToRepair = repairTarget.hits + 5000; /* repair ramparts & stuff evenly */
+  if (creep.repair(repairTarget) === ERR_NOT_IN_RANGE) move(creep, repairTarget);
+  return true;
+}
+
+function workerRetrieveEnergy(creep: Creep) {
+  if (
+    creep.room.storage &&
+    utils.getEnergy(creep.room.storage) > 0 &&
+    retrieveEnergy(creep, creep.room.storage) === ERR_NOT_IN_RANGE
+  ) {
+    move(creep, creep.room.storage);
+  } else {
+    const container = creep.pos.findClosestByRange(FIND_STRUCTURES, {
+      filter(object) {
+        return utils.isContainer(object) && utils.getEnergy(object) > 0;
+      }
+    });
+    if (container) {
+      if (retrieveEnergy(creep, container) === ERR_NOT_IN_RANGE) move(creep, container);
+    } else {
+      const resource = creep.pos.findClosestByRange(FIND_DROPPED_RESOURCES);
+      if (resource && retrieveEnergy(creep, resource) === ERR_NOT_IN_RANGE) move(creep, resource);
+    }
+  }
 }
