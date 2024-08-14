@@ -803,9 +803,11 @@ function handleRoads(room: Room) {
 function spawnCarriers(room: Room) {
   const controller = room.controller;
   if (!controller || !controller.my) return;
-  const count = Object.values(Game.creeps).filter(
+  const carriers = Object.values(Game.creeps).filter(
     creep => creep.name.startsWith("C") && creep.memory.room === room.name
-  ).length;
+  );
+  const freshCarriers = carriers.filter(creep => !creep.memory.lastTimeFull);
+  if (freshCarriers.length > 0) return; //don't spawn more carriers until the existing ones have fetched a full load at least once
   const fullContainers = room
     .find(FIND_STRUCTURES)
     .filter(utils.isContainer)
@@ -813,7 +815,7 @@ function spawnCarriers(room: Room) {
   const storage = getStorage(room);
   const energyStored = storage && utils.getEnergy(storage) > 0;
   const spawnsLacking = (room.memory.lackedEnergySinceTime ?? 0) < Game.time - 100;
-  if ((fullContainers > 0 || (energyStored && spawnsLacking)) && (count < 1 || utils.gotSpareCpu()))
+  if ((fullContainers > 0 || (energyStored && spawnsLacking)) && (carriers.length < 1 || utils.gotSpareCpu()))
     spawnCreepForRoom("carrier", controller.pos);
 }
 
