@@ -462,7 +462,11 @@ function handleCarrier(creep: Creep) {
     delete creep.memory.transferTo;
   }
 
-  if (creep.pos.roomName !== creep.memory.room) {
+  if (utils.isStuck(creep)) {
+    utils.moveRandomDirection(creep);
+    delete creep.memory.transferTo;
+    delete creep.memory.path;
+  } else if (creep.pos.roomName !== creep.memory.room) {
     creep.memory.path = utils.getPath(creep.pos, new RoomPosition(25, 25, creep.memory.room), 20);
     followMemorizedPath(creep);
   } else if (!creep.memory.delivering) {
