@@ -788,7 +788,7 @@ export function handleHostilesInRoom(room: Room): void {
         .find(FIND_HOSTILE_STRUCTURES)
         .filter(isTower)
         .filter(tower => getEnergy(tower) > 0).length < 1);
-  if (!room.memory.claimIsSafe) enableSafeModeIfNeed(room);
+  if (!room.memory.claimIsSafe) activateSafeModeIfNeed(room);
   //logCpu("handleHostilesInRoom(" + room.name + ")");
 }
 
@@ -807,16 +807,27 @@ export function isThreatToCreep(target: Creep): boolean {
   );
 }
 
-export function enableSafeModeIfNeed(room: Room): void {
-  // structures not badly damaged?
-  if (room.find(FIND_MY_STRUCTURES).filter(s => s.hits < s.hitsMax / 2).length < 1) return;
+export function activateSafeModeIfNeed(room: Room): void {
+  const structureTypesToProtect: Array<StructureConstant> = [
+    STRUCTURE_EXTENSION,
+    STRUCTURE_FACTORY,
+    STRUCTURE_LAB,
+    STRUCTURE_NUKER,
+    STRUCTURE_OBSERVER,
+    STRUCTURE_POWER_SPAWN,
+    STRUCTURE_SPAWN,
+    STRUCTURE_STORAGE,
+    STRUCTURE_TERMINAL,
+    STRUCTURE_TOWER
+  ];
 
-  // still got functional towers?
-  const towerCount = room
-    .find(FIND_MY_STRUCTURES)
-    .filter(isTower)
-    .filter(tower => getEnergy(tower) > 0).length;
-  if (towerCount > 0) return;
+  // key structures not badly damaged?
+  if (
+    room
+      .find(FIND_MY_STRUCTURES)
+      .filter(s => s.hits < s.hitsMax / 2 && structureTypesToProtect.includes(s.structureType)).length < 1
+  )
+    return;
 
   // save the one simultaneous safe mode for a room with higher RCL?
   const maxRclWithAvailableSafeModes = Object.values(Game.rooms)
