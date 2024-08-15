@@ -709,7 +709,8 @@ function handleRoom(room: Room) {
   if (!room.memory.score) utils.updateRoomScore(room);
   utils.checkRoomCanOperate(room);
   if (Math.random() < 0.1 && utils.gotSpareCpu()) updateStickyEnergy(room);
-  spawnCarriers(room);
+  spawnOneCarrier(room);
+  spawnExtraCarriers(room);
   spawnByQuota(room, "worker", 1);
   spawnByQuota(room, "upgrader", 1);
   spawnCreepWhenStorageFull(room);
@@ -724,22 +725,44 @@ function handleRoads(room: Room) {
   }
 }
 
-function spawnCarriers(room: Room) {
+function spawnOneCarrier(room: Room) {
+  const controller = room.controller;
+  if (!controller || !controller.my) return;
+  const carriers = Object.values(Game.creeps).filter(
+    creep => creep.name.startsWith("C") && creep.memory.room === room.name
+  );
+  if (carriers.length > 0) return;
+  const containersWithEnergy = room
+    .find(FIND_STRUCTURES)
+    .filter(utils.isContainer)
+    .filter(container => utils.getEnergy(container) > 0 && !utils.isStorageSubstitute(container)).length;
+  const storage = getStorage(room);
+  const energyStored = storage && utils.getEnergy(storage) > 0;
+  const spawnsLacking = room.energyAvailable < room.energyCapacityAvailable;
+  if (
+    (containersWithEnergy > 0 || (energyStored && spawnsLacking)) &&
+    (carriers.length < 1 || utils.gotSpareCpu())
+  )
+    spawnCreepForRoom("carrier", controller.pos);
+}
+
+function spawnExtraCarriers(room: Room) {
   const controller = room.controller;
   if (!controller || !controller.my) return;
   const carriers = Object.values(Game.creeps).filter(
     creep => creep.name.startsWith("C") && creep.memory.room === room.name
   );
   const freshCarriers = carriers.filter(creep => !creep.memory.lastTimeFull);
-  if (freshCarriers.length > 0) return; //don't spawn more carriers until the existing ones have fetched a full load at least once
+  //don't spawn more carriers until the existing ones have fetched a full load at least once
+  if (freshCarriers.length > 0) return;
   const fullContainers = room
     .find(FIND_STRUCTURES)
     .filter(utils.isContainer)
     .filter(container => utils.isFull(container) && !utils.isStorageSubstitute(container)).length;
   const storage = getStorage(room);
   const energyStored = storage && utils.getEnergy(storage) > 0;
-  const spawnsLacking = (room.memory.lackedEnergySinceTime ?? 0) < Game.time - 100;
-  if ((fullContainers > 0 || (energyStored && spawnsLacking)) && (carriers.length < 1 || utils.gotSpareCpu()))
+  const spawnsBeenLacking = (room.memory.lackedEnergySinceTime ?? 0) < Game.time - 100;
+  if ((fullContainers > 0 || (energyStored && spawnsBeenLacking)) && utils.gotSpareCpu())
     spawnCreepForRoom("carrier", controller.pos);
 }
 
