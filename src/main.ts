@@ -781,11 +781,10 @@ function logTarget(room: Room, towers: StructureTower[], target: Creep | PowerCr
     towers.length,
     "towers targeting hostile",
     target,
-    "(",
     target.hits,
     "/",
     target.hitsMax,
-    "hits) within range of",
+    "hits within range of",
     room.memory.towerMaxRange
   );
 }
