@@ -1931,7 +1931,7 @@ function repairRoom(creep: Creep) {
     .map(({ target }) => target) /* remove sort values */[0];
 
   if (!repairTarget) return false;
-  room.memory.maxHitsToRepair = repairTarget.hits + 10000; /* repair ramparts & stuff evenly */
+  room.memory.maxHitsToRepair = repairTarget.hits + 12000; /* repair ramparts & stuff evenly */
   room.memory.repairPos = repairTarget.pos;
   if (creep.repair(repairTarget) === ERR_NOT_IN_RANGE) move(creep, repairTarget);
   return true;
