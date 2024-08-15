@@ -387,9 +387,6 @@ function handleCarrier(creep: Creep) {
     utils.moveRandomDirection(creep);
     delete creep.memory.transferTo;
     delete creep.memory.path;
-  } else if (creep.pos.roomName !== creep.memory.room) {
-    creep.memory.path = utils.getPath(creep.pos, new RoomPosition(25, 25, creep.memory.room), 20);
-    followMemorizedPath(creep);
   } else if (!creep.memory.delivering) {
     //fetch
     const source = getNearbyEnergySource(creep.pos, freeCap);
@@ -397,10 +394,14 @@ function handleCarrier(creep: Creep) {
       delete creep.memory.path;
       retrieveEnergy(creep, source);
     } else {
-      const tgt = getCarrierEnergySource(creep, freeCap);
+      const tgt = getCarrierRoomEnergySource(creep, freeCap) ?? getCarrierGlobalEnergySource(creep, freeCap);
       if (tgt) creep.moveTo(tgt);
       else utils.moveRandomDirection(creep);
     }
+  } else if (creep.pos.roomName !== creep.memory.room) {
+    //return to target room
+    creep.memory.path = utils.getPath(creep.pos, new RoomPosition(25, 25, creep.memory.room), 20);
+    followMemorizedPath(creep);
   } else {
     //deliver
     const deliverTo =
@@ -753,11 +754,14 @@ function spawnOneCarrier(room: Room) {
 function spawnExtraCarriers(room: Room) {
   const controller = room.controller;
   if (!controller || !controller.my) return;
-  const carriers = Object.values(Game.creeps).filter(
-    creep => creep.name.startsWith("C") && creep.memory.room === room.name
+  const freshCarriers = Object.values(Game.creeps).filter(
+    creep =>
+      creep.name.startsWith("C") &&
+      creep.memory.room === room.name &&
+      (creep.spawning ||
+        (creep.memory.lastTimeFull ?? 0) < Game.time - 100 ||
+        (creep.ticksToLive ?? CREEP_LIFE_TIME) > CREEP_LIFE_TIME * 0.9)
   );
-  const freshCarriers = carriers.filter(creep => !creep.memory.lastTimeFull);
-  //don't spawn more carriers until the existing ones have fetched a full load at least once
   if (freshCarriers.length > 0) return;
   const fullContainers = room
     .find(FIND_STRUCTURES)
@@ -1378,10 +1382,26 @@ function getClusterStructures(clusterPos: RoomPosition) {
   return structures;
 }
 
-function getCarrierEnergySource(creep: Creep, minEnergy: number) {
+function getCarrierRoomEnergySource(creep: Creep, minEnergy: number) {
   const room = getCreepTargetRoom(creep);
   if (!room) return;
   return getCarrierEnergySources(room)
+    .filter(source => utils.getEnergy(source) >= minEnergy)
+    .map(source => ({
+      value: source,
+      sort: utils.getGlobalRange(creep.pos, source.pos)
+    })) /* persist sort values */
+    .sort((a, b) => a.sort - b.sort) /* sort */
+    .map(({ value }) => value) /* remove sort values */[0];
+}
+
+function getCarrierGlobalEnergySource(creep: Creep, minEnergy: number) {
+  if (!utils.gotSpareCpu()) return;
+
+  let sources: (Resource<ResourceConstant> | Tombstone | AnyStoreStructure | Ruin)[] = [];
+  for (const room of Object.values(Game.rooms)) sources = sources.concat(getCarrierEnergySources(room));
+
+  return sources
     .filter(source => utils.getEnergy(source) >= minEnergy)
     .map(source => ({
       value: source,
