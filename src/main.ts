@@ -403,11 +403,10 @@ function handleCarrier(creep: Creep) {
     }
   } else {
     //deliver
-    const deliverToId = creep.memory.transferTo;
-    let deliverTo;
-    if (typeof deliverToId === "string") deliverTo = Game.getObjectById(deliverToId);
-    if (!deliverTo || utils.isFull(deliverTo))
-      deliverTo = getStructureToFillHere(creep.pos) ?? getStructureToFill(creep.pos);
+    const deliverTo =
+      getStructureToFillHere(creep.pos) ??
+      getMemorizedStructureToFill(creep) ??
+      getStructureToFill(creep.pos);
     if (!deliverTo) return;
     const outcome = transfer(creep, deliverTo);
     if (outcome === ERR_NOT_IN_RANGE) {
@@ -415,6 +414,14 @@ function handleCarrier(creep: Creep) {
       creep.memory.transferTo = deliverTo.id;
     }
   }
+}
+
+function getMemorizedStructureToFill(creep: Creep) {
+  const deliverToId = creep.memory.transferTo;
+  if (!deliverToId) return;
+  const deliverTo = Game.getObjectById(deliverToId);
+  if (!deliverTo || utils.isFull(deliverTo)) return;
+  return deliverTo;
 }
 
 function getReserverForClaiming() {
@@ -1477,21 +1484,17 @@ function getStructurePathCost(struct: AnyStructure | ConstructionSite) {
 }
 
 function getStructureToFillHere(pos: RoomPosition) {
-  //utils.logCpu("getStructureToFillHere(" + pos.toString() + ")");
   const structures: AnyStructure[] = getClusterStructures(pos);
   for (const tgt of structures) {
-    //utils.logCpu("getStructureToFillHere(" + pos.toString() + ")");
     if (!utils.isFull(tgt)) return tgt;
   }
   const room = Game.rooms[pos.roomName];
   if (room && room.energyAvailable >= room.energyCapacityAvailable) {
     const storage = getStorage(room);
     if (storage && pos.getRangeTo(storage.pos) < 2 && !utils.isFull(storage)) {
-      //utils.logCpu("getStructureToFillHere(" + pos.toString() + ")");
       return storage;
     }
   }
-  //utils.logCpu("getStructureToFillHere(" + pos.toString() + ")");
   return null;
 }
 
