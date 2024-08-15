@@ -271,7 +271,7 @@ function handleExplorer(creep: Creep) {
 }
 
 function handleUpgrader(creep: Creep) {
-  const room = getCreepTargetRoom(creep);
+  const room = getAssignedRoom(creep);
   if (!room) return;
   const controller = room.controller;
   if (!controller) return;
@@ -323,7 +323,7 @@ function build(creep: Creep) {
 }
 
 function getBuildSite(creep: Creep) {
-  const room = getCreepTargetRoom(creep);
+  const room = getAssignedRoom(creep);
   if (!room) return;
   return room
     .find(FIND_MY_CONSTRUCTION_SITES)
@@ -335,7 +335,7 @@ function getBuildSite(creep: Creep) {
     .map(({ site }) => site) /* remove sort values */[0];
 }
 
-function getCreepTargetRoom(creep: Creep) {
+function getAssignedRoom(creep: Creep) {
   if (creep.memory.room) return Game.rooms[creep.memory.room];
   return;
 }
@@ -403,7 +403,7 @@ function handleCarrier(creep: Creep) {
     const deliverTo =
       getStructureToFillHere(creep.pos) ??
       getMemorizedStructureToFill(creep) ??
-      getStructureToFill(creep.pos);
+      getStructureToFillInAssignedRoom(creep);
     if (!deliverTo) return;
     const outcome = transfer(creep, deliverTo);
     if (outcome === ERR_NOT_IN_RANGE) {
@@ -1379,7 +1379,7 @@ function getClusterStructures(clusterPos: RoomPosition) {
 }
 
 function getCarrierRoomEnergySource(creep: Creep, minEnergy: number) {
-  const room = getCreepTargetRoom(creep);
+  const room = getAssignedRoom(creep);
   if (!room) return;
   return getCarrierEnergySources(room)
     .filter(source => utils.getEnergy(source) >= minEnergy)
@@ -1541,8 +1541,8 @@ function getStructureToFillHere(pos: RoomPosition) {
   return null;
 }
 
-function getStructureToFill(pos: RoomPosition) {
-  const room = Game.rooms[pos.roomName];
+function getStructureToFillInAssignedRoom(creep: Creep) {
+  const room = getAssignedRoom(creep);
   if (!room) return;
   const spawnMaxed = room.energyAvailable >= room.energyCapacityAvailable;
   let targets: AnyStructure[] = room
@@ -1963,7 +1963,7 @@ function repairLocal(creep: Creep) {
 }
 
 function repairRoom(creep: Creep) {
-  const room = getCreepTargetRoom(creep);
+  const room = getAssignedRoom(creep);
   if (!room) return false;
   const repairTarget = room
     .find(FIND_STRUCTURES)
