@@ -80,6 +80,7 @@ declare global {
     lackedEnergySinceTime?: number;
     maxHitsToRepair?: number /* repair ramparts & stuff evenly */;
     polyPoints?: RoomPosition[] /* visualize paths for debugging etc. */;
+    repairPos?: RoomPosition;
     resetLayout?: boolean;
     safeForCreeps?: boolean;
     score?: number;
@@ -687,8 +688,7 @@ function harvesterSpendEnergy(creep: Creep) {
 }
 
 function handleRoom(room: Room) {
-  const polyPoints = room.memory.polyPoints;
-  if (polyPoints) new RoomVisual(room.name).poly(polyPoints);
+  updateRoomVisuals(room);
   handleRoomTowers(room);
   if (!room.memory.costMatrix || utils.gotSpareCpu()) {
     room.memory.costMatrix = getFreshCostMatrix(room.name).serialize();
@@ -1922,7 +1922,7 @@ function repairRoom(creep: Creep) {
   if (!room) return false;
   const repairTarget = room
     .find(FIND_STRUCTURES)
-    .filter(s => s.hits <= s.hitsMax - 300 || s.hits <= s.hitsMax / 2) /* damage worth moving to */
+    .filter(s => s.hits <= s.hitsMax - 400 || s.hits <= s.hitsMax / 2) /* damage worth moving to */
     .map(target => ({
       target,
       sort: target.hits
@@ -1932,6 +1932,7 @@ function repairRoom(creep: Creep) {
 
   if (!repairTarget) return false;
   room.memory.maxHitsToRepair = repairTarget.hits + 8000; /* repair ramparts & stuff evenly */
+  room.memory.repairPos = repairTarget.pos;
   if (creep.repair(repairTarget) === ERR_NOT_IN_RANGE) move(creep, repairTarget);
   return true;
 }
@@ -1956,4 +1957,29 @@ function workerRetrieveEnergy(creep: Creep) {
       if (resource && retrieveEnergy(creep, resource) === ERR_NOT_IN_RANGE) move(creep, resource);
     }
   }
+}
+
+function updateRoomVisuals(room: Room) {
+  const polyPoints = room.memory.polyPoints;
+  if (polyPoints) new RoomVisual(room.name).poly(polyPoints);
+
+  const repairPos = room.memory.repairPos;
+  if (repairPos) new RoomVisual(room.name).text("🔧", repairPos.x, repairPos.y);
+
+  for (const spawn of room.find(FIND_MY_SPAWNS))
+    if (spawn.spawning)
+      new RoomVisual(room.name).text(creepNameToEmoji(spawn.spawning.name), spawn.pos.x, spawn.pos.y);
+}
+
+function creepNameToEmoji(name: string): string {
+  const initial = name.charAt(0);
+  if (initial === "C") return "📦";
+  if (initial === "E") return "🧭";
+  if (initial === "H") return "⛏️";
+  if (initial === "I") return "⚔️";
+  if (initial === "R") return "🚩";
+  if (initial === "T") return "🔄";
+  if (initial === "U") return "⬆️";
+  if (initial === "W") return "🛠️";
+  return initial;
 }
