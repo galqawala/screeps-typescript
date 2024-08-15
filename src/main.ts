@@ -709,13 +709,17 @@ function handleRoom(room: Room) {
   if (!room.memory.score) utils.updateRoomScore(room);
   utils.checkRoomCanOperate(room);
   if (Math.random() < 0.1 && utils.gotSpareCpu()) updateStickyEnergy(room);
+  spawnCreepsInRoom(room);
+  if (Math.random() < 0.1 && utils.gotSpareCpu()) handleRoads(room);
+  updateRoomEnergy(room);
+}
+
+function spawnCreepsInRoom(room: Room) {
   spawnOneCarrier(room);
   spawnExtraCarriers(room);
   spawnByQuota(room, "worker", 1);
   spawnByQuota(room, "upgrader", 1);
   spawnCreepWhenStorageFull(room);
-  if (Math.random() < 0.1 && utils.gotSpareCpu()) handleRoads(room);
-  updateRoomEnergy(room);
 }
 
 function handleRoads(room: Room) {
