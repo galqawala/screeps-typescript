@@ -398,10 +398,6 @@ function handleCarrier(creep: Creep) {
       if (tgt) creep.moveTo(tgt);
       else utils.moveRandomDirection(creep);
     }
-  } else if (creep.pos.roomName !== creep.memory.room) {
-    //return to target room
-    creep.memory.path = utils.getPath(creep.pos, new RoomPosition(25, 25, creep.memory.room), 20);
-    followMemorizedPath(creep);
   } else {
     //deliver
     const deliverTo =
