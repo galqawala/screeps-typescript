@@ -101,6 +101,7 @@ declare global {
     pos?: RoomPosition;
     retrieve?: Id<Structure | Tombstone | Ruin | Resource>;
     room?: string;
+    say?: string[];
     sourceId?: Id<Source>;
     spawnStartTime?: number;
     stroke?: string;
@@ -209,12 +210,6 @@ function needExplorers() {
   );
 }
 
-function areAllSpawnsFull() {
-  for (const room of Object.values(Game.rooms))
-    if (room.energyAvailable < room.energyCapacityAvailable) return false;
-  return true;
-}
-
 function handleCreeps() {
   utils.logCpu("handleCreeps()");
   for (const creep of Object.values(Game.creeps)) {
@@ -234,6 +229,7 @@ function handleCreeps() {
         creep.memory.lastMoveTime = Game.time;
       if (utils.isFull(creep)) creep.memory.lastTimeFull = Game.time;
       creep.memory.pos = creep.pos;
+      creepTalk(creep);
     } else if (!creep.memory.spawnStartTime) {
       creep.memory.spawnStartTime = Game.time;
     }
@@ -252,7 +248,7 @@ function handleExplorer(creep: Creep) {
   creep.notifyWhenAttacked(false);
   const controller = creep.room.controller;
   if (controller && (controller.sign?.username ?? "") !== Memory.username) {
-    const outcome = creep.signController(controller, getSignText());
+    const outcome = creep.signController(controller, getRandomCoolText());
     if (outcome === ERR_NOT_IN_RANGE) move(creep, controller);
   } else if (creep.pos.roomName !== creep.memory.pos?.roomName || !moveTowardMemory(creep)) {
     const accessibleExits = creep.room
@@ -1721,7 +1717,7 @@ function getBuildSitePriority(site: ConstructionSite<BuildableStructureConstant>
   return index < 0 ? 100 : index + 1;
 }
 
-function getSignText(): string {
+function getRandomCoolText(): string {
   // The sign text. The string is cut off after 100 characters.
   let texts = [
     '"Mushroom, mushroom," shut, it! Get back to work!',
@@ -2051,4 +2047,38 @@ function creepNameToEmoji(name: string): string {
   if (initial === "U") return "⬆️";
   if (initial === "W") return "🛠️";
   return initial;
+}
+
+function creepTalk(creep: Creep) {
+  if (creep.memory.say && creep.memory.say.length > 0) {
+    const nextPart = creep.memory.say.shift();
+    if (nextPart) creep.say(nextPart, true);
+  } else if (Math.random() < 0.01) {
+    creep.memory.say = splitTextToSay(getRandomCoolText());
+  }
+}
+
+function splitTextToSay(text: string): string[] | undefined {
+  if (text.length <= 10) return [text];
+  let parts = [];
+  while (text.trim().length > 0) {
+    let part = "";
+    while (text.trim().length > 0 && part.length < 10) {
+      /* 0 = whole thing, 1 = text, 2 = non-text */
+      const match = text.match(/^([\w']*)(\W*)/);
+      if (match && part.length + match[1].length <= 10) {
+        //add whole word to part
+        part += match[0];
+        text = text.substring(match[0].length);
+      } else if (match && part.length < 1) {
+        //add a partial word
+        part += match[0].substring(0, 9) + "-";
+        text = text.substring(9);
+      } else {
+        break;
+      }
+    }
+    parts.push(part.trim());
+  }
+  return parts;
 }
