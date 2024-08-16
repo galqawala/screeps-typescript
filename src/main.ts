@@ -1964,12 +1964,7 @@ function updateRoomEnergy(room: Room): void {
 function repairLocal(creep: Creep) {
   const repairTarget = creep.pos
     .findInRange(FIND_STRUCTURES, 3)
-    .filter(
-      s =>
-        s.hits < s.hitsMax &&
-        s.hits <
-          (s.room.memory.maxHitsToRepair ?? Number.POSITIVE_INFINITY) /* repair ramparts & stuff evenly */
-    )
+    .filter(s => s.hits < s.hitsMax && s.hits < (s.room.memory.maxHitsToRepair ?? Number.POSITIVE_INFINITY))
     .map(target => ({
       target,
       sort: target.hits
@@ -1985,7 +1980,7 @@ function repairLocal(creep: Creep) {
 function repairRoom(creep: Creep) {
   const room = getAssignedRoom(creep);
   if (!room) return false;
-  const repairTarget = room
+  let repairTarget: AnyStructure | undefined = room
     .find(FIND_STRUCTURES)
     .filter(s => s.hits <= s.hitsMax - 500 || s.hits <= s.hitsMax / 2) /* damage worth moving to */
     .map(target => ({
@@ -1995,9 +1990,13 @@ function repairRoom(creep: Creep) {
     .sort((a, b) => a.sort - b.sort) /* sort */
     .map(({ target }) => target) /* remove sort values */[0];
 
+  const minHitsToRepair = 12000;
+  const constructionSiteCount = room.find(FIND_MY_CONSTRUCTION_SITES).length;
+  if (constructionSiteCount > 0 && repairTarget && repairTarget.hits > minHitsToRepair)
+    repairTarget = undefined;
+  room.memory.maxHitsToRepair = minHitsToRepair + (repairTarget?.hits ?? 0);
+  room.memory.repairPos = repairTarget?.pos;
   if (!repairTarget) return false;
-  room.memory.maxHitsToRepair = repairTarget.hits + 12000; /* repair ramparts & stuff evenly */
-  room.memory.repairPos = repairTarget.pos;
   if (creep.repair(repairTarget) === ERR_NOT_IN_RANGE) move(creep, repairTarget);
   return true;
 }
