@@ -2085,7 +2085,7 @@ function creepTalk(creep: Creep) {
     if (nextPart) creep.say(nextPart, true);
   } else if (Math.random() < 0.1) {
     creep.say(creepNameToEmoji(creep.name), true);
-  } else if (Math.random() < 0.005) {
+  } else if (Math.random() < 0.004) {
     creep.memory.say = splitTextToSay(getRandomCoolText());
   }
 }
