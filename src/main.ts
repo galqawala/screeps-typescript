@@ -1982,7 +1982,7 @@ function repairRoom(creep: Creep) {
   if (!room) return false;
   let repairTarget: AnyStructure | undefined = room
     .find(FIND_STRUCTURES)
-    .filter(s => s.hits <= s.hitsMax - 500 || s.hits <= s.hitsMax / 2) /* damage worth moving to */
+    .filter(s => s.hits <= s.hitsMax - 600 || s.hits <= s.hitsMax / 2) /* damage worth moving to */
     .map(target => ({
       target,
       sort: target.hits
@@ -2002,25 +2002,19 @@ function repairRoom(creep: Creep) {
 }
 
 function workerRetrieveEnergy(creep: Creep) {
-  if (
-    creep.room.storage &&
-    utils.getEnergy(creep.room.storage) > 0 &&
-    retrieveEnergy(creep, creep.room.storage) === ERR_NOT_IN_RANGE
-  ) {
-    move(creep, creep.room.storage);
-  } else {
-    const container = creep.pos.findClosestByRange(FIND_STRUCTURES, {
-      filter(object) {
-        return utils.isContainer(object) && utils.getEnergy(object) > 0;
-      }
-    });
-    if (container) {
-      if (retrieveEnergy(creep, container) === ERR_NOT_IN_RANGE) move(creep, container);
-    } else {
-      const resource = creep.pos.findClosestByRange(FIND_DROPPED_RESOURCES);
-      if (resource && retrieveEnergy(creep, resource) === ERR_NOT_IN_RANGE) move(creep, resource);
-    }
-  }
+  const room = getAssignedRoom(creep);
+  if (!room) return;
+  const source = room
+    .find(FIND_STRUCTURES)
+    .filter(s => (utils.isStorage(s) || utils.isContainer(s)) && utils.getEnergy(s) > 0)
+    .map(value => ({
+      value,
+      sort: utils.getGlobalRange(creep.pos, value.pos)
+    })) /* persist sort values */
+    .sort((a, b) => a.sort - b.sort) /* sort */
+    .map(({ value }) => value) /* remove sort values */[0];
+  if (!source) return;
+  if (retrieveEnergy(creep, source) === ERR_NOT_IN_RANGE) move(creep, source);
 }
 
 function updateRoomVisuals(room: Room) {
