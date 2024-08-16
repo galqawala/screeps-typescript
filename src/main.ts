@@ -2073,7 +2073,7 @@ function creepNameToEmoji(name: string): string {
   if (initial === "H") return "⛏️";
   if (initial === "I") return "⚔️";
   if (initial === "R") return "🚩";
-  if (initial === "T") return "🔄";
+  if (initial === "T") return "↔️";
   if (initial === "U") return "⬆️";
   if (initial === "W") return "🛠️";
   return initial;
