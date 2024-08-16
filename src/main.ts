@@ -1792,7 +1792,6 @@ function getRandomCoolText(): string {
     "I'm sorry. I cannot die. Not while the Nexus binds me…",
     "If I had a credit for every Rock and Stone.",
     "If only my real job was as easy as playing a video game...",
-    "If you die here in Boletaria, your soul is returned to the Nexus. Well, what'll you do next?",
     "If you don't Rock and Stone, you ain't comin' home!",
     "If you Rock and Stone, you're never alone!",
     "In spite of the fact that some people still think that they know him.",
