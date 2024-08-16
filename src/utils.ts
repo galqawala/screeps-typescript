@@ -1316,10 +1316,18 @@ export function getPath(from: RoomPosition, to: RoomPosition, range = 0, safe = 
 }
 
 export function getPosBetween(pos1: RoomPosition, pos2: RoomPosition): RoomPosition {
-  return (
-    getSurroundingPlains(pos1, 1, 1, false).filter(pos => pos.isNearTo(pos2.x, pos2.y))[0] ||
-    getSurroundingPlains(pos1, 1, 1, true).filter(pos => pos.isNearTo(pos2.x, pos2.y))[0]
-  );
+  return getSurroundingPlains(pos1, 0, 1, true)
+    .filter(pos => pos.isNearTo(pos2.x, pos2.y))
+    .map(pos => ({
+      pos,
+      sort:
+        pos
+          .look()
+          .map(o => (o.flag ? 1 : o.terrain === "swamp" ? 4 : 2))
+          .reduce((aggregated, value) => aggregated + value, 0) + Math.random()
+    })) /* persist sort values */
+    .sort((a, b) => a.sort - b.sort) /* sort */
+    .map(({ pos }) => pos)[0]; /* remove sort values */
 }
 
 export function updateEnergy(): void {

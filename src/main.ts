@@ -483,6 +483,10 @@ function handleTransferer(creep: Creep) {
     recycleCreep(creep);
     return;
   }
+  if (Math.random() < 0.1 && creep.pos.lookFor(LOOK_STRUCTURES).length > 0) {
+    move(creep, utils.getPosBetween(upstream.pos, downstream.pos)); //stay out of roads and stuff
+    return;
+  }
   if (utils.getEnergy(creep) < 1) {
     if (retrieveEnergy(creep, upstream, true) === ERR_NOT_IN_RANGE) {
       if (!utils.isRoomSafe(upstream.pos.roomName) && creep.pos.roomName !== upstream.pos.roomName) {
@@ -1974,7 +1978,14 @@ function getUpgraderSpot(room: any) {
   if (!storage) return;
   return utils
     .getSurroundingPlains(storage.pos, 0, 1, true)
-    .map(pos => ({ pos, sort: pos.look().length + Math.random() })) /* persist sort values */
+    .map(pos => ({
+      pos,
+      sort:
+        pos
+          .look()
+          .map(o => (o.flag ? 1 : o.terrain === "swamp" ? 4 : 2))
+          .reduce((aggregated, value) => aggregated + value, 0) + Math.random()
+    })) /* persist sort values */
     .sort((a, b) => a.sort - b.sort) /* sort */
     .map(({ pos }) => pos)[0]; /* remove sort values */
 }
