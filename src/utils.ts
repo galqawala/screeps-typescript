@@ -399,16 +399,6 @@ export function isReservedByOthers(controller: StructureController): boolean {
   return false;
 }
 
-export function getCostOfCurrentCreepsInTheRole(role: Role): number {
-  return (
-    Object.values(Game.creeps).reduce(
-      (aggregated, creep) =>
-        aggregated + (creep.name.startsWith(role.charAt(0).toUpperCase()) ? getCreepCost(creep) : 0),
-      0 /* initial*/
-    ) || 0
-  );
-}
-
 export function setDestinationFlag(name: string, pos: RoomPosition): void {
   const color1 = COLOR_ORANGE;
   const color2 = COLOR_GREEN;

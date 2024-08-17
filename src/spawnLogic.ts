@@ -225,3 +225,17 @@ function getBodyForHarvester(source: Source): BodyPartConstant[] {
   for (let x = 1; x <= moveParts; x++) body.push(MOVE);
   return body;
 }
+
+export function getTransferrerMem(
+  retrieve: Id<StructureLink>,
+  transferTo: Id<StructureStorage>,
+  pos: RoomPosition
+): CreepMemory {
+  return {
+    retrieve,
+    transferTo,
+    stroke: utils.hslToHex(Math.random() * 360, 100, 50),
+    strokeWidth: 0.1 + 0.1 * (Math.random() % 4),
+    pos
+  };
+}

@@ -1071,19 +1071,9 @@ function spawnTransferer() {
   const name = spawnLogic.getNameForCreep(roleToSpawn);
   return (
     spawn.spawnCreep(body, name, {
-      memory: getTransferrerMem(link.id, tgtStorage.id, spawn.pos)
+      memory: spawnLogic.getTransferrerMem(link.id, tgtStorage.id, spawn.pos)
     }) === OK
   );
-}
-
-function getTransferrerMem(retrieve: Id<StructureLink>, transferTo: Id<StructureStorage>, pos: RoomPosition) {
-  return {
-    retrieve,
-    transferTo,
-    stroke: utils.hslToHex(Math.random() * 360, 100, 50),
-    strokeWidth: 0.1 + 0.1 * (Math.random() % 4),
-    pos
-  };
 }
 
 function purgeFlagsMemory() {
@@ -1508,9 +1498,6 @@ function getRandomCoolText(): string {
     "Increase fear and suspicion",
     "Is there a single sane person left in Boletaria?",
     "It doesn't even matter how hard you try. Keep that in mind, I designed this rhyme.",
-    "It don't matter 'cause I'm the one that loves you best",
-    "It is the end of Great Boletaria as we know it.",
-    "It seems like he's never got time.",
     "It starts with one... One thing I don't know why.",
     "It's going on in the kitchen, but I don't know what's cookin'",
     "It's like a design is written in his head every time.",
@@ -1768,11 +1755,16 @@ function updateRoomVisuals(room: Room) {
   if (polyPoints) new RoomVisual(room.name).poly(polyPoints);
 
   const repairPos = room.memory.repairPos;
-  if (repairPos) new RoomVisual(room.name).text("🔧", repairPos.x, repairPos.y);
+  if (repairPos) new RoomVisual(room.name).text("🔧", repairPos);
 
   for (const spawn of room.find(FIND_MY_SPAWNS))
-    if (spawn.spawning)
-      new RoomVisual(room.name).text(creepNameToEmoji(spawn.spawning.name), spawn.pos.x, spawn.pos.y);
+    if (spawn.spawning) new RoomVisual(room.name).text(creepNameToEmoji(spawn.spawning.name), spawn.pos);
+
+  if (room.controller?.progressTotal) {
+    const controller = room.controller;
+    const progress = Math.round((controller.progress / controller.progressTotal) * 100).toString() + "%";
+    new RoomVisual(room.name).text(progress, controller.pos, { color: "#FF0000" });
+  }
 }
 
 function creepNameToEmoji(name: string): string {
