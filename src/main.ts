@@ -182,7 +182,7 @@ export const loop = ErrorMapper.wrapLoop(() => {
 function updatePlan() {
   Memory.plan = {
     controllersToReserve: utils.getControllersToReserve().map(controller => controller.id),
-    needHarvesters: getSourceToHarvest() ? true : false,
+    needHarvesters: spawnLogic.getSourceToHarvest() ? true : false,
     needInfantry: needInfantry(),
     needReservers: needReservers(),
     needTransferers: getStoragesRequiringTransferer().length > 0,
@@ -715,7 +715,7 @@ function handleRoom(room: Room) {
   utils.checkRoomCanOperate(room);
   if (Math.random() < 0.1 && utils.gotSpareCpu()) updateStickyEnergy(room);
   spawnCreepsInRoom(room);
-  if (Math.random() < 0.1 && utils.gotSpareCpu()) utils.handleRoads(room);
+  if (Math.random() < 0.1 && utils.gotSpareCpu()) handleRoads(room);
   updateRoomEnergy(room);
 }
 
@@ -1055,28 +1055,9 @@ function updateFlagReserve() {
   }
 }
 
-function getSourceToHarvest() {
-  let sources: Source[] = [];
-  for (const roomName in Game.rooms) {
-    const room = Game.rooms[roomName];
-    if (!utils.isRoomSafe(roomName)) continue;
-    if (!utils.canOperateInRoom(room)) continue;
-    if (!utils.shouldHarvestRoom(room)) continue;
-    sources = sources.concat(
-      room.find(FIND_SOURCES).filter(harvestSource => !utils.sourceHasHarvester(harvestSource))
-    );
-  }
-  if (sources.length < 1) return;
-  const source = sources
-    .map(value => ({ value, sort: value.energy + value.energyCapacity })) /* persist sort values */
-    .sort((a, b) => b.sort - a.sort) /* sort */
-    .map(({ value }) => value) /* remove sort values */[0];
-  return source;
-}
-
 function spawnHarvester() {
   const roleToSpawn: Role = "harvester";
-  const source = getSourceToHarvest();
+  const source = spawnLogic.getSourceToHarvest();
   if (!source || !(source instanceof Source)) return;
   let body: BodyPartConstant[] | null = utils.getBodyForHarvester(source);
   let cost = utils.getBodyCost(body);
@@ -1875,4 +1856,11 @@ function splitTextToSay(text: string): string[] | undefined {
 export function removeConstructionSitesInRoomsWithoutVisibility(): void {
   const sites = Object.values(Game.constructionSites).filter(site => !site.room);
   for (const site of sites) site.remove();
+}
+
+export function handleRoads(room: Room): void {
+  const roads = room.find(FIND_STRUCTURES).filter(utils.isRoad);
+  for (const road of roads) {
+    road.notifyWhenAttacked(false);
+  }
 }

@@ -167,3 +167,22 @@ export function downscaleHarvester(body: BodyPartConstant[]): BodyPartConstant[]
     return null;
   }
 }
+
+export function getSourceToHarvest(): Source | undefined {
+  let sources: Source[] = [];
+  for (const roomName in Game.rooms) {
+    const room = Game.rooms[roomName];
+    if (!utils.isRoomSafe(roomName)) continue;
+    if (!utils.canOperateInRoom(room)) continue;
+    if (!utils.shouldHarvestRoom(room)) continue;
+    sources = sources.concat(
+      room.find(FIND_SOURCES).filter(harvestSource => !utils.sourceHasHarvester(harvestSource))
+    );
+  }
+  if (sources.length < 1) return;
+  const source = sources
+    .map(value => ({ value, sort: value.energy + value.energyCapacity })) /* persist sort values */
+    .sort((a, b) => b.sort - a.sort) /* sort */
+    .map(({ value }) => value) /* remove sort values */[0];
+  return source;
+}
