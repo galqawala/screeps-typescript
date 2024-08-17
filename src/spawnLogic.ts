@@ -186,3 +186,42 @@ export function getSourceToHarvest(): Source | undefined {
     .map(({ value }) => value) /* remove sort values */[0];
   return source;
 }
+
+export function spawnHarvester(): boolean {
+  const roleToSpawn: Role = "harvester";
+  const source = getSourceToHarvest();
+  if (!source || !(source instanceof Source)) return false;
+  let body: BodyPartConstant[] | null = getBodyForHarvester(source);
+  let cost = utils.getBodyCost(body);
+  let spawn = getSpawn(cost, source.pos);
+  while (!spawn && body) {
+    body = downscaleHarvester(body);
+    if (!body) return false;
+    cost = utils.getBodyCost(body);
+    spawn = getSpawn(cost, source.pos);
+  }
+  if (!spawn || !body) return false;
+  const name = getNameForCreep(roleToSpawn);
+  const harvestPos = getHarvestPos(source);
+  if (!harvestPos) return false;
+  const memory = {
+    sourceId: source.id,
+    stroke: utils.hslToHex(Math.random() * 360, 100, 50),
+    strokeWidth: 0.1 + 0.1 * (Math.random() % 4),
+    pos: spawn.pos
+  };
+  if (spawn.spawnCreep(body, name, { memory }) === OK) {
+    utils.setDestinationFlag(name, harvestPos);
+    return true;
+  }
+  return false;
+}
+
+function getBodyForHarvester(source: Source): BodyPartConstant[] {
+  const workParts = source.energyCapacity / ENERGY_REGEN_TIME / HARVEST_POWER;
+  const body: BodyPartConstant[] = [CARRY];
+  for (let x = 1; x <= workParts; x++) body.push(WORK);
+  const moveParts = Math.ceil(body.length / 2); // 1:2 = 1/3 MOVE
+  for (let x = 1; x <= moveParts; x++) body.push(MOVE);
+  return body;
+}

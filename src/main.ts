@@ -853,7 +853,7 @@ function spawnCreeps() {
   if (Memory.plan?.needTransferers) {
     spawnTransferer();
   } else if (Memory.plan?.needHarvesters) {
-    spawnHarvester();
+    spawnLogic.spawnHarvester();
   } else if (Memory.plan?.needInfantry) {
     spawnLogic.spawnCreep(
       "infantry",
@@ -1053,35 +1053,6 @@ function updateFlagReserve() {
   if (targets?.length && targets[0]) {
     targets[0].pos.createFlag("reserve", COLOR_ORANGE, COLOR_WHITE);
   }
-}
-
-function spawnHarvester() {
-  const roleToSpawn: Role = "harvester";
-  const source = spawnLogic.getSourceToHarvest();
-  if (!source || !(source instanceof Source)) return;
-  let body: BodyPartConstant[] | null = utils.getBodyForHarvester(source);
-  let cost = utils.getBodyCost(body);
-  let spawn = spawnLogic.getSpawn(cost, source.pos);
-  while (!spawn && body) {
-    body = spawnLogic.downscaleHarvester(body);
-    if (!body) return;
-    cost = utils.getBodyCost(body);
-    spawn = spawnLogic.getSpawn(cost, source.pos);
-  }
-  if (!spawn || !body) return;
-  const name = spawnLogic.getNameForCreep(roleToSpawn);
-  const harvestPos = spawnLogic.getHarvestPos(source);
-  if (!harvestPos) return;
-  const memory = {
-    sourceId: source.id,
-    stroke: utils.hslToHex(Math.random() * 360, 100, 50),
-    strokeWidth: 0.1 + 0.1 * (Math.random() % 4),
-    pos: spawn.pos
-  };
-  if (spawn.spawnCreep(body, name, { memory }) === OK) {
-    utils.setDestinationFlag(name, harvestPos);
-  }
-  return true;
 }
 
 function spawnTransferer() {

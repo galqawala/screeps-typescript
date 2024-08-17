@@ -409,15 +409,6 @@ export function getCostOfCurrentCreepsInTheRole(role: Role): number {
   );
 }
 
-export function getBodyForHarvester(source: Source): BodyPartConstant[] {
-  const workParts = source.energyCapacity / ENERGY_REGEN_TIME / HARVEST_POWER;
-  const body: BodyPartConstant[] = [CARRY];
-  for (let x = 1; x <= workParts; x++) body.push(WORK);
-  const moveParts = Math.ceil(body.length / 2); // 1:2 = 1/3 MOVE
-  for (let x = 1; x <= moveParts; x++) body.push(MOVE);
-  return body;
-}
-
 export function setDestinationFlag(name: string, pos: RoomPosition): void {
   const color1 = COLOR_ORANGE;
   const color2 = COLOR_GREEN;
