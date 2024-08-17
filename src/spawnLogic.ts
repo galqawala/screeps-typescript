@@ -141,7 +141,7 @@ export function spawnCreep(
   }
 }
 
-export function getHarvestPos(source: Source) {
+export function getHarvestPos(source: Source): RoomPosition {
   const positions = utils.getPositionsAroundWithTerrainSpace(source.pos, 1, 1, 1, 1);
   return (
     positions.find(
@@ -154,4 +154,16 @@ export function getHarvestPos(source: Source) {
     ) ??
     positions[0] /* space around*/
   );
+}
+
+export function downscaleHarvester(body: BodyPartConstant[]): BodyPartConstant[] | null {
+  if (body.filter(part => part === "move").length > 1) {
+    body.splice(body.indexOf("move"), 1);
+    return body;
+  } else if (body.filter(part => part === "work").length > 1) {
+    body.splice(body.indexOf("work"), 1);
+    return body;
+  } else {
+    return null;
+  }
 }

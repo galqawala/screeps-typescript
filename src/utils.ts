@@ -1725,11 +1725,6 @@ function removeConstructionSitesWithoutFlags(room: Room) {
   return true;
 }
 
-export function removeConstructionSitesInRoomsWithoutVisibility(): void {
-  const sites = Object.values(Game.constructionSites).filter(site => !site.room);
-  for (const site of sites) site.remove();
-}
-
 function destroyStructuresWithoutFlags(room: Room) {
   const spawnCount = Object.values(Game.spawns).filter(s => s.pos.roomName === room.name).length;
   const structuresToRemove = room

@@ -162,7 +162,7 @@ export const loop = ErrorMapper.wrapLoop(() => {
     }
     purgeFlags();
     purgeFlagsMemory();
-    utils.removeConstructionSitesInRoomsWithoutVisibility();
+    removeConstructionSitesInRoomsWithoutVisibility();
   }
   if (!Memory.username) utils.setUsername();
   checkWipeOut();
@@ -1082,7 +1082,7 @@ function spawnHarvester() {
   let cost = utils.getBodyCost(body);
   let spawn = spawnLogic.getSpawn(cost, source.pos);
   while (!spawn && body) {
-    body = downscaleHarvester(body);
+    body = spawnLogic.downscaleHarvester(body);
     if (!body) return;
     cost = utils.getBodyCost(body);
     spawn = spawnLogic.getSpawn(cost, source.pos);
@@ -1246,18 +1246,6 @@ function checkWipeOut() {
     Memory.haveCreeps = haveCreeps;
     Memory.haveSpawns = haveSpawns;
     Memory.ownedRoomCount = ownedRoomCount;
-  }
-}
-
-function downscaleHarvester(body: BodyPartConstant[]): BodyPartConstant[] | null {
-  if (body.filter(part => part === "move").length > 1) {
-    body.splice(body.indexOf("move"), 1);
-    return body;
-  } else if (body.filter(part => part === "work").length > 1) {
-    body.splice(body.indexOf("work"), 1);
-    return body;
-  } else {
-    return null;
   }
 }
 
@@ -1882,4 +1870,9 @@ function splitTextToSay(text: string): string[] | undefined {
     parts.push(part.trim());
   }
   return parts;
+}
+
+export function removeConstructionSitesInRoomsWithoutVisibility(): void {
+  const sites = Object.values(Game.constructionSites).filter(site => !site.room);
+  for (const site of sites) site.remove();
 }
