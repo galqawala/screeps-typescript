@@ -62,6 +62,7 @@ module.exports = {
       }
     ],
     "@typescript-eslint/no-unused-expressions": "error",
+    "@typescript-eslint/no-unused-vars": ["warn", { varsIgnorePattern: "^_" }],
     "@typescript-eslint/no-use-before-define": ["error", { functions: false }],
     "@typescript-eslint/prefer-for-of": "error",
     "@typescript-eslint/space-within-parens": ["off", "never"],
@@ -87,7 +88,7 @@ module.exports = {
     "id-match": "error",
     "linebreak-style": "off",
     "max-classes-per-file": ["error", 1],
-    "max-lines": ["error", 1829],
+    "max-lines": ["error", 1785],
     "max-lines-per-function": ["error", 44],
     "new-parens": "off",
     "newline-per-chained-call": "off",

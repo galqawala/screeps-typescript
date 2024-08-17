@@ -239,3 +239,67 @@ export function getTransferrerMem(
     pos
   };
 }
+
+export function getStoragesRequiringTransferer(): StructureStorage[] {
+  return Object.values(Game.structures)
+    .filter(utils.isStorage)
+    .filter(
+      storage =>
+        utils.hasStructureInRange(storage.pos, STRUCTURE_LINK, 2, false) &&
+        Object.values(Game.creeps).filter(
+          creep =>
+            creep.name.startsWith("T") &&
+            creep.memory.transferTo === storage.id &&
+            (creep.ticksToLive || 100) > 30
+        ).length <= 0
+    );
+}
+
+export function spawnTransferer(): boolean {
+  const roleToSpawn: Role = "transferer";
+  const storages = getStoragesRequiringTransferer();
+  if (storages.length < 1) return false;
+  const tgtStorage = storages[0];
+  const link = tgtStorage.pos.findClosestByRange(FIND_MY_STRUCTURES, {
+    filter: { structureType: STRUCTURE_LINK }
+  });
+  if (!link || !utils.isLink(link)) return false;
+  const body: BodyPartConstant[] = [CARRY, CARRY, CARRY, MOVE];
+  const cost = utils.getBodyCost(body);
+  const spawn = getSpawn(cost, tgtStorage.pos);
+  if (!spawn) return false;
+  const name = getNameForCreep(roleToSpawn);
+  return (
+    spawn.spawnCreep(body, name, {
+      memory: getTransferrerMem(link.id, tgtStorage.id, spawn.pos)
+    }) === OK
+  );
+}
+
+export function spawnCreepForRoom(roleToSpawn: Role, targetPos: RoomPosition): boolean {
+  const spawn = getSpawn(0, targetPos);
+  if (!spawn) return false;
+
+  const memory = {
+    pos: spawn.pos,
+    stroke: utils.hslToHex(Math.random() * 360, 100, 50),
+    strokeWidth: 0.1 + 0.1 * (Math.random() % 4),
+    room: targetPos.roomName
+  };
+  return spawnCreep(roleToSpawn, spawn.room.energyAvailable, undefined, undefined, spawn, memory);
+}
+
+export function spawnReserver(): void {
+  let task: Task | undefined;
+  const controllerId = Memory.plan?.controllersToReserve?.[0];
+  if (!controllerId) return;
+  const controller = Game.getObjectById(controllerId) || Game.flags.claim?.room?.controller;
+  if (controller) {
+    task = {
+      destination: controller,
+      action: "reserveController"
+    };
+  }
+  const energy = Math.min(Memory.plan?.maxRoomEnergy ?? 0, 3800);
+  spawnCreep("reserver", energy, undefined, task);
+}

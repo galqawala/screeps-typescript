@@ -1,9 +1,6 @@
 // Memory.printCpuInfo=true;
 
 // Type guards
-export function isOwnedStructure(structure: Structure): structure is AnyOwnedStructure {
-  return (structure as { my?: boolean }).my !== undefined;
-}
 export function isStorage(structure: Structure | Ruin | Tombstone | Resource): structure is StructureStorage {
   if (!("structureType" in structure)) return false;
   return structure.structureType === STRUCTURE_STORAGE;
@@ -18,22 +15,9 @@ export function isContainer(
   if (!("structureType" in structure)) return false;
   return structure.structureType === STRUCTURE_CONTAINER;
 }
-export function isRuin(object: Resource | Structure | Creep | Tombstone | Ruin): object is Ruin {
-  return object instanceof Ruin;
-}
-export function isResource(object: Resource | Structure | Creep | Tombstone | Ruin): object is Resource {
-  return object instanceof Resource;
-}
-export function isTombstone(object: Resource | Structure | Creep | Tombstone | Ruin): object is Tombstone {
-  return object instanceof Tombstone;
-}
 export function isRoad(structure: Structure): structure is StructureRoad {
   if (!("structureType" in structure)) return false;
   return structure.structureType === STRUCTURE_ROAD;
-}
-export function isNotRoad(structure: Structure): boolean {
-  if (!("structureType" in structure)) return true;
-  return structure.structureType !== STRUCTURE_ROAD;
 }
 export function isDestructibleWall(structure: Structure): structure is StructureWall {
   return structure.structureType === STRUCTURE_WALL && "hits" in structure;
@@ -102,7 +86,6 @@ export function hasSpace(object: Structure | Creep | Ruin | Resource | Tombstone
 
 export function getFillRatio(object: Structure | Creep | Resource | Tombstone | Ruin): number {
   if (!object) return 0;
-  if (isResource(object) || isTombstone(object)) return 1;
   const store = getStore(object) as StoreBase<RESOURCE_ENERGY, false>;
   if (!store) return 0;
   return store.getUsedCapacity(RESOURCE_ENERGY) / store.getCapacity(RESOURCE_ENERGY);
@@ -420,10 +403,6 @@ export function sourceHasHarvester(source: Source): boolean {
   return false;
 }
 
-export function getCreepCost(creep: Creep): number {
-  return getBodyCost(creep.body.map(part => part.type));
-}
-
 export function isStorageSubstitute(container: AnyStructure | ConstructionSite): boolean {
   return (
     "structureType" in container &&
@@ -701,11 +680,6 @@ export function setDestination(creep: Creep, destination: Destination): void {
   }
 }
 
-export function getHpRatio(obj: Structure): number {
-  if ("hits" in obj && "hitsMax" in obj) return obj.hits / obj.hitsMax;
-  return 0;
-}
-
 export function checkRoomCanOperate(room: Room): void {
   const value = canOperateInRoom(room);
   if (room.memory && room.memory.canOperate !== value) {
@@ -931,21 +905,6 @@ export function getTargetStructure(
     return scoredTarget;
   }
   return;
-}
-
-export function engageTarget(myUnit: StructureTower | Creep, target: Structure | Creep | PowerCreep): number {
-  if (isEnemy(target) || target instanceof StructureWall) {
-    return myUnit.attack(target);
-  } else if (target instanceof Creep || target instanceof PowerCreep) {
-    return myUnit.heal(target);
-  } else {
-    return myUnit.repair(target);
-  }
-}
-
-export function isEnemy(object: Structure | Creep | PowerCreep): boolean {
-  if (object instanceof Creep || object instanceof PowerCreep) return object.my === false;
-  return isOwnedStructure(object) && object.my === false;
 }
 
 export function shouldHarvestRoom(room: Room): boolean {

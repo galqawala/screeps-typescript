@@ -185,7 +185,7 @@ function updatePlan() {
     needHarvesters: spawnLogic.getSourceToHarvest() ? true : false,
     needInfantry: needInfantry(),
     needReservers: needReservers(),
-    needTransferers: getStoragesRequiringTransferer().length > 0,
+    needTransferers: spawnLogic.getStoragesRequiringTransferer().length > 0,
     maxRoomEnergy: Math.max(...Object.values(Game.rooms).map(r => r.energyAvailable)),
     maxRoomEnergyCap: Math.max(...Object.values(Game.rooms).map(r => r.energyCapacityAvailable)),
     minTicksToDowngrade: getMinTicksToDowngrade()
@@ -745,7 +745,7 @@ function spawnOneCarrier(room: Room) {
     (containersWithEnergy > 0 || (energyStored && spawnsLacking)) &&
     (carriers.length < 1 || utils.gotSpareCpu())
   )
-    spawnCreepForRoom("carrier", controller.pos);
+    spawnLogic.spawnCreepForRoom("carrier", controller.pos);
 }
 
 function spawnExtraCarriers(room: Room) {
@@ -768,7 +768,7 @@ function spawnExtraCarriers(room: Room) {
   const energyStored = storage && utils.getEnergy(storage) > 0;
   const spawnsBeenLacking = (room.memory.lackedEnergySinceTime ?? 0) < Game.time - 100;
   if ((fullContainers > 0 || (energyStored && spawnsBeenLacking)) && utils.gotSpareCpu())
-    spawnCreepForRoom("carrier", controller.pos);
+    spawnLogic.spawnCreepForRoom("carrier", controller.pos);
 }
 
 function spawnByQuota(room: Room, role: Role, max: number) {
@@ -777,7 +777,7 @@ function spawnByQuota(room: Room, role: Role, max: number) {
   const count = Object.values(Game.creeps).filter(
     creep => creep.name.startsWith(role.charAt(0).toUpperCase()) && creep.memory.room === room.name
   ).length;
-  if (count < max) spawnCreepForRoom(role, controller.pos);
+  if (count < max) spawnLogic.spawnCreepForRoom(role, controller.pos);
 }
 
 function handleRoomTowers(room: Room) {
@@ -807,7 +807,7 @@ function handleRoomTowers(room: Room) {
   room.memory.towerLastTargetHits = target.hits;
 
   logTarget(room, towers, target);
-  for (const tower of towers) utils.engageTarget(tower, target);
+  for (const tower of towers) engageTarget(tower, target);
 }
 
 function logTarget(room: Room, towers: StructureTower[], target: Creep | PowerCreep) {
@@ -851,7 +851,7 @@ function handleRoomObservers(room: Room) {
 function spawnCreeps() {
   const budget = utils.gotSpareCpu() ? Memory.plan?.maxRoomEnergy : Memory.plan?.maxRoomEnergyCap;
   if (Memory.plan?.needTransferers) {
-    spawnTransferer();
+    spawnLogic.spawnTransferer();
   } else if (Memory.plan?.needHarvesters) {
     spawnLogic.spawnHarvester();
   } else if (Memory.plan?.needInfantry) {
@@ -862,7 +862,7 @@ function spawnCreeps() {
   } else if (needExplorers() && utils.gotSpareCpu()) {
     spawnLogic.spawnCreep("explorer", undefined, [MOVE]);
   } else if (Memory.plan?.needReservers && budget && budget >= utils.getBodyCost(["claim", "move"])) {
-    spawnReserver();
+    spawnLogic.spawnReserver();
   }
 }
 
@@ -924,21 +924,6 @@ function needInfantry() {
         0 /* initial*/
       ) >= utils.getCreepCountByRole("infantry")
   );
-}
-
-function spawnReserver() {
-  let task: Task | undefined;
-  const controllerId = Memory.plan?.controllersToReserve?.[0];
-  if (!controllerId) return;
-  const controller = Game.getObjectById(controllerId) || Game.flags.claim?.room?.controller;
-  if (controller) {
-    task = {
-      destination: controller,
-      action: "reserveController"
-    };
-  }
-  const energy = Math.min(Memory.plan?.maxRoomEnergy ?? 0, 3800);
-  spawnLogic.spawnCreep("reserver", energy, undefined, task);
 }
 
 function getDestructibleWallAt(pos: RoomPosition) {
@@ -1053,27 +1038,6 @@ function updateFlagReserve() {
   if (targets?.length && targets[0]) {
     targets[0].pos.createFlag("reserve", COLOR_ORANGE, COLOR_WHITE);
   }
-}
-
-function spawnTransferer() {
-  const roleToSpawn: Role = "transferer";
-  const storages = getStoragesRequiringTransferer();
-  if (storages.length < 1) return;
-  const tgtStorage = storages[0];
-  const link = tgtStorage.pos.findClosestByRange(FIND_MY_STRUCTURES, {
-    filter: { structureType: STRUCTURE_LINK }
-  });
-  if (!link || !utils.isLink(link)) return;
-  const body: BodyPartConstant[] = [CARRY, CARRY, CARRY, MOVE];
-  const cost = utils.getBodyCost(body);
-  const spawn = spawnLogic.getSpawn(cost, tgtStorage.pos);
-  if (!spawn) return;
-  const name = spawnLogic.getNameForCreep(roleToSpawn);
-  return (
-    spawn.spawnCreep(body, name, {
-      memory: spawnLogic.getTransferrerMem(link.id, tgtStorage.id, spawn.pos)
-    }) === OK
-  );
 }
 
 function purgeFlagsMemory() {
@@ -1289,19 +1253,6 @@ function followMemorizedPath(creep: Creep) {
   return;
 }
 
-function spawnCreepForRoom(roleToSpawn: Role, targetPos: RoomPosition) {
-  const spawn = spawnLogic.getSpawn(0, targetPos);
-  if (!spawn) return false;
-
-  const memory = {
-    pos: spawn.pos,
-    stroke: utils.hslToHex(Math.random() * 360, 100, 50),
-    strokeWidth: 0.1 + 0.1 * (Math.random() % 4),
-    room: targetPos.roomName
-  };
-  return spawnLogic.spawnCreep(roleToSpawn, spawn.room.energyAvailable, undefined, undefined, spawn, memory);
-}
-
 function getCarrierEnergySources(
   room: Room
 ): (Resource<ResourceConstant> | Tombstone | AnyStoreStructure | Ruin)[] {
@@ -1327,21 +1278,6 @@ function getCarrierEnergySources(
     );
   }
   return containers;
-}
-
-function getStoragesRequiringTransferer() {
-  return Object.values(Game.structures)
-    .filter(utils.isStorage)
-    .filter(
-      storage =>
-        utils.hasStructureInRange(storage.pos, STRUCTURE_LINK, 2, false) &&
-        Object.values(Game.creeps).filter(
-          creep =>
-            creep.name.startsWith("T") &&
-            creep.memory.transferTo === storage.id &&
-            (creep.ticksToLive || 100) > 30
-        ).length <= 0
-    );
 }
 
 function getBuildSitePriority(site: ConstructionSite<BuildableStructureConstant>) {
@@ -1663,8 +1599,9 @@ function spawnCreepWhenStorageFull(room: Room) {
   const upgraders = Object.values(Game.creeps).filter(
     creep => creep.name.startsWith("U") && creep.memory.room === room.name
   ).length;
-  if (workers + Math.random() < upgraders + Math.random()) spawnCreepForRoom("worker", controller.pos);
-  else spawnCreepForRoom("upgrader", controller.pos);
+  if (workers + Math.random() < upgraders + Math.random())
+    spawnLogic.spawnCreepForRoom("worker", controller.pos);
+  else spawnLogic.spawnCreepForRoom("upgrader", controller.pos);
 }
 
 function getUpgraderSpot(room: Room) {
@@ -1816,14 +1753,33 @@ function splitTextToSay(text: string): string[] | undefined {
   return parts;
 }
 
-export function removeConstructionSitesInRoomsWithoutVisibility(): void {
+function removeConstructionSitesInRoomsWithoutVisibility(): void {
   const sites = Object.values(Game.constructionSites).filter(site => !site.room);
   for (const site of sites) site.remove();
 }
 
-export function handleRoads(room: Room): void {
+function handleRoads(room: Room): void {
   const roads = room.find(FIND_STRUCTURES).filter(utils.isRoad);
   for (const road of roads) {
     road.notifyWhenAttacked(false);
   }
+}
+
+function engageTarget(myUnit: StructureTower | Creep, target: Structure | Creep | PowerCreep): number {
+  if (isEnemy(target) || target instanceof StructureWall) {
+    return myUnit.attack(target);
+  } else if (target instanceof Creep || target instanceof PowerCreep) {
+    return myUnit.heal(target);
+  } else {
+    return myUnit.repair(target);
+  }
+}
+
+function isEnemy(object: Structure | Creep | PowerCreep): boolean {
+  if (object instanceof Creep || object instanceof PowerCreep) return object.my === false;
+  return isOwnedStructure(object) && object.my === false;
+}
+
+function isOwnedStructure(structure: Structure): structure is AnyOwnedStructure {
+  return (structure as { my?: boolean }).my !== undefined;
 }
