@@ -2017,9 +2017,12 @@ function repairLocal(creep: Creep) {
 function repairRoom(creep: Creep) {
   const room = getAssignedRoom(creep);
   if (!room) return false;
+  const minHitsToRepair = 12000;
   let repairTarget: AnyStructure | undefined = room
     .find(FIND_STRUCTURES)
-    .filter(s => s.hits <= s.hitsMax - 600 || s.hits <= s.hitsMax / 2) /* damage worth moving to */
+    .filter(
+      s => s.hits <= s.hitsMax - minHitsToRepair || s.hits <= s.hitsMax / 2
+    ) /* damage worth moving to */
     .map(target => ({
       target,
       sort: target.hits
@@ -2027,7 +2030,6 @@ function repairRoom(creep: Creep) {
     .sort((a, b) => a.sort - b.sort) /* sort */
     .map(({ target }) => target) /* remove sort values */[0];
 
-  const minHitsToRepair = 12000;
   const constructionSiteCount = room.find(FIND_MY_CONSTRUCTION_SITES).length;
   if (constructionSiteCount > 0 && repairTarget && repairTarget.hits > minHitsToRepair)
     repairTarget = undefined;
