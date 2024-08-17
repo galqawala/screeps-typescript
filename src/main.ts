@@ -2,7 +2,10 @@
 
 // When compiling TS to JS and bundling with rollup, the line numbers and file names in error messages change
 // This utility uses source maps to get the line numbers and file names of the original, TS source code
+
+import * as spawnLogic from "spawnLogic";
 import * as utils from "utils";
+
 import { ErrorMapper } from "utils/ErrorMapper";
 
 declare global {
@@ -144,7 +147,7 @@ export const loop = ErrorMapper.wrapLoop(() => {
     .map(value => ({ value, sort: Math.random() })) /* persist sort values */
     .sort((a, b) => a.sort - b.sort) /* sort */
     .map(({ value }) => value); /* remove sort values */
-  for (const room of rooms) handleRoom(room); //handle rooms in random order to give each a fair change of gotSpareCpu()
+  for (const room of rooms) handleRoom(room); // handle rooms in random order to give each a fair change of gotSpareCpu()
   if ((Memory.maxTickLimit || 0) < Game.cpu.tickLimit) Memory.maxTickLimit = Game.cpu.tickLimit;
   if (Math.random() < 0.1) {
     for (const key in Memory.rooms) {
@@ -213,7 +216,7 @@ function needExplorers() {
 function handleCreeps() {
   utils.logCpu("handleCreeps()");
   for (const creep of Object.values(Game.creeps)) {
-    utils.logCpu("creep: " + creep);
+    utils.logCpu("creep: " + creep.name);
     if (!creep.spawning) {
       const role = creep.name.charAt(0).toLowerCase();
       if (role === "c") handleCarrier(creep);
@@ -233,7 +236,7 @@ function handleCreeps() {
     } else if (!creep.memory.spawnStartTime) {
       creep.memory.spawnStartTime = Game.time;
     }
-    utils.logCpu("creep: " + creep);
+    utils.logCpu("creep: " + creep.name);
   }
   utils.logCpu("handleCreeps()");
 }
@@ -249,7 +252,7 @@ function handleExplorer(creep: Creep) {
   const controller = creep.room.controller;
   if (controller && (controller.sign?.username ?? "") !== Memory.username) {
     const outcome = creep.signController(controller, getRandomCoolText());
-    if (outcome === ERR_NOT_IN_RANGE) move(creep, controller);
+    if (outcome === ERR_NOT_IN_RANGE) utils.move(creep, controller);
   } else if (creep.pos.roomName !== creep.memory.pos?.roomName || !moveTowardMemory(creep)) {
     const accessibleExits = creep.room
       .find(FIND_EXIT)
@@ -257,7 +260,7 @@ function handleExplorer(creep: Creep) {
     const randomIndex = Math.floor(Math.random() * accessibleExits.length);
     const destination = accessibleExits[randomIndex];
     if (destination) {
-      if (move(creep, destination) === ERR_NO_PATH) {
+      if (utils.move(creep, destination) === ERR_NO_PATH) {
         delete creep.memory.destination;
       } else {
         utils.setDestination(creep, destination);
@@ -273,7 +276,7 @@ function handleUpgrader(creep: Creep) {
   if (!controller) return;
 
   if (Math.random() < 0.1 && creep.pos.lookFor(LOOK_STRUCTURES).length > 0) {
-    move(creep, getUpgraderSpot(room) ?? controller.pos); //stay out of roads and stuff
+    utils.move(creep, getUpgraderSpot(room) ?? controller.pos); // stay out of roads and stuff
     return;
   }
 
@@ -281,10 +284,10 @@ function handleUpgrader(creep: Creep) {
     const storage = getStorage(room);
     if (!storage) return;
     const withdrawOutcome = creep.withdraw(storage, RESOURCE_ENERGY);
-    if (withdrawOutcome === ERR_NOT_IN_RANGE) move(creep, getUpgraderSpot(room) ?? storage.pos);
+    if (withdrawOutcome === ERR_NOT_IN_RANGE) utils.move(creep, getUpgraderSpot(room) ?? storage.pos);
   } else {
     const outcome = creep.upgradeController(controller);
-    if (outcome === ERR_NOT_IN_RANGE) move(creep, getUpgraderSpot(room) ?? controller.pos);
+    if (outcome === ERR_NOT_IN_RANGE) utils.move(creep, getUpgraderSpot(room) ?? controller.pos);
   }
 }
 
@@ -318,7 +321,7 @@ function build(creep: Creep) {
   }
   if (destination instanceof ConstructionSite) {
     creep.memory.build = destination.id;
-    if (creep.build(destination) === ERR_NOT_IN_RANGE) move(creep, destination);
+    if (creep.build(destination) === ERR_NOT_IN_RANGE) utils.move(creep, destination);
     return true;
   }
   return false;
@@ -350,7 +353,7 @@ function dismantle(creep: Creep) {
   if (targets.length < 1) return false;
   const target = targets[0];
   if (creep.dismantle(target) === ERR_NOT_IN_RANGE) {
-    move(creep, target);
+    utils.move(creep, target);
     return true;
   }
   return false;
@@ -366,7 +369,10 @@ function moveTowardMemory(creep: Creep) {
     }
   }
   if (destination) {
-    if (move(creep, destination) === ERR_NO_PATH || utils.getGlobalRange(creep.pos, destination.pos) <= 1)
+    if (
+      utils.move(creep, destination) === ERR_NO_PATH ||
+      utils.getGlobalRange(creep.pos, destination.pos) <= 1
+    )
       utils.resetDestination(creep);
     return true;
   }
@@ -390,7 +396,7 @@ function handleCarrier(creep: Creep) {
     delete creep.memory.transferTo;
     delete creep.memory.path;
   } else if (!creep.memory.delivering) {
-    //fetch
+    // fetch
     const source = getNearbyEnergySource(creep.pos, freeCap);
     if (source) {
       delete creep.memory.path;
@@ -401,7 +407,7 @@ function handleCarrier(creep: Creep) {
       else utils.moveRandomDirection(creep);
     }
   } else {
-    //deliver
+    // deliver
     const deliverTo =
       getStructureToFillHere(creep.pos) ??
       getMemorizedStructureToFill(creep) ??
@@ -409,7 +415,7 @@ function handleCarrier(creep: Creep) {
     if (!deliverTo) return;
     const outcome = transfer(creep, deliverTo);
     if (outcome === ERR_NOT_IN_RANGE) {
-      move(creep, deliverTo);
+      utils.move(creep, deliverTo);
       creep.memory.transferTo = deliverTo.id;
     }
   }
@@ -446,7 +452,7 @@ function handleReserver(creep: Creep) {
   if (destination && destination instanceof StructureController) {
     const outcome = creep.reserveController(destination);
     if (outcome === ERR_NOT_IN_RANGE) {
-      move(creep, destination);
+      utils.move(creep, destination);
     } else if (outcome === ERR_INVALID_TARGET) {
       recycleCreep(creep);
     }
@@ -454,10 +460,10 @@ function handleReserver(creep: Creep) {
     const destinations = Memory.plan?.controllersToReserve?.map(id => Game.getObjectById(id));
     if (destinations && destinations.length && destinations[0]) {
       utils.setDestination(creep, destinations[0]);
-      move(creep, destinations[0]);
+      utils.move(creep, destinations[0]);
     } else {
       const flag = Game.flags.reserve;
-      if (flag) move(creep, flag);
+      if (flag) utils.move(creep, flag);
     }
   }
 }
@@ -467,12 +473,12 @@ function claim(creep: Creep) {
   if (flag.room) {
     const controller = flag.pos.lookFor(LOOK_STRUCTURES).filter(utils.isController)[0];
     if (utils.isReservedByOthers(controller)) {
-      if (creep.attackController(controller) === ERR_NOT_IN_RANGE) move(creep, controller);
+      if (creep.attackController(controller) === ERR_NOT_IN_RANGE) utils.move(creep, controller);
     } else {
-      if (creep.claimController(controller) === ERR_NOT_IN_RANGE) move(creep, controller);
+      if (creep.claimController(controller) === ERR_NOT_IN_RANGE) utils.move(creep, controller);
     }
   } else {
-    move(creep, flag);
+    utils.move(creep, flag);
   }
 }
 
@@ -490,7 +496,7 @@ function handleTransferer(creep: Creep) {
     return;
   }
   if (Math.random() < 0.1 && creep.pos.lookFor(LOOK_STRUCTURES).length > 0) {
-    move(creep, utils.getPosBetween(upstream.pos, downstream.pos)); //stay out of roads and stuff
+    utils.move(creep, utils.getPosBetween(upstream.pos, downstream.pos)); // stay out of roads and stuff
     return;
   }
   if (utils.getEnergy(creep) < 1) {
@@ -498,7 +504,7 @@ function handleTransferer(creep: Creep) {
       if (!utils.isRoomSafe(upstream.pos.roomName) && creep.pos.roomName !== upstream.pos.roomName) {
         recycleCreep(creep);
       } else {
-        move(creep, utils.getPosBetween(upstream.pos, downstream.pos));
+        utils.move(creep, utils.getPosBetween(upstream.pos, downstream.pos));
       }
     }
   } else {
@@ -538,15 +544,14 @@ function transfer(creep: Creep, destination: Creep | Structure<StructureConstant
 function retrieveEnergy(creep: Creep, destination: Structure | Tombstone | Ruin | Resource, persist = false) {
   if (utils.getEnergy(destination) <= 0 && !persist) delete creep.memory.retrieve;
   if (destination instanceof Structure || destination instanceof Tombstone || destination instanceof Ruin) {
-    return withdraw(creep, destination);
+    return utils.withdraw(creep, destination);
   } else if (destination instanceof Resource) {
-    return pickup(creep, destination);
+    return utils.pickup(creep, destination);
   }
   return ERR_INVALID_TARGET;
 }
 
 function handleInfantry(creep: Creep) {
-  //utils.logCpu("handleInfantry(" + creep.name + ")");
   creep.notifyWhenAttacked(false);
   const flag = Game.flags.attack;
   const bestTarget = utils.getTarget(creep, undefined);
@@ -554,7 +559,7 @@ function handleInfantry(creep: Creep) {
     recycleCreep(creep);
   } else if (bestTarget) {
     if ("my" in bestTarget && bestTarget.my) {
-      if (creep.heal(bestTarget) === ERR_NOT_IN_RANGE) move(creep, bestTarget);
+      if (creep.heal(bestTarget) === ERR_NOT_IN_RANGE) utils.move(creep, bestTarget);
     } else {
       const rangedAttack = creep.rangedAttack(bestTarget);
       const attack = creep.attack(bestTarget);
@@ -564,7 +569,7 @@ function handleInfantry(creep: Creep) {
         attack === ERR_NOT_IN_RANGE ||
         bestTarget instanceof Structure
       ) {
-        move(creep, bestTarget);
+        utils.move(creep, bestTarget);
       } else {
         evadeHostiles(creep);
       }
@@ -579,11 +584,9 @@ function handleInfantry(creep: Creep) {
   } else {
     utils.moveRandomDirection(creep);
   }
-  //utils.logCpu("handleInfantry(" + creep.name + ")");
 }
 
 function evadeHostiles(creep: Creep) {
-  //utils.logCpu("evadeHostiles(" + creep.name + ")");
   if (creep.room.controller?.safeMode) return;
   const hostilePositions = creep.pos
     .findInRange(FIND_HOSTILE_CREEPS, 4)
@@ -611,8 +614,7 @@ function evadeHostiles(creep: Creep) {
       bestPos = pos;
     }
   }
-  if (bestPos) move(creep, bestPos);
-  //utils.logCpu("evadeHostiles(" + creep.name + ")");
+  if (bestPos) utils.move(creep, bestPos);
 }
 
 function recycleCreep(creep: Creep) {
@@ -668,7 +670,7 @@ function handleHarvester(creep: Creep) {
   }
   // move
   const flag = Game.flags[flagName];
-  if (!utils.isPosEqual(creep.pos, flag.pos)) move(creep, flag);
+  if (!utils.isPosEqual(creep.pos, flag.pos)) utils.move(creep, flag);
   if (!creep.memory.workStartTime && utils.getGlobalRange(creep.pos, flag.pos) <= 1)
     /* count as working, even if we have to wait for the previous harvester to die */
     creep.memory.workStartTime = Game.time;
@@ -701,8 +703,8 @@ function handleRoom(room: Room) {
   updateRoomVisuals(room);
   handleRoomTowers(room);
   if (!room.memory.costMatrix || utils.gotSpareCpu()) {
-    room.memory.costMatrix = getFreshCostMatrix(room.name).serialize();
-    room.memory.costMatrixCreeps = getFreshCostMatrixCreeps(room.name).serialize();
+    room.memory.costMatrix = utils.getFreshCostMatrix(room.name).serialize();
+    room.memory.costMatrixCreeps = utils.getFreshCostMatrixCreeps(room.name).serialize();
   }
   if (Math.random() < 0.1 && utils.gotSpareCpu()) handleRoomObservers(room);
   utils.handleHostilesInRoom(room);
@@ -713,7 +715,7 @@ function handleRoom(room: Room) {
   utils.checkRoomCanOperate(room);
   if (Math.random() < 0.1 && utils.gotSpareCpu()) updateStickyEnergy(room);
   spawnCreepsInRoom(room);
-  if (Math.random() < 0.1 && utils.gotSpareCpu()) handleRoads(room);
+  if (Math.random() < 0.1 && utils.gotSpareCpu()) utils.handleRoads(room);
   updateRoomEnergy(room);
 }
 
@@ -723,13 +725,6 @@ function spawnCreepsInRoom(room: Room) {
   spawnByQuota(room, "worker", 1);
   spawnByQuota(room, "upgrader", 1);
   spawnCreepWhenStorageFull(room);
-}
-
-function handleRoads(room: Room) {
-  const roads = room.find(FIND_STRUCTURES).filter(utils.isRoad);
-  for (const road of roads) {
-    road.notifyWhenAttacked(false);
-  }
 }
 
 function spawnOneCarrier(room: Room) {
@@ -800,12 +795,12 @@ function handleRoomTowers(room: Room) {
   if (towers.length < 1) return;
   if (towers.filter(tower => utils.isFull(tower)).length > 0) room.memory.towerMaxRange = defaultRange;
 
-  let hostiles: (Creep | PowerCreep)[] = room.find(FIND_HOSTILE_CREEPS);
+  const hostiles: (Creep | PowerCreep)[] = room.find(FIND_HOSTILE_CREEPS);
   Array.prototype.push.apply(hostiles, room.find(FIND_HOSTILE_POWER_CREEPS));
 
-  let target = hostiles
+  const target = hostiles
     .filter(hostile => hostile.pos.findInRange(towers, room.memory.towerMaxRange ?? defaultRange).length > 0)
-    .sort((a, b) => a.hits - b.hits)[0]; //weakest
+    .sort((a, b) => a.hits - b.hits)[0]; // weakest
   if (!target) return;
 
   room.memory.towerLastTarget = target.id;
@@ -830,7 +825,6 @@ function logTarget(room: Room, towers: StructureTower[], target: Creep | PowerCr
 }
 
 function handleRoomObservers(room: Room) {
-  //utils.logCpu("handleRoomObservers(" + room.name + ")");
   const observers = room.find(FIND_MY_STRUCTURES).filter(utils.isObserver);
   for (const o of observers) {
     const rooms = Object.values(Game.rooms)
@@ -846,47 +840,12 @@ function handleRoomObservers(room: Room) {
       for (const targetRoomName of accessibleRoomNames) {
         if (!(targetRoomName in Game.rooms)) {
           o.observeRoom(targetRoomName);
-          //utils.logCpu("handleRoomObservers(" + room.name + ")");
+
           return;
         }
       }
     }
   }
-  //utils.logCpu("handleRoomObservers(" + room.name + ")");
-}
-
-function move(creep: Creep, destination: Destination) {
-  const options: MoveToOpts = {
-    // bit of randomness to prevent creeps from moving the same way at same time to pass each other
-    reusePath: Math.round((Memory.maxTickLimit ?? 0) - Game.cpu.tickLimit + Math.random()),
-    visualizePathStyle: {
-      stroke: creep.memory.stroke,
-      opacity: 0.6,
-      lineStyle: "dotted",
-      strokeWidth: creep.memory.strokeWidth
-    },
-    plainCost: 2,
-    swampCost: 10,
-    costCallback: utils.getCachedCostMatrixCreeps
-  };
-  const outcome = creep.moveTo(destination, options);
-  return outcome;
-}
-
-function withdraw(creep: Creep, destination: Destination) {
-  if (destination instanceof Structure || destination instanceof Tombstone || destination instanceof Ruin) {
-    const actionOutcome = creep.withdraw(destination, RESOURCE_ENERGY);
-    return actionOutcome;
-  }
-  return ERR_INVALID_TARGET;
-}
-
-function pickup(creep: Creep, destination: Destination) {
-  if (destination instanceof Resource) {
-    const actionOutcome = creep.pickup(destination);
-    return actionOutcome;
-  }
-  return ERR_INVALID_TARGET;
 }
 
 function spawnCreeps() {
@@ -896,9 +855,12 @@ function spawnCreeps() {
   } else if (Memory.plan?.needHarvesters) {
     spawnHarvester();
   } else if (Memory.plan?.needInfantry) {
-    spawnCreep("infantry", Math.max((Memory.hostileCreepCost ?? 0) / 2, Memory.plan.maxRoomEnergy ?? 0));
+    spawnLogic.spawnCreep(
+      "infantry",
+      Math.max((Memory.hostileCreepCost ?? 0) / 2, Memory.plan.maxRoomEnergy ?? 0)
+    );
   } else if (needExplorers() && utils.gotSpareCpu()) {
-    spawnCreep("explorer", undefined, [MOVE]);
+    spawnLogic.spawnCreep("explorer", undefined, [MOVE]);
   } else if (Memory.plan?.needReservers && budget && budget >= utils.getBodyCost(["claim", "move"])) {
     spawnReserver();
   }
@@ -931,7 +893,7 @@ function updateFlagClaim() {
   const myRooms = Object.values(Game.rooms).filter(room => room.controller && room.controller.my);
   if (myRooms.length >= Game.gcl.level) return;
 
-  const bestRoomName = getRoomToClaim(myRooms);
+  const bestRoomName = utils.getRoomToClaim(myRooms);
 
   if (!bestRoomName) return;
   if (!(bestRoomName in Game.rooms)) return;
@@ -939,31 +901,6 @@ function updateFlagClaim() {
   if (!controller) return;
   utils.msg(controller, "Flagging room " + bestRoomName + " to be claimed!", true);
   controller.pos.createFlag("claim", COLOR_WHITE, COLOR_BLUE);
-}
-
-function getRoomToClaim(aroundRooms: Room[]) {
-  let bestScore = Number.NEGATIVE_INFINITY;
-  let bestRoomName;
-
-  for (const room of aroundRooms) {
-    const exits = Game.map.describeExits(room.name);
-    const claimableRoomNames = Object.values(exits).filter(
-      roomName =>
-        utils.isRoomSafe(roomName) &&
-        Memory.rooms[roomName]?.canOperate &&
-        utils.getRoomStatus(roomName) === utils.getRoomStatus(room.name) &&
-        !aroundRooms.map(room => room.name).includes(roomName) &&
-        utils.canOperateInSurroundingRooms(roomName)
-    );
-    for (const nearRoomName of claimableRoomNames) {
-      const score = Memory.rooms[nearRoomName].score;
-      if (score && bestScore < score) {
-        bestScore = score;
-        bestRoomName = nearRoomName;
-      }
-    }
-  }
-  return bestRoomName;
 }
 
 function needInfantry() {
@@ -1001,7 +938,7 @@ function spawnReserver() {
     };
   }
   const energy = Math.min(Memory.plan?.maxRoomEnergy ?? 0, 3800);
-  spawnCreep("reserver", energy, undefined, task);
+  spawnLogic.spawnCreep("reserver", energy, undefined, task);
 }
 
 function getDestructibleWallAt(pos: RoomPosition) {
@@ -1011,7 +948,6 @@ function getDestructibleWallAt(pos: RoomPosition) {
 }
 
 function updateFlagAttack() {
-  //utils.logCpu("updateFlagAttack()");
   const flagAttack = Game.flags.attack;
   if (flagAttack) {
     if (
@@ -1021,33 +957,28 @@ function updateFlagAttack() {
     ) {
       flagAttack.remove(); // have visibility to the room and it's clear of hostiles
     } else {
-      //utils.logCpu("updateFlagAttack()");
       return; // current flag is still valid (to the best of our knowledge)
     }
   }
   // no flag, find new targets
-  //utils.logCpu("updateFlagAttack() new");
+
   let targets: (Structure | Creep | PowerCreep)[] = [];
   for (const r in Game.rooms) {
     const controller = Game.rooms[r].controller;
     if (!controller) continue;
     if (!controller.my) continue;
     if (!utils.isReservationOk(controller)) continue;
-    //utils.logCpu("updateFlagAttack() targets");
+
     targets = targets.concat(getTargetsInRoom(Game.rooms[r]));
-    //utils.logCpu("updateFlagAttack() targets");
   }
   const target = targets[Math.floor(Math.random() * targets.length)];
   if (target) {
     target.pos.createFlag("attack", COLOR_RED, COLOR_BROWN);
     utils.msg(target, "targeted!");
   }
-  //utils.logCpu("updateFlagAttack() new");
-  //utils.logCpu("updateFlagAttack()");
 }
 
 function updateFlagDismantle() {
-  //utils.logCpu("updateFlagDismantle()");
   const flagDismantle = Game.flags.dismantle;
   if (flagDismantle) {
     if (flagDismantle.room && flagDismantle.pos.lookFor(LOOK_STRUCTURES).length < 1) {
@@ -1068,12 +999,11 @@ function updateFlagDismantle() {
       const wall = getWallToDestroy(Game.rooms[r]);
       if (wall) {
         wall.pos.createFlag("dismantle", COLOR_BLUE, COLOR_BLUE);
-        //utils.logCpu("updateFlagDismantle()");
+
         return;
       }
     }
   }
-  //utils.logCpu("updateFlagDismantle()");
 }
 
 function getTargetsInRoom(room: Room) {
@@ -1087,7 +1017,7 @@ function getTargetsInRoom(room: Room) {
 function getWallToDestroy(room: Room) {
   // shorten the routes between containers and storages by destroying walls
   if (!utils.shouldHarvestRoom(room)) return;
-  //utils.logCpu("getWallToDestroy(" + room.name + ")");
+
   const containers = room.find(FIND_STRUCTURES);
   for (const container of containers) {
     if (container.structureType !== STRUCTURE_CONTAINER) continue;
@@ -1101,23 +1031,21 @@ function getWallToDestroy(room: Room) {
       });
       for (const step of path) {
         const wall = getDestructibleWallAt(new RoomPosition(step.x, step.y, room.name));
-        //utils.logCpu("getWallToDestroy(" + room.name + ")");
+
         if (wall && wall.destroy() === ERR_NOT_OWNER) return wall;
       }
     }
   }
-  //utils.logCpu("getWallToDestroy(" + room.name + ")");
+
   return;
 }
 
 function updateFlagReserve() {
-  //utils.logCpu("updateFlagReserve()");
   const flagReserve = Game.flags.reserve;
   if (flagReserve) {
     if (flagReserve.room && !utils.shouldReserveRoom(flagReserve.room)) {
       flagReserve.remove();
     } else {
-      //utils.logCpu("updateFlagReserve()");
       return; // current flag is still valid
     }
   }
@@ -1125,7 +1053,6 @@ function updateFlagReserve() {
   if (targets?.length && targets[0]) {
     targets[0].pos.createFlag("reserve", COLOR_ORANGE, COLOR_WHITE);
   }
-  //utils.logCpu("updateFlagReserve()");
 }
 
 function getSourceToHarvest() {
@@ -1153,16 +1080,16 @@ function spawnHarvester() {
   if (!source || !(source instanceof Source)) return;
   let body: BodyPartConstant[] | null = utils.getBodyForHarvester(source);
   let cost = utils.getBodyCost(body);
-  let spawn = getSpawn(cost, source.pos);
+  let spawn = spawnLogic.getSpawn(cost, source.pos);
   while (!spawn && body) {
     body = downscaleHarvester(body);
     if (!body) return;
     cost = utils.getBodyCost(body);
-    spawn = getSpawn(cost, source.pos);
+    spawn = spawnLogic.getSpawn(cost, source.pos);
   }
   if (!spawn || !body) return;
-  const name = utils.getNameForCreep(roleToSpawn);
-  let harvestPos = getHarvestPos(source);
+  const name = spawnLogic.getNameForCreep(roleToSpawn);
+  const harvestPos = spawnLogic.getHarvestPos(source);
   if (!harvestPos) return;
   const memory = {
     sourceId: source.id,
@@ -1187,9 +1114,9 @@ function spawnTransferer() {
   if (!link || !utils.isLink(link)) return;
   const body: BodyPartConstant[] = [CARRY, CARRY, CARRY, MOVE];
   const cost = utils.getBodyCost(body);
-  const spawn = getSpawn(cost, tgtStorage.pos);
+  const spawn = spawnLogic.getSpawn(cost, tgtStorage.pos);
   if (!spawn) return;
-  const name = utils.getNameForCreep(roleToSpawn);
+  const name = spawnLogic.getNameForCreep(roleToSpawn);
   return (
     spawn.spawnCreep(body, name, {
       memory: getTransferrerMem(link.id, tgtStorage.id, spawn.pos)
@@ -1205,138 +1132,6 @@ function getTransferrerMem(retrieve: Id<StructureLink>, transferTo: Id<Structure
     strokeWidth: 0.1 + 0.1 * (Math.random() % 4),
     pos
   };
-}
-
-function getSpawn(energyRequired: number, targetPos: RoomPosition | undefined, maxRange = 100) {
-  return Object.values(Game.spawns)
-    .filter(spawn => spawn.room.energyAvailable >= energyRequired && !spawn.spawning)
-    .filter(s => !targetPos || s.pos.roomName === targetPos?.roomName || utils.isRoomSafe(s.pos.roomName))
-    .map(spawn => ({
-      spawn: spawn,
-      range: targetPos ? utils.getGlobalRange(spawn.pos, targetPos) : 0
-    })) /* persist sort values */
-    .filter(spawnRange => spawnRange.range <= maxRange)
-    .sort((a, b) => a.range - b.range) /* sort */
-    .map(({ spawn }) => spawn) /* remove sort values */[0];
-}
-
-function spawnCreep(
-  roleToSpawn: Role,
-  energyRequired?: number,
-  body: undefined | BodyPartConstant[] = undefined,
-  task: Task | undefined = undefined,
-  upgradeTarget: StructureController | undefined = undefined,
-  spawn: StructureSpawn | undefined = undefined,
-  memory: CreepMemory | undefined = undefined
-) {
-  if (!energyRequired && body) energyRequired = utils.getBodyCost(body);
-  if (!energyRequired || energyRequired < 50) return false;
-  if (!body) body = getBody(roleToSpawn, energyRequired);
-  const name = utils.getNameForCreep(roleToSpawn);
-  if (!spawn) spawn = getSpawn(energyRequired, utils.getPos(task?.destination));
-  if (!spawn) return false;
-  if (spawn.spawning) return false;
-  if (!body || utils.getBodyCost(body) > spawn.room.energyAvailable || !body.includes(MOVE)) return false;
-
-  const outcome = spawn.spawnCreep(body, name, {
-    memory: memory ?? getInitialCreepMem(roleToSpawn, task, spawn.pos, upgradeTarget)
-  });
-
-  if (outcome === OK) {
-    return true;
-  } else {
-    utils.msg(spawn, "Failed to spawn creep: " + outcome.toString() + " with body " + body.toString());
-    console.log("body", body, "energyAvailable", energyRequired);
-    return false;
-  }
-}
-
-function getInitialCreepMem(
-  roleToSpawn: Role,
-  task: Task | undefined,
-  pos: RoomPosition,
-  upgradeTarget: StructureController | undefined = undefined
-) {
-  return {
-    action: task?.action,
-    destination: task?.destination && "id" in task?.destination ? task?.destination?.id : undefined,
-    pos,
-    stroke: utils.hslToHex(Math.random() * 360, 100, 50),
-    strokeWidth: 0.1 + 0.1 * (Math.random() % 4),
-    upgrade: upgradeTarget?.id
-  };
-}
-
-function getBody(roleToSpawn: Role, energyAvailable: number) {
-  if (roleToSpawn === "carrier") return getBodyForCarrier(energyAvailable);
-  else if (roleToSpawn === "infantry") return getBodyForInfantry(energyAvailable);
-  else if (roleToSpawn === "reserver") return getBodyForReserver(energyAvailable);
-  else if (roleToSpawn === "upgrader") return getBodyForUpgrader(energyAvailable);
-  else if (roleToSpawn === "worker") return getBodyForWorker(energyAvailable);
-  return;
-}
-
-function getBodyForUpgrader(energyAvailable: number) {
-  const body: BodyPartConstant[] = [WORK, CARRY, MOVE];
-  for (;;) {
-    let nextPart: BodyPartConstant = WORK;
-    if (utils.getBodyPartRatio(body, MOVE) <= 0.2) nextPart = MOVE;
-    else if (utils.getBodyPartRatio(body, CARRY) <= 0.1) nextPart = CARRY;
-
-    if (utils.getBodyCost(body) + BODYPART_COST[nextPart] > energyAvailable) return body;
-    body.push(nextPart);
-    if (body.length >= 50) return body;
-  }
-}
-
-function getBodyForWorker(energyAvailable: number) {
-  const body: BodyPartConstant[] = [WORK, CARRY, MOVE];
-  for (;;) {
-    let nextPart: BodyPartConstant = WORK;
-    if (utils.getBodyPartRatio(body, MOVE) <= 0.34) nextPart = MOVE;
-    else if (utils.getBodyPartRatio(body, CARRY) <= 0.4) nextPart = CARRY;
-
-    if (utils.getBodyCost(body) + BODYPART_COST[nextPart] > energyAvailable) return body;
-    body.push(nextPart);
-    if (body.length >= 50) return body;
-  }
-}
-
-function getBodyForCarrier(energyAvailable: number) {
-  const body: BodyPartConstant[] = [CARRY, MOVE];
-  for (;;) {
-    const nextPart = utils.getBodyPartRatio(body) <= 0.34 ? MOVE : CARRY;
-    if (utils.getBodyCost(body) + BODYPART_COST[nextPart] > energyAvailable) return body;
-    body.push(nextPart);
-    if (body.length >= 50) return body;
-  }
-}
-
-function getBodyForReserver(energyAvailable: number) {
-  const body: BodyPartConstant[] = [CLAIM, MOVE];
-  for (;;) {
-    const nextPart = utils.getBodyPartRatio(body) <= 0.34 ? MOVE : CLAIM;
-    if (utils.getBodyCost(body) + BODYPART_COST[nextPart] > energyAvailable) return body;
-    body.push(nextPart);
-    if (body.length >= 50) return body;
-  }
-}
-
-function getBodyForInfantry(energyAvailable: number) {
-  const body: BodyPartConstant[] = [
-    ...Array<BodyPartConstant>(20).fill(MOVE),
-    ...Array<BodyPartConstant>(10).fill(ATTACK),
-    ...Array<BodyPartConstant>(10).fill(RANGED_ATTACK),
-    ...Array<BodyPartConstant>(5).fill(MOVE),
-    ...Array<BodyPartConstant>(5).fill(HEAL)
-  ];
-  while (utils.getBodyCost(body) > energyAvailable) {
-    const randomIndex = Math.floor(Math.random() * body.length);
-    body.splice(randomIndex, 1);
-  }
-  if (!body.includes(MOVE)) return;
-  if (!body.includes(ATTACK) && !body.includes(RANGED_ATTACK)) return;
-  return body;
 }
 
 function purgeFlagsMemory() {
@@ -1413,58 +1208,6 @@ function getCarrierGlobalEnergySource(creep: Creep, minEnergy: number) {
     .map(({ value }) => value) /* remove sort values */[0];
 }
 
-function getFreshCostMatrix(roomName: string) {
-  const room = Game.rooms[roomName];
-  const costs = new PathFinder.CostMatrix();
-  if (room) {
-    room.find(FIND_CONSTRUCTION_SITES).forEach(function (struct) {
-      // consider construction sites as complete structures
-      // same structure types block or don't block movement as complete buildings
-      // incomplete roads don't give the speed bonus, but we should still prefer them to avoid planning for additional roads
-      const cost = getStructurePathCost(struct);
-      // correctly handle blocking structure and unfinished road in the same coords
-      if (cost && cost > costs.get(struct.pos.x, struct.pos.y)) costs.set(struct.pos.x, struct.pos.y, cost);
-    });
-    room.find(FIND_STRUCTURES).forEach(function (struct) {
-      const cost = getStructurePathCost(struct);
-      if (cost && cost > costs.get(struct.pos.x, struct.pos.y)) costs.set(struct.pos.x, struct.pos.y, cost);
-    });
-    room.find(FIND_SOURCES).forEach(function (source) {
-      // avoid routing around sources
-      const positions = utils.getAccessiblePositionsAround(source.pos, 1, 1, true);
-      for (const pos of positions) {
-        if (costs.get(pos.x, pos.y) < 20) costs.set(pos.x, pos.y, 20);
-      }
-    });
-  }
-  return costs;
-}
-
-function getFreshCostMatrixCreeps(roomName: string) {
-  const room = Game.rooms[roomName];
-  const costs = new PathFinder.CostMatrix();
-  if (room) {
-    room.find(FIND_CONSTRUCTION_SITES).forEach(function (struct) {
-      // consider construction sites as complete structures
-      // same structure types block or don't block movement as complete buildings
-      // incomplete roads don't give the speed bonus, but we should still prefer them to avoid planning for additional roads
-      const cost = getStructurePathCost(struct);
-      // correctly handle blocking structure and unfinished road in the same coords
-      if (cost && cost > costs.get(struct.pos.x, struct.pos.y)) costs.set(struct.pos.x, struct.pos.y, cost);
-    });
-    room.find(FIND_STRUCTURES).forEach(function (struct) {
-      const cost = getStructurePathCost(struct);
-      if (cost && cost > costs.get(struct.pos.x, struct.pos.y)) costs.set(struct.pos.x, struct.pos.y, cost);
-    });
-    room.find(FIND_CREEPS).forEach(function (creep) {
-      const lastMoveTime = creep.memory?.lastMoveTime;
-      const cost = lastMoveTime ? Game.time - lastMoveTime : 5;
-      if (cost && cost > costs.get(creep.pos.x, creep.pos.y)) costs.set(creep.pos.x, creep.pos.y, cost);
-    });
-  }
-  return costs;
-}
-
 function updateStickyEnergy(room: Room) {
   const containers = room.find(FIND_STRUCTURES).filter(utils.isStoreStructure);
   const values: Record<Id<AnyStoreStructure>, number> = {};
@@ -1518,20 +1261,6 @@ function downscaleHarvester(body: BodyPartConstant[]): BodyPartConstant[] | null
   }
 }
 
-function getStructurePathCost(struct: AnyStructure | ConstructionSite) {
-  if (struct.structureType === STRUCTURE_ROAD) {
-    // Favor roads over plain tiles
-    return 1;
-  } else if (
-    struct.structureType !== STRUCTURE_CONTAINER &&
-    (struct.structureType !== STRUCTURE_RAMPART || !struct.my)
-  ) {
-    // Can't walk through non-walkable buildings
-    return 0xff;
-  }
-  return null;
-}
-
 function getStructureToFillHere(pos: RoomPosition) {
   const structures: AnyStructure[] = getClusterStructures(pos);
   for (const tgt of structures) {
@@ -1551,7 +1280,7 @@ function getStructureToFillInAssignedRoom(creep: Creep) {
   const room = getAssignedRoom(creep);
   if (!room) return;
   const spawnMaxed = room.energyAvailable >= room.energyCapacityAvailable;
-  let targets: AnyStructure[] = room
+  const targets: AnyStructure[] = room
     .find(FIND_MY_STRUCTURES)
     .filter(utils.isStoreStructure)
     .filter(s => !utils.isFull(s) && !utils.isStorage(s))
@@ -1561,7 +1290,7 @@ function getStructureToFillInAssignedRoom(creep: Creep) {
     if (storage && !utils.isFull(storage)) targets.push(storage);
   }
   const randomIndex = Math.floor(Math.random() * targets.length);
-  return targets[randomIndex]; //random target to reduce traffic jams
+  return targets[randomIndex]; // random target to reduce traffic jams
 }
 
 function getNearbyEnergySource(pos: RoomPosition, minEnergy: number) {
@@ -1604,25 +1333,6 @@ function getNearbyEnergySource(pos: RoomPosition, minEnergy: number) {
   return;
 }
 
-function getPosNear(pos: RoomPosition, target: RoomPosition) {
-  if (!utils.blockedByStructure(target)) return target;
-
-  const cluster = target.findInRange(FIND_FLAGS, 1).filter(flag => flag.name.startsWith("cluster_"))[0];
-  if (cluster) return cluster.pos;
-
-  let positionsAroundTgt = utils.getSurroundingPlains(target, 1, 1, false);
-  if (positionsAroundTgt.length < 1) positionsAroundTgt = utils.getSurroundingPlains(target, 1, 1, true);
-  if (positionsAroundTgt.length < 1) return;
-
-  return positionsAroundTgt
-    .map(value => ({
-      value,
-      sort: utils.getGlobalRange(pos, utils.getPos(value))
-    })) /* persist sort values */
-    .sort((a, b) => a.sort - b.sort) /* sort */
-    .map(({ value }) => value) /* remove sort values */[0];
-}
-
 function followMemorizedPath(creep: Creep) {
   const memPath = creep.memory.path;
   if (!memPath) return;
@@ -1636,7 +1346,7 @@ function followMemorizedPath(creep: Creep) {
     } else {
       const tgt = creep.pos.findClosestByRange(path);
       if (!tgt) return;
-      move(creep, tgt);
+      utils.move(creep, tgt);
     }
   } else if (outcome === OK) {
     if (utils.isStuck(creep)) {
@@ -1650,7 +1360,7 @@ function followMemorizedPath(creep: Creep) {
 }
 
 function spawnCreepForRoom(roleToSpawn: Role, targetPos: RoomPosition) {
-  const spawn = getSpawn(0, targetPos);
+  const spawn = spawnLogic.getSpawn(0, targetPos);
   if (!spawn) return false;
 
   const memory = {
@@ -1659,7 +1369,7 @@ function spawnCreepForRoom(roleToSpawn: Role, targetPos: RoomPosition) {
     strokeWidth: 0.1 + 0.1 * (Math.random() % 4),
     room: targetPos.roomName
   };
-  return spawnCreep(roleToSpawn, spawn.room.energyAvailable, undefined, undefined, undefined, spawn, memory);
+  return spawnLogic.spawnCreep(roleToSpawn, spawn.room.energyAvailable, undefined, undefined, spawn, memory);
 }
 
 function getCarrierEnergySources(
@@ -1727,6 +1437,7 @@ function getBuildSitePriority(site: ConstructionSite<BuildableStructureConstant>
   return index < 0 ? 100 : index + 1;
 }
 
+/* eslint-disable max-lines-per-function */
 function getRandomCoolText(): string {
   // The sign text. The string is cut off after 100 characters.
   let texts = [
@@ -2011,21 +1722,7 @@ function getRandomCoolText(): string {
   const randomIndex = Math.floor(Math.random() * texts.length);
   return texts[randomIndex];
 }
-
-function getHarvestPos(source: Source) {
-  const positions = utils.getPositionsAroundWithTerrainSpace(source.pos, 1, 1, 1, 1);
-  return (
-    positions.find(
-      /*container here*/
-      pos => pos.lookFor(LOOK_FLAGS).filter(f => f.name.startsWith(STRUCTURE_CONTAINER + "_")).length > 0
-    ) ??
-    positions.find(
-      /*next to link*/
-      pos => pos.findInRange(FIND_FLAGS, 1).filter(f => f.name.startsWith(STRUCTURE_LINK + "_")).length > 0
-    ) ??
-    positions[0] /*space around*/
-  );
-}
+/* eslint-enable max-lines-per-function */
 
 function spawnCreepWhenStorageFull(room: Room) {
   const controller = room.controller;
@@ -2043,7 +1740,7 @@ function spawnCreepWhenStorageFull(room: Room) {
   else spawnCreepForRoom("upgrader", controller.pos);
 }
 
-function getUpgraderSpot(room: any) {
+function getUpgraderSpot(room: Room) {
   const storage = getStorage(room);
   if (!storage) return;
   return utils
@@ -2106,7 +1803,7 @@ function repairRoom(creep: Creep, anyHits: boolean) {
   room.memory.maxHitsToRepair = minHitsToRepair + (repairTarget?.hits ?? 0);
   room.memory.repairPos = repairTarget?.pos;
   if (!repairTarget) return false;
-  if (creep.repair(repairTarget) === ERR_NOT_IN_RANGE) move(creep, repairTarget);
+  if (creep.repair(repairTarget) === ERR_NOT_IN_RANGE) utils.move(creep, repairTarget);
   return true;
 }
 
@@ -2123,7 +1820,7 @@ function workerRetrieveEnergy(creep: Creep) {
     .sort((a, b) => a.sort - b.sort) /* sort */
     .map(({ value }) => value) /* remove sort values */[0];
   if (!source) return;
-  if (retrieveEnergy(creep, source) === ERR_NOT_IN_RANGE) move(creep, source);
+  if (retrieveEnergy(creep, source) === ERR_NOT_IN_RANGE) utils.move(creep, source);
 }
 
 function updateRoomVisuals(room: Room) {
@@ -2164,18 +1861,18 @@ function creepTalk(creep: Creep) {
 
 function splitTextToSay(text: string): string[] | undefined {
   if (text.length <= 10) return [text];
-  let parts = [];
+  const parts = [];
   while (text.trim().length > 0) {
     let part = "";
     while (text.trim().length > 0 && part.length < 10) {
       /* 0 = whole thing, 1 = text, 2 = non-text */
-      const match = text.match(/^([\w']*)(\W*)/);
+      const match = /^([\w']*)(\W*)/.exec(text);
       if (match && part.length + match[1].length <= 10) {
-        //add whole word to part
+        // add whole word to part
         part += match[0];
         text = text.substring(match[0].length);
       } else if (match && part.length < 1) {
-        //add a partial word
+        // add a partial word
         part += match[0].substring(0, 9) + "-";
         text = text.substring(9);
       } else {

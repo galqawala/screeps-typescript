@@ -3,7 +3,6 @@
   "version": "3.0.0",
   "description": "",
   "main": "index.js",
-  "type": "module",
   "//": "If you add or change the names of destinations in screeps.json, make sure you update these scripts to reflect the changes",
   "scripts": {
     "lint": "eslint \"src/**/*.ts\"",

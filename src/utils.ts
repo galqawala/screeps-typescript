@@ -208,15 +208,6 @@ export function msg(
   if (email) Game.notify(finalMsg);
 }
 
-export function getNameForCreep(role: Role): string {
-  const characters = "ABCDEFHJKLMNPRTUVWXYZ234789";
-  let name = role.substring(0, 1).toUpperCase();
-  while (Game.creeps[name]) {
-    name += characters.charAt(Math.floor(Math.random() * characters.length));
-  }
-  return name;
-}
-
 export function shouldMaintainStatsFor(pos: RoomPosition): boolean {
   // to save CPU, gather stats for only part of the rooms and switch focus after certain interval
   const sections = 2;
@@ -304,13 +295,13 @@ export function getPositionsAroundWithTerrainSpace(
 }
 
 export function setUsername(): void {
-  //logCpu("setUsername()");
+  // logCpu("setUsername()");
   // room controllers
   for (const r in Game.rooms) {
     const room = Game.rooms[r];
     if (room.controller && room.controller.my && room.controller.owner) {
       Memory.username = room.controller.owner.username;
-      //logCpu("setUsername()");
+      // logCpu("setUsername()");
       return;
     }
   }
@@ -318,10 +309,10 @@ export function setUsername(): void {
   const creeps = Object.values(Game.creeps);
   if (creeps.length) {
     Memory.username = creeps[0].owner.username;
-    //logCpu("setUsername()");
+    // logCpu("setUsername()");
     return;
   }
-  //logCpu("setUsername()");
+  // logCpu("setUsername()");
 }
 
 export function logCpu(name: string): void {
@@ -349,7 +340,7 @@ export function containsPosition(list: RoomPosition[], pos: RoomPosition): boole
 }
 
 export function getControllersToReserve(): StructureController[] {
-  //logCpu("getControllersToReserve()");
+  // logCpu("getControllersToReserve()");
   const controllers: StructureController[] = [];
   if (!Memory.plan?.needHarvesters) return controllers;
   for (const r in Game.rooms) {
@@ -367,12 +358,12 @@ export function getControllersToReserve(): StructureController[] {
     .map(value => ({ value, sort: value?.reservation?.ticksToEnd || 0 }))
     .sort((a, b) => a.sort - b.sort)
     .map(({ value }) => value);
-  //logCpu("getControllersToReserve()");
+  // logCpu("getControllersToReserve()");
   return sorted;
 }
 
 export function creepsHaveDestination(structure: Structure): boolean {
-  //logCpu("creepsHaveDestination(" + structure.toString() + ")");
+  // logCpu("creepsHaveDestination(" + structure.toString() + ")");
   if (!structure) return false;
   if (!structure.id) return false;
   if (
@@ -380,10 +371,10 @@ export function creepsHaveDestination(structure: Structure): boolean {
       return creep.memory.destination === structure.id;
     }).length
   ) {
-    //logCpu("creepsHaveDestination(" + structure.toString() + ")");
+    // logCpu("creepsHaveDestination(" + structure.toString() + ")");
     return true;
   }
-  //logCpu("creepsHaveDestination(" + structure.toString() + ")");
+  // logCpu("creepsHaveDestination(" + structure.toString() + ")");
   return false;
 }
 
@@ -430,10 +421,6 @@ export function getBodyForHarvester(source: Source): BodyPartConstant[] {
   const moveParts = Math.ceil(body.length / 2); // 1:2 = 1/3 MOVE
   for (let x = 1; x <= moveParts; x++) body.push(MOVE);
   return body;
-}
-
-export function getBodyPartRatio(body: BodyPartConstant[], type: BodyPartConstant = MOVE): number {
-  return body.filter(part => part === type).length / body.length;
 }
 
 export function setDestinationFlag(name: string, pos: RoomPosition): void {
@@ -493,8 +480,9 @@ export function canOperateInRoom(room: Room): boolean {
 
 export function canOperateInSurroundingRooms(roomName: string): boolean {
   return (
-    Object.values(Game.map.describeExits(roomName)).filter(roomName => !Memory.rooms[roomName]?.canOperate)
-      .length < 1
+    Object.values(Game.map.describeExits(roomName)).filter(
+      exitRoomName => !Memory.rooms[exitRoomName]?.canOperate
+    ).length < 1
   );
 }
 
@@ -638,14 +626,6 @@ export function adjustConstructionSiteScoreForLink(score: number, pos: RoomPosit
   return score;
 }
 
-export function getPosForConstruction(
-  room: Room,
-  structureType: StructureConstant
-): RoomPosition | undefined {
-  //ToDo
-  return undefined;
-}
-
 export function getPotentialConstructionSites(room: Room): ScoredPos[] {
   const sites: ScoredPos[] = [];
 
@@ -698,30 +678,30 @@ export function getTarget(
   myUnit: StructureTower | Creep,
   maxRange: number | undefined
 ): Creep | PowerCreep | Structure | undefined {
-  //logCpu("getTarget(" + myUnit.toString() + ")");
-  //logCpu("getTarget(" + myUnit.toString() + ") getTargetCreep");
+  // logCpu("getTarget(" + myUnit.toString() + ")");
+  // logCpu("getTarget(" + myUnit.toString() + ") getTargetCreep");
   const creep = getTargetCreep(myUnit, maxRange);
-  //logCpu("getTarget(" + myUnit.toString() + ") getTargetCreep");
-  //logCpu("getTarget(" + myUnit.toString() + ") getTargetPowerCreep");
+  // logCpu("getTarget(" + myUnit.toString() + ") getTargetCreep");
+  // logCpu("getTarget(" + myUnit.toString() + ") getTargetPowerCreep");
   const powerCreep = getTargetPowerCreep(myUnit, maxRange);
-  //logCpu("getTarget(" + myUnit.toString() + ") getTargetPowerCreep");
-  //logCpu("getTarget(" + myUnit.toString() + ") getTargetStructure");
+  // logCpu("getTarget(" + myUnit.toString() + ") getTargetPowerCreep");
+  // logCpu("getTarget(" + myUnit.toString() + ") getTargetStructure");
   const structure = getTargetStructure(myUnit, maxRange);
-  //logCpu("getTarget(" + myUnit.toString() + ") getTargetStructure");
+  // logCpu("getTarget(" + myUnit.toString() + ") getTargetStructure");
 
-  //logCpu("getTarget(" + myUnit.toString() + ") target");
+  // logCpu("getTarget(" + myUnit.toString() + ") target");
   const targets = [];
   if (creep) targets.push(creep);
   if (powerCreep) targets.push(powerCreep);
   if (structure) targets.push(structure);
-  //logCpu("getTarget(" + myUnit.toString() + ") target");
+  // logCpu("getTarget(" + myUnit.toString() + ") target");
 
-  //logCpu("getTarget(" + myUnit.toString() + ")");
+  // logCpu("getTarget(" + myUnit.toString() + ")");
   if (targets.length < 1) return;
-  //logCpu("getTarget(" + myUnit.toString() + ") sort");
+  // logCpu("getTarget(" + myUnit.toString() + ") sort");
   const best = targets.sort((a, b) => b.score - a.score)[0].target;
-  //logCpu("getTarget(" + myUnit.toString() + ") sort");
-  //logCpu("getTarget(" + myUnit.toString() + ")");
+  // logCpu("getTarget(" + myUnit.toString() + ") sort");
+  // logCpu("getTarget(" + myUnit.toString() + ")");
   return best;
 }
 
@@ -744,7 +724,7 @@ export function isEdge(pos: RoomPosition): boolean {
 }
 
 export function setDestination(creep: Creep, destination: Destination): void {
-  //logCpu("setDestination(" + creep.name + ")");
+  // logCpu("setDestination(" + creep.name + ")");
   if (destination && creep.memory.destination !== ("id" in destination ? destination.id : destination)) {
     if ("id" in destination) {
       creep.memory.destination = destination.id;
@@ -753,7 +733,7 @@ export function setDestination(creep: Creep, destination: Destination): void {
       setDestinationFlag(creep.name, destination);
     }
   }
-  //logCpu("setDestination(" + creep.name + ")");
+  // logCpu("setDestination(" + creep.name + ")");
 }
 
 export function getHpRatio(obj: Structure): number {
@@ -762,7 +742,7 @@ export function getHpRatio(obj: Structure): number {
 }
 
 export function checkRoomCanOperate(room: Room): void {
-  //logCpu("checkRoomCanOperate(" + room.name + ")");
+  // logCpu("checkRoomCanOperate(" + room.name + ")");
   const value = canOperateInRoom(room);
   if (room.memory && room.memory.canOperate !== value) {
     msg(
@@ -771,11 +751,11 @@ export function checkRoomCanOperate(room: Room): void {
     );
     room.memory.canOperate = value;
   }
-  //logCpu("checkRoomCanOperate(" + room.name + ")");
+  // logCpu("checkRoomCanOperate(" + room.name + ")");
 }
 
 export function handleHostilesInRoom(room: Room): void {
-  //logCpu("handleHostilesInRoom(" + room.name + ")");
+  // logCpu("handleHostilesInRoom(" + room.name + ")");
   const hostileBody = room.find(FIND_HOSTILE_CREEPS)[0]?.body.map(part => part.type);
   if (hostileBody) Memory.hostileCreepCost = getBodyCost(hostileBody);
   room.memory.claimIsSafe =
@@ -789,7 +769,7 @@ export function handleHostilesInRoom(room: Room): void {
         .filter(isTower)
         .filter(tower => getEnergy(tower) > 0).length < 1);
   if (!room.memory.claimIsSafe) activateSafeModeIfNeed(room);
-  //logCpu("handleHostilesInRoom(" + room.name + ")");
+  // logCpu("handleHostilesInRoom(" + room.name + ")");
 }
 
 export function isThreatToRoom(target: Creep): boolean {
@@ -808,7 +788,7 @@ export function isThreatToCreep(target: Creep): boolean {
 }
 
 export function activateSafeModeIfNeed(room: Room): void {
-  const structureTypesToProtect: Array<StructureConstant> = [
+  const structureTypesToProtect: StructureConstant[] = [
     STRUCTURE_EXTENSION,
     STRUCTURE_FACTORY,
     STRUCTURE_LAB,
@@ -832,10 +812,12 @@ export function activateSafeModeIfNeed(room: Room): void {
   // save the one simultaneous safe mode for a room with higher RCL?
   const maxRclWithAvailableSafeModes = Object.values(Game.rooms)
     .filter(
-      room =>
-        room.controller?.my && room.controller?.safeModeAvailable > 0 && !room.controller?.safeModeCooldown
+      myRoom =>
+        myRoom.controller?.my &&
+        myRoom.controller?.safeModeAvailable > 0 &&
+        !myRoom.controller?.safeModeCooldown
     )
-    .reduce((max, room) => Math.max(max, room.controller?.level ?? 0), 0 /* initial*/);
+    .reduce((max, myRoom) => Math.max(max, myRoom.controller?.level ?? 0), 0 /* initial*/);
   if ((room.controller?.level ?? 0) < maxRclWithAvailableSafeModes) return;
 
   // OK, let's activate it!
@@ -853,27 +835,27 @@ export function getHostileUsernames(hostileCreeps: Creep[], hostilePowerCreeps: 
 }
 
 export function getLinkDownstreamPos(room: Room): RoomPosition | undefined {
-  //logCpu("getLinkDownstreamPos(" + room.name + ")");
+  // logCpu("getLinkDownstreamPos(" + room.name + ")");
   if (room.storage) return room.storage.pos;
   const flagName = room.name + "_EnergyConsumer";
   if (!(flagName in Game.flags)) return;
   const flag = Game.flags[flagName];
   const destination = flag.pos;
-  //logCpu("getLinkDownstreamPos(" + room.name + ")");
+  // logCpu("getLinkDownstreamPos(" + room.name + ")");
   return destination;
 }
 
 export function handleLinks(room: Room): void {
-  //logCpu("handleLinks(" + room.name + ")");
+  // logCpu("handleLinks(" + room.name + ")");
   // move energy towards the energy consumer
   const downstreamPos = getLinkDownstreamPos(room);
-  //logCpu("handleLinks(" + room.name + ")");
+  // logCpu("handleLinks(" + room.name + ")");
   if (!downstreamPos) return;
 
-  //logCpu("handleLinks(" + room.name + ") sort");
+  // logCpu("handleLinks(" + room.name + ") sort");
   const links = getSortedLinks(room, downstreamPos);
-  //logCpu("handleLinks(" + room.name + ") sort");
-  //logCpu("handleLinks(" + room.name + ") loop");
+  // logCpu("handleLinks(" + room.name + ") sort");
+  // logCpu("handleLinks(" + room.name + ") loop");
   let upstreamIndex = 0;
   let downstreamIndex = links.length - 1;
   while (upstreamIndex < downstreamIndex) {
@@ -889,19 +871,19 @@ export function handleLinks(room: Room): void {
       upstreamIndex++;
     }
   }
-  //logCpu("handleLinks(" + room.name + ") loop");
-  //logCpu("handleLinks(" + room.name + ")");
+  // logCpu("handleLinks(" + room.name + ") loop");
+  // logCpu("handleLinks(" + room.name + ")");
 }
 
 export function getSortedLinks(room: Room, downstreamPos: RoomPosition): StructureLink[] {
-  //logCpu("getSortedLinks(" + room.name + ")");
+  // logCpu("getSortedLinks(" + room.name + ")");
   const links = room
     .find(FIND_MY_STRUCTURES)
     .filter(isLink)
     .map(value => ({ value, sort: value.pos.getRangeTo(downstreamPos) })) /* persist sort values */
     .sort((a, b) => b.sort - a.sort) /* sort */
     .map(({ value }) => value); /* remove sort values */
-  //logCpu("getSortedLinks(" + room.name + ")");
+  // logCpu("getSortedLinks(" + room.name + ")");
   return links;
 }
 
@@ -1024,14 +1006,14 @@ export function shouldHarvestRoom(room: Room): boolean {
 }
 
 export function getCreepCountByRole(role: Role, minTicksToLive = 120): number {
-  //logCpu("getCreepCountByRole(" + role + ")");
+  // logCpu("getCreepCountByRole(" + role + ")");
   const count = Object.values(Game.creeps).filter(function (creep) {
     return (
       creep.name.startsWith(role.charAt(0).toUpperCase()) &&
       (!creep.ticksToLive || creep.ticksToLive >= minTicksToLive)
     );
   }).length;
-  //logCpu("getCreepCountByRole(" + role + ")");
+  // logCpu("getCreepCountByRole(" + role + ")");
   return count;
 }
 
@@ -1076,7 +1058,7 @@ export function getOwnedRoomsCount(): number {
 }
 
 export function getUpgradeableControllerCount(): number {
-  //logCpu("getUpgradeableControllerCount");
+  // logCpu("getUpgradeableControllerCount");
   const count = Object.values(Game.rooms).filter(
     room =>
       room.controller?.my &&
@@ -1085,7 +1067,7 @@ export function getUpgradeableControllerCount(): number {
         .findInRange(FIND_STRUCTURES, 3)
         .filter(structure => isStorage(structure) || (isContainer(structure) && getEnergy(structure))).length
   ).length;
-  //logCpu("getUpgradeableControllerCount");
+  // logCpu("getUpgradeableControllerCount");
   return count;
 }
 
@@ -1107,50 +1089,8 @@ const fillableStructureTargetCount =
   CONTROLLER_STRUCTURES[STRUCTURE_EXTENSION][8] +
   CONTROLLER_STRUCTURES[STRUCTURE_TOWER][8];
 
-interface ClusterPos {
-  pos: RoomPosition;
-  scanned: boolean;
-  content: undefined | "cluster" | "structure" | "path";
-}
-
-function getInitialClusterPaths(room: Room) {
-  const pointsOfInterest: RoomPosition[] = room
-    .find(FIND_SOURCES)
-    .map(source => source.pos)
-    .concat(getExits(room));
-
-  const posInfos: ClusterPos[] = [];
-  if (!room.controller) return posInfos;
-
-  const from = room.controller.pos;
-  for (const to of pointsOfInterest) {
-    const path = PathFinder.search(from, { pos: to, range: 1 }).path;
-    for (const step of path) {
-      const stepIndex = posInfos.findIndex(pi => pi.pos.x === step.x && pi.pos.y === step.y);
-      if (stepIndex > -1) {
-        if (posInfos[stepIndex].content !== "cluster") posInfos[stepIndex].content = "path";
-      } else {
-        posInfos.push({ pos: step, scanned: false, content: "path" });
-      }
-    }
-  }
-
-  return posInfos;
-}
-
-function getExits(room: Room) {
-  const exits: RoomPosition[] = [];
-  const finds = [FIND_EXIT_BOTTOM, FIND_EXIT_LEFT, FIND_EXIT_RIGHT, FIND_EXIT_TOP];
-  const center = room.controller?.pos ?? RoomPosition(25, 25, room.name);
-  for (const whatToFind of finds) {
-    const pos = center.findClosestByRange(whatToFind);
-    if (pos) exits.push(pos);
-  }
-  return exits;
-}
-
-export function updateRoomLayout(room: Room) {
-  //only move on to the next phase once earlier phases are complete (we don't want to build ramparts around partial base for example)
+export function updateRoomLayout(room: Room): void {
+  // only move on to the next phase once earlier phases are complete (we don't want to build ramparts around partial base for example)
   // Game.rooms.E53S2.memory.resetLayout=true;
   if (room.memory.resetLayout) {
     resetLayout(room);
@@ -1206,19 +1146,6 @@ export function hslToHex(h: number /* deg */, s: number /* % */, l: number /* % 
       .padStart(2, "0"); // convert to Hex and prefix "0" if needed
   };
   return `#${f(0)}${f(8)}${f(4)}`;
-}
-function destroyUnnecessaryContainers(room: Room) {
-  room.find(FIND_SOURCES).forEach(source => {
-    if (source.pos.findInRange(FIND_MY_STRUCTURES, 2).filter(s => isLink(s)).length > 0) {
-      source.pos
-        .findInRange(FIND_STRUCTURES, 2)
-        .filter(target => isContainer(target) && !isStorageSubstitute(target) && getEnergy(target) < 1)
-        .forEach(structure => {
-          msg(structure, "Removing this container as there's a link");
-          structure.destroy();
-        });
-    }
-  });
 }
 
 export function isPosEqual(a: RoomPosition, b: RoomPosition): boolean {
@@ -1291,7 +1218,7 @@ export function getCachedCostMatrixSafe(roomName: string): CostMatrix {
 }
 
 export function getStorageMin(): number {
-  //logCpu("getStorageMin");
+  // logCpu("getStorageMin");
   const storages = Object.values(Game.structures).filter(isStorage);
   if (storages.length < 1) return 0;
 
@@ -1299,7 +1226,7 @@ export function getStorageMin(): number {
   for (const storage of storages) {
     storageMin = Math.min(storageMin, storage.store.getUsedCapacity(RESOURCE_ENERGY));
   }
-  //logCpu("getStorageMin");
+  // logCpu("getStorageMin");
   return storageMin;
 }
 
@@ -1349,7 +1276,7 @@ function flagStorage(room: Room) {
   const controllerPos = room.controller?.pos;
   if (!controllerPos) return false;
   const pos = getPositionsAroundWithTerrainSpace(controllerPos, 2, 2, 1, 1).find(
-    pos => pos.lookFor(LOOK_FLAGS).length < 1
+    posAround => posAround.lookFor(LOOK_FLAGS).length < 1
   );
   if (pos) flagStructure(pos, structureType);
   return false;
@@ -1371,7 +1298,7 @@ function flagLinkForStorage(room: Room) {
 }
 
 function flagStorageSubstituteContainer(room: Room) {
-  if (CONTROLLER_STRUCTURES[STRUCTURE_STORAGE][room?.controller?.level ?? 0] > 0) return true; //we don't need a container, when a storage is available
+  if (CONTROLLER_STRUCTURES[STRUCTURE_STORAGE][room?.controller?.level ?? 0] > 0) return true; // we don't need a container, when a storage is available
   const structureType = STRUCTURE_CONTAINER;
   const controller = room.controller;
   if (!controller) return false;
@@ -1379,9 +1306,9 @@ function flagStorageSubstituteContainer(room: Room) {
     controller.pos.findInRange(FIND_FLAGS, 2).filter(flag => flag.name.startsWith(structureType + "_"))
       .length > 0
   )
-    return true; //already got a container
+    return true; // already got a container
   const pos = getPositionsAroundWithTerrainSpace(controller.pos, 2, 2, 1, 1).find(
-    pos => pos.lookFor(LOOK_FLAGS).length < 1
+    posAround => posAround.lookFor(LOOK_FLAGS).length < 1
   );
   if (pos) flagStructure(pos, structureType);
   return false;
@@ -1390,7 +1317,7 @@ function flagStorageSubstituteContainer(room: Room) {
 function flagStructure(pos: RoomPosition, structureType: string) {
   const coords = getGlobalCoords(pos);
   pos.createFlag(
-    structureType + "_" + coords.x + "_" + coords.y,
+    structureType + "_" + coords.x.toString() + "_" + coords.y.toString(),
     getColor(structureType + "1"),
     getColor(structureType + "2")
   );
@@ -1440,9 +1367,9 @@ function flagFillables(room: Room) {
   const existingPositions = storages.concat(getStructureFlags(room, STRUCTURE_EXTENSION));
   const randomIndex = Math.floor(Math.random() * existingPositions.length);
   const startPos = existingPositions[randomIndex]?.pos;
-  const allowSwampProbability = 0.02; //allow & discourage
+  const allowSwampProbability = 0.02; // allow & discourage
   let exitMargin = 7;
-  while (exitMargin > 1 && Math.random() < 0.2) exitMargin--; //allow & discourage
+  while (exitMargin > 1 && Math.random() < 0.2) exitMargin--; // allow & discourage
   if (!startPos) return false;
   const plains = getSurroundingPlains(startPos, 1, 1, Math.random() < allowSwampProbability).filter(
     p => p.findInRange(FIND_EXIT, exitMargin).length < 1
@@ -1475,7 +1402,7 @@ function getStructureFlags(room: Room, structureType: string) {
 }
 
 function flagSourceContainers(room: Room) {
-  if (isEnoughLinksAvailable(room)) return true; //we don't need a container, when enough links are available for all sources & storage
+  if (isEnoughLinksAvailable(room)) return true; // we don't need a container, when enough links are available for all sources & storage
   const structureType = STRUCTURE_CONTAINER;
   const sourcesWithout = room
     .find(FIND_SOURCES)
@@ -1484,7 +1411,7 @@ function flagSourceContainers(room: Room) {
         source.pos.findInRange(FIND_FLAGS, 1).filter(flag => flag.name.startsWith(structureType + "_"))
           .length < 1
     );
-  if (sourcesWithout.length < 1) return true; //no sources without container
+  if (sourcesWithout.length < 1) return true; // no sources without container
   for (const source of sourcesWithout) {
     const containerPos = getPositionsAroundWithTerrainSpace(source.pos, 1, 1, 1, 1)[0];
     if (containerPos) flagStructure(containerPos, structureType);
@@ -1551,9 +1478,9 @@ function flagObserver(room: Room) {
   const randomIndex = Math.floor(Math.random() * extensions.length);
   const extension = extensions[randomIndex];
   if (!extension) return false;
-  const allowSwampProbability = 0.02; //allow & discourage
+  const allowSwampProbability = 0.02; // allow & discourage
   const pos = getSurroundingPlains(extension.pos, 1, 1, Math.random() < allowSwampProbability).find(
-    pos => pos.lookFor(LOOK_FLAGS).length < 1
+    posAround => posAround.lookFor(LOOK_FLAGS).length < 1
   );
   if (pos) flagStructure(pos, structureType);
   return false;
@@ -1581,7 +1508,7 @@ function flagRoads(room: Room) {
     from.pos,
     { pos: to.pos, range: 0 },
     {
-      //planned road: 1, planned structure: 20
+      // planned road: 1, planned structure: 20
       plainCost: 3,
       swampCost: 10,
       roomCallback: getCachedCostMatrixLayout,
@@ -1608,7 +1535,7 @@ function getFreshCostMatrixLayout(room: Room) {
   const roads = flags.filter(flag => flag.name.startsWith(STRUCTURE_ROAD + "_"));
   for (const road of roads) costs.set(road.pos.x, road.pos.y, 1);
   const obstacles = flags.filter(flag => structureFlagIsObstacle(flag));
-  //try to avoid structures, but go through them if alternatives are too far
+  // try to avoid structures, but go through them if alternatives are too far
   for (const structure of obstacles) costs.set(structure.pos.x, structure.pos.y, 20);
   return costs;
 }
@@ -1738,7 +1665,7 @@ function isContainerFlagNecessary(container: Flag) {
 }
 
 function isEnoughLinksAvailable(room: Room) {
-  //we are able to build one link for each storage and source
+  // we are able to build one link for each storage and source
   return (
     CONTROLLER_STRUCTURES[STRUCTURE_LINK][room?.controller?.level ?? 0] >=
     room.find(FIND_SOURCES).length + CONTROLLER_STRUCTURES[STRUCTURE_STORAGE][room?.controller?.level ?? 0]
@@ -1747,7 +1674,7 @@ function isEnoughLinksAvailable(room: Room) {
 
 function createConstructionSitesOnFlags(room: Room) {
   const allSites = Object.values(Game.constructionSites);
-  if (allSites.length >= 100) return true; //globally maxed out
+  if (allSites.length >= 100) return true; // globally maxed out
   const roomSites = allSites.filter(site => site.pos.roomName === room.name);
   // The maximum number of construction sites per player is 100. Don't spend them all in one room.
   if (roomSites.length >= 1 && roomSites.length >= 100 / Object.keys(Game.rooms).length) return true;
@@ -1798,10 +1725,9 @@ function removeConstructionSitesWithoutFlags(room: Room) {
   return true;
 }
 
-export function removeConstructionSitesInRoomsWithoutVisibility() {
+export function removeConstructionSitesInRoomsWithoutVisibility(): void {
   const sites = Object.values(Game.constructionSites).filter(site => !site.room);
   for (const site of sites) site.remove();
-  return true;
 }
 
 function destroyStructuresWithoutFlags(room: Room) {
@@ -1814,12 +1740,144 @@ function destroyStructuresWithoutFlags(room: Room) {
   for (const structure of structuresToRemove) {
     if (structure.structureType === STRUCTURE_SPAWN) {
       if (spawnCount > 1) {
-        structure.destroy(); //spawn
+        structure.destroy(); // spawn
         return false;
       }
     } else {
-      structure.destroy(); //not spawn
+      structure.destroy(); // not spawn
     }
   }
   return true;
+}
+
+export function getStructurePathCost(struct: AnyStructure | ConstructionSite): number | null {
+  if (struct.structureType === STRUCTURE_ROAD) {
+    // Favor roads over plain tiles
+    return 1;
+  } else if (
+    struct.structureType !== STRUCTURE_CONTAINER &&
+    (struct.structureType !== STRUCTURE_RAMPART || !struct.my)
+  ) {
+    // Can't walk through non-walkable buildings
+    return 0xff;
+  }
+  return null;
+}
+
+export function getFreshCostMatrix(roomName: string): CostMatrix {
+  const room = Game.rooms[roomName];
+  const costs = new PathFinder.CostMatrix();
+  if (room) {
+    room.find(FIND_CONSTRUCTION_SITES).forEach(function (struct) {
+      // consider construction sites as complete structures
+      // same structure types block or don't block movement as complete buildings
+      // incomplete roads don't give the speed bonus, but we should still prefer them to avoid planning for additional roads
+      const cost = getStructurePathCost(struct);
+      // correctly handle blocking structure and unfinished road in the same coords
+      if (cost && cost > costs.get(struct.pos.x, struct.pos.y)) costs.set(struct.pos.x, struct.pos.y, cost);
+    });
+    room.find(FIND_STRUCTURES).forEach(function (struct) {
+      const cost = getStructurePathCost(struct);
+      if (cost && cost > costs.get(struct.pos.x, struct.pos.y)) costs.set(struct.pos.x, struct.pos.y, cost);
+    });
+    room.find(FIND_SOURCES).forEach(function (source) {
+      // avoid routing around sources
+      const positions = getAccessiblePositionsAround(source.pos, 1, 1, true);
+      for (const pos of positions) {
+        if (costs.get(pos.x, pos.y) < 20) costs.set(pos.x, pos.y, 20);
+      }
+    });
+  }
+  return costs;
+}
+
+export function getFreshCostMatrixCreeps(roomName: string): CostMatrix {
+  const room = Game.rooms[roomName];
+  const costs = new PathFinder.CostMatrix();
+  if (room) {
+    room.find(FIND_CONSTRUCTION_SITES).forEach(function (struct) {
+      // consider construction sites as complete structures
+      // same structure types block or don't block movement as complete buildings
+      // incomplete roads don't give the speed bonus, but we should still prefer them to avoid planning for additional roads
+      const cost = getStructurePathCost(struct);
+      // correctly handle blocking structure and unfinished road in the same coords
+      if (cost && cost > costs.get(struct.pos.x, struct.pos.y)) costs.set(struct.pos.x, struct.pos.y, cost);
+    });
+    room.find(FIND_STRUCTURES).forEach(function (struct) {
+      const cost = getStructurePathCost(struct);
+      if (cost && cost > costs.get(struct.pos.x, struct.pos.y)) costs.set(struct.pos.x, struct.pos.y, cost);
+    });
+    room.find(FIND_CREEPS).forEach(function (creep) {
+      const lastMoveTime = creep.memory?.lastMoveTime;
+      const cost = lastMoveTime ? Game.time - lastMoveTime : 5;
+      if (cost && cost > costs.get(creep.pos.x, creep.pos.y)) costs.set(creep.pos.x, creep.pos.y, cost);
+    });
+  }
+  return costs;
+}
+
+export function move(creep: Creep, destination: Destination): CreepMoveReturnCode | -2 | -7 | -5 {
+  const options: MoveToOpts = {
+    // bit of randomness to prevent creeps from moving the same way at same time to pass each other
+    reusePath: Math.round((Memory.maxTickLimit ?? 0) - Game.cpu.tickLimit + Math.random()),
+    visualizePathStyle: {
+      stroke: creep.memory.stroke,
+      opacity: 0.6,
+      lineStyle: "dotted",
+      strokeWidth: creep.memory.strokeWidth
+    },
+    plainCost: 2,
+    swampCost: 10,
+    costCallback: getCachedCostMatrixCreeps
+  };
+  const outcome = creep.moveTo(destination, options);
+  return outcome;
+}
+
+export function withdraw(creep: Creep, destination: Destination): ScreepsReturnCode {
+  if (destination instanceof Structure || destination instanceof Tombstone || destination instanceof Ruin) {
+    const actionOutcome = creep.withdraw(destination, RESOURCE_ENERGY);
+    return actionOutcome;
+  }
+  return ERR_INVALID_TARGET;
+}
+
+export function pickup(creep: Creep, destination: Destination): -8 | CreepActionReturnCode {
+  if (destination instanceof Resource) {
+    const actionOutcome = creep.pickup(destination);
+    return actionOutcome;
+  }
+  return ERR_INVALID_TARGET;
+}
+
+export function handleRoads(room: Room): void {
+  const roads = room.find(FIND_STRUCTURES).filter(isRoad);
+  for (const road of roads) {
+    road.notifyWhenAttacked(false);
+  }
+}
+
+export function getRoomToClaim(aroundRooms: Room[]): string | undefined {
+  let bestScore = Number.NEGATIVE_INFINITY;
+  let bestRoomName;
+
+  for (const room of aroundRooms) {
+    const exits = Game.map.describeExits(room.name);
+    const claimableRoomNames = Object.values(exits).filter(
+      roomName =>
+        isRoomSafe(roomName) &&
+        Memory.rooms[roomName]?.canOperate &&
+        getRoomStatus(roomName) === getRoomStatus(room.name) &&
+        !aroundRooms.map(roomAround => roomAround.name).includes(roomName) &&
+        canOperateInSurroundingRooms(roomName)
+    );
+    for (const nearRoomName of claimableRoomNames) {
+      const score = Memory.rooms[nearRoomName].score;
+      if (score && bestScore < score) {
+        bestScore = score;
+        bestRoomName = nearRoomName;
+      }
+    }
+  }
+  return bestRoomName;
 }
