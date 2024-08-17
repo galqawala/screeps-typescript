@@ -296,7 +296,13 @@ function handleWorker(creep: Creep) {
     workerRetrieveEnergy(creep);
     return;
   }
-  return repairLocal(creep) || repairRoom(creep) || build(creep) || dismantle(creep);
+  return (
+    repairLocal(creep) ||
+    repairRoom(creep, false) ||
+    build(creep) ||
+    dismantle(creep) ||
+    repairRoom(creep, true)
+  );
 }
 
 function build(creep: Creep) {
@@ -2014,14 +2020,14 @@ function repairLocal(creep: Creep) {
   return true;
 }
 
-function repairRoom(creep: Creep) {
+function repairRoom(creep: Creep, anyHits: boolean) {
   const room = getAssignedRoom(creep);
   if (!room) return false;
   const minHitsToRepair = 12000;
   let repairTarget: AnyStructure | undefined = room
     .find(FIND_STRUCTURES)
     .filter(
-      s => s.hits <= s.hitsMax - minHitsToRepair || s.hits <= s.hitsMax / 2
+      s => (anyHits && s.hits < s.hitsMax) || s.hits <= s.hitsMax - minHitsToRepair || s.hits <= s.hitsMax / 2
     ) /* damage worth moving to */
     .map(target => ({
       target,
