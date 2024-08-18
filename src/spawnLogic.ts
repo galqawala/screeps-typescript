@@ -303,3 +303,83 @@ export function spawnReserver(): void {
   const energy = Math.min(Memory.plan?.maxRoomEnergy ?? 0, 3800);
   spawnCreep("reserver", energy, undefined, task);
 }
+
+export function needExplorers(): boolean {
+  return (
+    utils.getCreepCountByRole("explorer") < 1 &&
+    Object.values(Game.rooms).filter(
+      room =>
+        room.controller &&
+        room.controller.my &&
+        CONTROLLER_STRUCTURES[STRUCTURE_OBSERVER][room.controller.level] > 0
+    ).length < 1
+  );
+}
+
+export function spawnCreeps(): void {
+  const budget = utils.gotSpareCpu() ? Memory.plan?.maxRoomEnergy : Memory.plan?.maxRoomEnergyCap;
+  if (Memory.plan?.needTransferers) {
+    spawnTransferer();
+  } else if (Memory.plan?.needHarvesters) {
+    spawnHarvester();
+  } else if (Memory.plan?.needInfantry) {
+    spawnCreep("infantry", Math.max((Memory.hostileCreepCost ?? 0) / 2, Memory.plan.maxRoomEnergy ?? 0));
+  } else if (needExplorers() && utils.gotSpareCpu()) {
+    spawnCreep("explorer", undefined, [MOVE]);
+  } else if (Memory.plan?.needReservers && budget && budget >= utils.getBodyCost(["claim", "move"])) {
+    spawnReserver();
+  }
+}
+
+export function spawnOneCarrier(room: Room): void {
+  const controller = room.controller;
+  if (!controller || !controller.my) return;
+  const carriers = Object.values(Game.creeps).filter(
+    creep => creep.name.startsWith("C") && creep.memory.room === room.name
+  );
+  if (carriers.length > 0) return;
+  const containersWithEnergy = room
+    .find(FIND_STRUCTURES)
+    .filter(utils.isContainer)
+    .filter(container => utils.getEnergy(container) > 0 && !utils.isStorageSubstitute(container)).length;
+  const storage = utils.getStorage(room);
+  const energyStored = storage && utils.getEnergy(storage) > 0;
+  const spawnsLacking = room.energyAvailable < room.energyCapacityAvailable;
+  if (
+    (containersWithEnergy > 0 || (energyStored && spawnsLacking)) &&
+    (carriers.length < 1 || utils.gotSpareCpu())
+  )
+    spawnCreepForRoom("carrier", controller.pos);
+}
+
+export function spawnExtraCarriers(room: Room): void {
+  const controller = room.controller;
+  if (!controller || !controller.my) return;
+  const freshCarriers = Object.values(Game.creeps).filter(
+    creep =>
+      creep.name.startsWith("C") &&
+      creep.memory.room === room.name &&
+      (creep.spawning ||
+        (creep.memory.lastTimeFull ?? 0) < Game.time - 100 ||
+        (creep.ticksToLive ?? CREEP_LIFE_TIME) > CREEP_LIFE_TIME * 0.9)
+  );
+  if (freshCarriers.length > 0) return;
+  const fullContainers = room
+    .find(FIND_STRUCTURES)
+    .filter(utils.isContainer)
+    .filter(container => utils.isFull(container) && !utils.isStorageSubstitute(container)).length;
+  const storage = utils.getStorage(room);
+  const energyStored = storage && utils.getEnergy(storage) > 0;
+  const spawnsBeenLacking = (room.memory.lackedEnergySinceTime ?? 0) < Game.time - 100;
+  if ((fullContainers > 0 || (energyStored && spawnsBeenLacking)) && utils.gotSpareCpu())
+    spawnCreepForRoom("carrier", controller.pos);
+}
+
+export function spawnByQuota(room: Room, role: Role, max: number): void {
+  const controller = room.controller;
+  if (!controller || !controller.my) return;
+  const count = Object.values(Game.creeps).filter(
+    creep => creep.name.startsWith(role.charAt(0).toUpperCase()) && creep.memory.room === room.name
+  ).length;
+  if (count < max) spawnCreepForRoom(role, controller.pos);
+}

@@ -313,13 +313,6 @@ export function isObstacle(structure: Structure): boolean {
   return (OBSTACLE_OBJECT_TYPES as StructureConstant[]).includes(structure.structureType);
 }
 
-export function containsPosition(list: RoomPosition[], pos: RoomPosition): boolean {
-  return (
-    list.filter(listPos => listPos.x === pos.x && listPos.y === pos.y && listPos.roomName === pos.roomName)
-      .length > 0
-  );
-}
-
 export function getControllersToReserve(): StructureController[] {
   const controllers: StructureController[] = [];
   if (!Memory.plan?.needHarvesters) return controllers;
@@ -401,15 +394,6 @@ export function sourceHasHarvester(source: Source): boolean {
     if ((creep.ticksToLive ?? 0) > timeToReplace) return true;
   }
   return false;
-}
-
-export function isStorageSubstitute(container: AnyStructure | ConstructionSite): boolean {
-  return (
-    "structureType" in container &&
-    container.structureType === STRUCTURE_CONTAINER &&
-    container.pos.findInRange(FIND_MY_STRUCTURES, 3).filter(isController).length > 0 &&
-    container.pos.findInRange(FIND_SOURCES, 1).length < 1
-  );
 }
 
 export function getTotalCreepCapacity(role: Role | undefined): number {
@@ -1067,16 +1051,6 @@ export function isPosEqual(a: RoomPosition, b: RoomPosition): boolean {
   return true;
 }
 
-export function isStuck(creep: Creep): boolean {
-  return (creep.memory.lastMoveTime || 0) < Game.time - 8;
-}
-
-export function moveRandomDirection(creep: Creep): void {
-  const directions = [TOP, TOP_RIGHT, RIGHT, BOTTOM_RIGHT, BOTTOM, BOTTOM_LEFT, LEFT, TOP_LEFT];
-  const direction = directions[Math.floor(Math.random() * directions.length)];
-  creep.move(direction);
-}
-
 export function getCachedCostMatrix(roomName: string): CostMatrix {
   const costMem = Memory.rooms[roomName]?.costMatrix;
   if (costMem) return PathFinder.CostMatrix.deserialize(costMem);
@@ -1128,18 +1102,6 @@ export function getCachedCostMatrixSafe(roomName: string): CostMatrix {
   return new PathFinder.CostMatrix();
 }
 
-export function getStorageMin(): number {
-  const storages = Object.values(Game.structures).filter(isStorage);
-  if (storages.length < 1) return 0;
-
-  let storageMin = Number.POSITIVE_INFINITY;
-  for (const storage of storages) {
-    storageMin = Math.min(storageMin, storage.store.getUsedCapacity(RESOURCE_ENERGY));
-  }
-
-  return storageMin;
-}
-
 export function getPath(from: RoomPosition, to: RoomPosition, range = 0, safe = true): RoomPosition[] {
   return PathFinder.search(
     from,
@@ -1165,19 +1127,6 @@ export function getPosBetween(pos1: RoomPosition, pos2: RoomPosition): RoomPosit
     })) /* persist sort values */
     .sort((a, b) => a.sort - b.sort) /* sort */
     .map(({ pos }) => pos)[0]; /* remove sort values */
-}
-
-export function updateEnergy(): void {
-  Memory.totalEnergy = Object.values(Game.rooms).reduce((total, room) => total + room.energyAvailable, 0);
-  Memory.totalEnergyCap = Object.values(Game.rooms).reduce(
-    (total, room) => total + room.energyCapacityAvailable,
-    0
-  );
-  const oldRatio = Memory.totalEnergyRatio || 0;
-  Memory.totalEnergyRatio = Memory.totalEnergy / Memory.totalEnergyCap;
-  Memory.totalEnergyRatioDelta = Memory.totalEnergyRatio - oldRatio;
-  if (Memory.totalEnergyRatioDelta > 0.004 || Memory.totalEnergyRatio >= 1)
-    Memory.lackedEnergySinceTime = Game.time;
 }
 
 function flagStorage(room: Room) {
@@ -1721,40 +1670,6 @@ export function getFreshCostMatrixCreeps(roomName: string): CostMatrix {
   return costs;
 }
 
-export function move(creep: Creep, destination: Destination): CreepMoveReturnCode | -2 | -7 | -5 {
-  const options: MoveToOpts = {
-    // bit of randomness to prevent creeps from moving the same way at same time to pass each other
-    reusePath: Math.round((Memory.maxTickLimit ?? 0) - Game.cpu.tickLimit + Math.random()),
-    visualizePathStyle: {
-      stroke: creep.memory.stroke,
-      opacity: 0.6,
-      lineStyle: "dotted",
-      strokeWidth: creep.memory.strokeWidth
-    },
-    plainCost: 2,
-    swampCost: 10,
-    costCallback: getCachedCostMatrixCreeps
-  };
-  const outcome = creep.moveTo(destination, options);
-  return outcome;
-}
-
-export function withdraw(creep: Creep, destination: Destination): ScreepsReturnCode {
-  if (destination instanceof Structure || destination instanceof Tombstone || destination instanceof Ruin) {
-    const actionOutcome = creep.withdraw(destination, RESOURCE_ENERGY);
-    return actionOutcome;
-  }
-  return ERR_INVALID_TARGET;
-}
-
-export function pickup(creep: Creep, destination: Destination): -8 | CreepActionReturnCode {
-  if (destination instanceof Resource) {
-    const actionOutcome = creep.pickup(destination);
-    return actionOutcome;
-  }
-  return ERR_INVALID_TARGET;
-}
-
 export function getRoomToClaim(aroundRooms: Room[]): string | undefined {
   let bestScore = Number.NEGATIVE_INFINITY;
   let bestRoomName;
@@ -1778,4 +1693,20 @@ export function getRoomToClaim(aroundRooms: Room[]): string | undefined {
     }
   }
   return bestRoomName;
+}
+
+export function isStorageSubstitute(container: AnyStructure | ConstructionSite): boolean {
+  return (
+    "structureType" in container &&
+    container.structureType === STRUCTURE_CONTAINER &&
+    container.pos.findInRange(FIND_MY_STRUCTURES, 3).filter(isController).length > 0 &&
+    container.pos.findInRange(FIND_SOURCES, 1).length < 1
+  );
+}
+
+export function getStorage(room: Room): StructureContainer | StructureStorage | undefined | null {
+  return (
+    room.storage ??
+    room.controller?.pos.findInRange(FIND_STRUCTURES, 2).filter(isStorageSubstitute).filter(isContainer)[0]
+  );
 }
