@@ -69,6 +69,8 @@ declare global {
   interface RoomMemory {
     canOperate?: boolean;
     claimIsSafe?: boolean;
+    controllerProgress?: number;
+    controllerProgressTime?: number;
     costMatrix?: number[];
     costMatrixCreeps?: number[];
     costMatrixLayout?: number[];
@@ -696,6 +698,7 @@ function handleRoom(room: Room) {
   spawnLogic.spawnCreepsInRoom(room);
   if (Math.random() < 0.1 && utils.gotSpareCpu()) handleRoads(room);
   updateRoomEnergy(room);
+  if (Math.random() < 0.01) updateControllerProgress(room);
 }
 
 function handleRoomTowers(room: Room) {
@@ -1568,26 +1571,13 @@ function updateRoomVisuals(room: Room) {
   if (repairPos) new RoomVisual(room.name).text("🔧", repairPos);
 
   for (const spawn of room.find(FIND_MY_SPAWNS))
-    if (spawn.spawning) new RoomVisual(room.name).text(creepNameToEmoji(spawn.spawning.name), spawn.pos);
+    if (spawn.spawning)
+      new RoomVisual(room.name).text(utils.creepNameToEmoji(spawn.spawning.name), spawn.pos);
 
   if (room.controller?.progressTotal) {
-    const controller = room.controller;
-    const progress = Math.round((controller.progress / controller.progressTotal) * 100).toString() + "%";
-    new RoomVisual(room.name).text(progress, controller.pos, { color: "#FF0000" });
+    const text = utils.getControllerText(room);
+    if (text) new RoomVisual(room.name).text(text, room.controller.pos, { color: "#FF0000" });
   }
-}
-
-function creepNameToEmoji(name: string): string {
-  const initial = name.charAt(0);
-  if (initial === "C") return "📦";
-  if (initial === "E") return "🧭";
-  if (initial === "H") return "⛏️";
-  if (initial === "I") return "⚔️";
-  if (initial === "R") return "🚩";
-  if (initial === "T") return "↔️";
-  if (initial === "U") return "⬆️";
-  if (initial === "W") return "🛠️";
-  return initial;
 }
 
 function creepTalk(creep: Creep) {
@@ -1595,7 +1585,7 @@ function creepTalk(creep: Creep) {
     const nextPart = creep.memory.say.shift();
     if (nextPart) creep.say(nextPart, true);
   } else if (Math.random() < 0.1) {
-    creep.say(creepNameToEmoji(creep.name), true);
+    creep.say(utils.creepNameToEmoji(creep.name), true);
   } else if (Math.random() < 0.004) {
     creep.memory.say = splitTextToSay(getRandomCoolText());
   }
@@ -1724,4 +1714,9 @@ function getRoomToClaim(aroundRooms: Room[]): string | undefined {
     }
   }
   return bestRoomName;
+}
+
+function updateControllerProgress(room: Room) {
+  room.memory.controllerProgress = room.controller?.progress;
+  room.memory.controllerProgressTime = new Date().getTime();
 }

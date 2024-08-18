@@ -1685,3 +1685,34 @@ export function getStorage(room: Room): StructureContainer | StructureStorage | 
     room.controller?.pos.findInRange(FIND_STRUCTURES, 2).filter(isStorageSubstitute).filter(isContainer)[0]
   );
 }
+
+export function creepNameToEmoji(name: string): string {
+  const initial = name.charAt(0);
+  if (initial === "C") return "📦";
+  if (initial === "E") return "🧭";
+  if (initial === "H") return "⛏️";
+  if (initial === "I") return "⚔️";
+  if (initial === "R") return "🚩";
+  if (initial === "T") return "↔️";
+  if (initial === "U") return "⬆️";
+  if (initial === "W") return "🛠️";
+  return initial;
+}
+
+export function formatMilliseconds(milliseconds: number): string {
+  const seconds = Math.floor(milliseconds / 1000);
+  const minutes = Math.floor(seconds / 60);
+  const hours = Math.floor(minutes / 60);
+  const days = Math.floor(hours / 24);
+  return `${days}d${hours % 24}h${minutes % 60}m`;
+}
+
+export function getControllerText(room: Room): string | undefined {
+  const controller = room.controller;
+  if (!controller || !room.memory.controllerProgress || !room.memory.controllerProgressTime) return;
+  const progressDelta = controller.progress - room.memory.controllerProgress;
+  const msDelta = new Date().getTime() - room.memory.controllerProgressTime;
+  const msPerProgress = msDelta / progressDelta;
+  const progressRemaining = controller.progressTotal - controller.progress;
+  return formatMilliseconds(msPerProgress * progressRemaining);
+}
