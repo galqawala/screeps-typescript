@@ -693,17 +693,9 @@ function handleRoom(room: Room) {
   if (!room.memory.score) utils.updateRoomScore(room);
   utils.checkRoomCanOperate(room);
   if (Math.random() < 0.1 && utils.gotSpareCpu()) updateStickyEnergy(room);
-  spawnCreepsInRoom(room);
+  spawnLogic.spawnCreepsInRoom(room);
   if (Math.random() < 0.1 && utils.gotSpareCpu()) handleRoads(room);
   updateRoomEnergy(room);
-}
-
-function spawnCreepsInRoom(room: Room) {
-  spawnLogic.spawnOneCarrier(room);
-  spawnLogic.spawnExtraCarriers(room);
-  spawnLogic.spawnByQuota(room, "worker", 1);
-  spawnLogic.spawnByQuota(room, "upgrader", 1);
-  spawnCreepWhenStorageFull(room);
 }
 
 function handleRoomTowers(room: Room) {
@@ -801,7 +793,7 @@ function updateFlagClaim() {
   const myRooms = Object.values(Game.rooms).filter(room => room.controller && room.controller.my);
   if (myRooms.length >= Game.gcl.level) return;
 
-  const bestRoomName = utils.getRoomToClaim(myRooms);
+  const bestRoomName = getRoomToClaim(myRooms);
 
   if (!bestRoomName) return;
   if (!(bestRoomName in Game.rooms)) return;
@@ -1485,23 +1477,6 @@ function getRandomCoolText(): string {
 }
 /* eslint-enable max-lines-per-function */
 
-function spawnCreepWhenStorageFull(room: Room) {
-  const controller = room.controller;
-  if (!controller || !controller.my) return;
-  if (room.energyAvailable < room.energyCapacityAvailable) return;
-  const storage = utils.getStorage(room);
-  if (!storage || !utils.isFull(storage)) return;
-  const workers = Object.values(Game.creeps).filter(
-    creep => creep.name.startsWith("W") && creep.memory.room === room.name
-  ).length;
-  const upgraders = Object.values(Game.creeps).filter(
-    creep => creep.name.startsWith("U") && creep.memory.room === room.name
-  ).length;
-  if (workers + Math.random() < upgraders + Math.random())
-    spawnLogic.spawnCreepForRoom("worker", controller.pos);
-  else spawnLogic.spawnCreepForRoom("upgrader", controller.pos);
-}
-
 function getUpgraderSpot(room: Room) {
   const storage = utils.getStorage(room);
   if (!storage) return;
@@ -1724,4 +1699,29 @@ function pickup(creep: Creep, destination: Destination): -8 | CreepActionReturnC
     return actionOutcome;
   }
   return ERR_INVALID_TARGET;
+}
+
+function getRoomToClaim(aroundRooms: Room[]): string | undefined {
+  let bestScore = Number.NEGATIVE_INFINITY;
+  let bestRoomName;
+
+  for (const room of aroundRooms) {
+    const exits = Game.map.describeExits(room.name);
+    const claimableRoomNames = Object.values(exits).filter(
+      roomName =>
+        utils.isRoomSafe(roomName) &&
+        Memory.rooms[roomName]?.canOperate &&
+        utils.getRoomStatus(roomName) === utils.getRoomStatus(room.name) &&
+        !aroundRooms.map(roomAround => roomAround.name).includes(roomName) &&
+        utils.canOperateInSurroundingRooms(roomName)
+    );
+    for (const nearRoomName of claimableRoomNames) {
+      const score = Memory.rooms[nearRoomName].score;
+      if (score && bestScore < score) {
+        bestScore = score;
+        bestRoomName = nearRoomName;
+      }
+    }
+  }
+  return bestRoomName;
 }

@@ -383,3 +383,27 @@ export function spawnByQuota(room: Room, role: Role, max: number): void {
   ).length;
   if (count < max) spawnCreepForRoom(role, controller.pos);
 }
+
+export function spawnCreepWhenStorageFull(room: Room): void {
+  const controller = room.controller;
+  if (!controller || !controller.my) return;
+  if (room.energyAvailable < room.energyCapacityAvailable) return;
+  const storage = utils.getStorage(room);
+  if (!storage || !utils.isFull(storage)) return;
+  const workers = Object.values(Game.creeps).filter(
+    creep => creep.name.startsWith("W") && creep.memory.room === room.name
+  ).length;
+  const upgraders = Object.values(Game.creeps).filter(
+    creep => creep.name.startsWith("U") && creep.memory.room === room.name
+  ).length;
+  if (workers + Math.random() < upgraders + Math.random()) spawnCreepForRoom("worker", controller.pos);
+  else spawnCreepForRoom("upgrader", controller.pos);
+}
+
+export function spawnCreepsInRoom(room: Room): void {
+  spawnOneCarrier(room);
+  spawnExtraCarriers(room);
+  spawnByQuota(room, "worker", 1);
+  spawnByQuota(room, "upgrader", 1);
+  spawnCreepWhenStorageFull(room);
+}

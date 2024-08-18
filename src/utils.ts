@@ -1670,31 +1670,6 @@ export function getFreshCostMatrixCreeps(roomName: string): CostMatrix {
   return costs;
 }
 
-export function getRoomToClaim(aroundRooms: Room[]): string | undefined {
-  let bestScore = Number.NEGATIVE_INFINITY;
-  let bestRoomName;
-
-  for (const room of aroundRooms) {
-    const exits = Game.map.describeExits(room.name);
-    const claimableRoomNames = Object.values(exits).filter(
-      roomName =>
-        isRoomSafe(roomName) &&
-        Memory.rooms[roomName]?.canOperate &&
-        getRoomStatus(roomName) === getRoomStatus(room.name) &&
-        !aroundRooms.map(roomAround => roomAround.name).includes(roomName) &&
-        canOperateInSurroundingRooms(roomName)
-    );
-    for (const nearRoomName of claimableRoomNames) {
-      const score = Memory.rooms[nearRoomName].score;
-      if (score && bestScore < score) {
-        bestScore = score;
-        bestRoomName = nearRoomName;
-      }
-    }
-  }
-  return bestRoomName;
-}
-
 export function isStorageSubstitute(container: AnyStructure | ConstructionSite): boolean {
   return (
     "structureType" in container &&
