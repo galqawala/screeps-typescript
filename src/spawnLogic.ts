@@ -377,7 +377,7 @@ export function spawnExtraCarriers(room: Room): void {
 
 export function spawnByQuota(room: Room, role: Role, max: number): void {
   const controller = room.controller;
-  if (!controller || !controller.my) return;
+  if (!controller) return;
   const count = Object.values(Game.creeps).filter(
     creep => creep.name.startsWith(role.charAt(0).toUpperCase()) && creep.memory.room === room.name
   ).length;
@@ -401,9 +401,15 @@ export function spawnCreepWhenStorageFull(room: Room): void {
 }
 
 export function spawnCreepsInRoom(room: Room): void {
-  spawnOneCarrier(room);
-  spawnExtraCarriers(room);
-  spawnByQuota(room, "worker", 1);
-  spawnByQuota(room, "upgrader", 1);
-  spawnCreepWhenStorageFull(room);
+  if (room.controller?.my && utils.canOperateInRoom(room)) {
+    // owned room
+    spawnOneCarrier(room);
+    spawnExtraCarriers(room);
+    spawnByQuota(room, "worker", 1);
+    spawnByQuota(room, "upgrader", 1);
+    spawnCreepWhenStorageFull(room);
+  } else if (utils.isRoomReservationOk(room.name)) {
+    // reserved room
+    spawnByQuota(room, "worker", 1);
+  }
 }
