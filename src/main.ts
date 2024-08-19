@@ -1540,7 +1540,6 @@ function repairRoom(creep: Creep, anyHits: boolean) {
     })) /* persist sort values */
     .sort((a, b) => a.sort - b.sort) /* sort */
     .map(({ target }) => target) /* remove sort values */[0];
-  if (creep.name === "WN") console.log(creep, creep.pos, repairTarget);
   const constructionSiteCount = room.find(FIND_MY_CONSTRUCTION_SITES).length;
   if (constructionSiteCount > 0 && repairTarget && repairTarget.hits > minHitsToRepair)
     repairTarget = undefined;
