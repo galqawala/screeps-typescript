@@ -315,7 +315,6 @@ export function isObstacle(structure: Structure): boolean {
 
 export function getControllersToReserve(): StructureController[] {
   const controllers: StructureController[] = [];
-  if (!Memory.plan?.needHarvesters) return controllers;
   for (const r in Game.rooms) {
     const controller = Game.rooms[r].controller;
     if (
