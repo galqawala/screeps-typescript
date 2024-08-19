@@ -1352,29 +1352,7 @@ function flagObserver(room: Room) {
 
 function flagRoads(room: Room) {
   const structureType = STRUCTURE_ROAD;
-  let fromPositions;
-  let toPositions;
-  if (Math.random() < 0.5) {
-    // connect storage and containers by road
-    fromPositions = getStructureFlags(room, STRUCTURE_STORAGE);
-    toPositions = getStructureFlags(room, STRUCTURE_CONTAINER);
-    const remoteHarvestRoomNames = Object.values(Game.map.describeExits(room.name)).filter(exitRoomName =>
-      isRoomReservationOk(exitRoomName)
-    );
-    for (const remoteHarvestRoomName of remoteHarvestRoomNames) {
-      const remoteHarvestRoom = Game.rooms[remoteHarvestRoomName];
-      toPositions = toPositions.concat(getStructureFlags(remoteHarvestRoom, STRUCTURE_CONTAINER));
-      Memory.rooms[remoteHarvestRoomName].costMatrixLayout =
-        getFreshCostMatrixLayout(remoteHarvestRoom).serialize();
-    }
-  } else {
-    // make sure all roads are connected to each other
-    const roads = getStructureFlags(room, structureType);
-    fromPositions = roads;
-    toPositions = roads;
-  }
-  const from = fromPositions[Math.floor(Math.random() * fromPositions.length)];
-  const to = toPositions[Math.floor(Math.random() * toPositions.length)];
+  const { from, to } = getRoadTargets(room);
   if (!from || !to) return false;
   room.memory.costMatrixLayout = getFreshCostMatrixLayout(room).serialize();
   const path = PathFinder.search(
@@ -1400,6 +1378,34 @@ function flagRoads(room: Room) {
   return true;
 }
 
+function getRoadTargets(room: Room) {
+  const structureType = STRUCTURE_ROAD;
+  let fromPositions;
+  let toPositions;
+  if (Math.random() < 0.5) {
+    // connect storage and containers by road
+    fromPositions = getStructureFlags(room, STRUCTURE_STORAGE);
+    toPositions = getStructureFlags(room, STRUCTURE_CONTAINER);
+    const remoteHarvestRoomNames = Object.values(Game.map.describeExits(room.name)).filter(exitRoomName =>
+      isRoomReservationOk(exitRoomName)
+    );
+    for (const remoteHarvestRoomName of remoteHarvestRoomNames) {
+      const remoteHarvestRoom = Game.rooms[remoteHarvestRoomName];
+      toPositions = toPositions.concat(getStructureFlags(remoteHarvestRoom, STRUCTURE_CONTAINER));
+      Memory.rooms[remoteHarvestRoomName].costMatrixLayout =
+        getFreshCostMatrixLayout(remoteHarvestRoom).serialize();
+    }
+  } else {
+    // make sure all roads are connected to each other
+    const roads = getStructureFlags(room, structureType);
+    fromPositions = roads;
+    toPositions = roads;
+  }
+  const from = fromPositions[Math.floor(Math.random() * fromPositions.length)];
+  const to = toPositions[Math.floor(Math.random() * toPositions.length)];
+  return { from, to };
+}
+
 function getFreshCostMatrixLayout(room: Room) {
   const costs = new PathFinder.CostMatrix();
   if (!room) return costs;
@@ -1411,7 +1417,7 @@ function getFreshCostMatrixLayout(room: Room) {
     .map(f => f.pos)
     .concat(
       room
-        .find(FIND_STRUCTURES) /*constructed walls and stuff*/
+        .find(FIND_STRUCTURES) /* constructed walls and stuff*/
         .filter(isObstacle)
         .map(o => o.pos)
     );
@@ -1552,31 +1558,32 @@ function isEnoughLinksAvailable(room: Room) {
   );
 }
 
+const prioritizedStructureTypes = [
+  STRUCTURE_SPAWN,
+  STRUCTURE_TOWER,
+  STRUCTURE_STORAGE,
+  STRUCTURE_CONTAINER,
+  STRUCTURE_EXTENSION,
+  STRUCTURE_ROAD,
+  STRUCTURE_LINK,
+  STRUCTURE_WALL,
+  STRUCTURE_RAMPART,
+  STRUCTURE_EXTRACTOR,
+  STRUCTURE_OBSERVER,
+  STRUCTURE_POWER_SPAWN,
+  STRUCTURE_LAB,
+  STRUCTURE_TERMINAL,
+  STRUCTURE_NUKER,
+  STRUCTURE_FACTORY
+];
+
 function createConstructionSitesOnFlags(room: Room) {
   const allSites = Object.values(Game.constructionSites);
   if (allSites.length >= 100) return true; // globally maxed out
   const roomSites = allSites.filter(site => site.pos.roomName === room.name);
   // The maximum number of construction sites per player is 100. Don't spend them all in one room.
   if (roomSites.length >= 1 && roomSites.length >= 100 / Object.keys(Game.rooms).length) return true;
-  const prioritizedTypes = [
-    STRUCTURE_SPAWN,
-    STRUCTURE_TOWER,
-    STRUCTURE_STORAGE,
-    STRUCTURE_CONTAINER,
-    STRUCTURE_EXTENSION,
-    STRUCTURE_ROAD,
-    STRUCTURE_LINK,
-    STRUCTURE_WALL,
-    STRUCTURE_RAMPART,
-    STRUCTURE_EXTRACTOR,
-    STRUCTURE_OBSERVER,
-    STRUCTURE_POWER_SPAWN,
-    STRUCTURE_LAB,
-    STRUCTURE_TERMINAL,
-    STRUCTURE_NUKER,
-    STRUCTURE_FACTORY
-  ];
-  for (const structureType of prioritizedTypes) {
+  for (const structureType of prioritizedStructureTypes) {
     if (!needStructure(room, structureType)) continue;
     const flag = getStructureFlags(room, structureType).find(
       f =>
