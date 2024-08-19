@@ -475,6 +475,8 @@ function handleTransferer(creep: Creep) {
   if (!upstream || !downstream) {
     recycleCreep(creep);
     return;
+  } else if (!creep.memory.workStartTime && creep.pos.isNearTo(upstream) && creep.pos.isNearTo(downstream)) {
+    creep.memory.workStartTime = Game.time;
   }
   if (Math.random() < 0.1 && creep.pos.lookFor(LOOK_STRUCTURES).length > 0) {
     move(creep, utils.getPosBetween(upstream.pos, downstream.pos)); // stay out of roads and stuff

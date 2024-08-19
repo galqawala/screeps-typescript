@@ -176,7 +176,7 @@ export function getSourceToHarvest(): Source | undefined {
     if (!utils.canOperateInRoom(room)) continue;
     if (!utils.shouldHarvestRoom(room)) continue;
     sources = sources.concat(
-      room.find(FIND_SOURCES).filter(harvestSource => !utils.sourceHasHarvester(harvestSource))
+      room.find(FIND_SOURCES).filter(harvestSource => !sourceHasHarvester(harvestSource))
     );
   }
   if (sources.length < 1) return;
@@ -250,7 +250,7 @@ export function getStoragesRequiringTransferer(): StructureStorage[] {
           creep =>
             creep.name.startsWith("T") &&
             creep.memory.transferTo === storage.id &&
-            (creep.ticksToLive || 100) > 30
+            (creep.ticksToLive ?? CREEP_LIFE_TIME) > getTimeToReplace(creep)
         ).length <= 0
     );
 }
@@ -412,4 +412,16 @@ export function spawnCreepsInRoom(room: Room): void {
     // reserved room
     spawnByQuota(room, "worker", 1);
   }
+}
+
+function sourceHasHarvester(source: Source): boolean {
+  for (const creep of Object.values(Game.creeps)) {
+    if (!creep.memory.sourceId || creep.memory.sourceId !== source.id) continue;
+    if ((creep.ticksToLive ?? CREEP_LIFE_TIME) > getTimeToReplace(creep)) return true;
+  }
+  return false;
+}
+
+function getTimeToReplace(creep: Creep) {
+  return Math.max(0, (creep.memory.workStartTime ?? 0) - (creep.memory.spawnStartTime ?? 0));
 }

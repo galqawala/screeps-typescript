@@ -393,15 +393,6 @@ export function setDestinationFlag(name: string, pos: RoomPosition): void {
   }
 }
 
-export function sourceHasHarvester(source: Source): boolean {
-  for (const creep of Object.values(Game.creeps)) {
-    if (!creep.memory.sourceId || creep.memory.sourceId !== source.id) continue;
-    const timeToReplace = Math.max(0, (creep.memory.workStartTime ?? 0) - (creep.memory.spawnStartTime ?? 0));
-    if ((creep.ticksToLive ?? 0) > timeToReplace) return true;
-  }
-  return false;
-}
-
 export function getTotalCreepCapacity(role: Role | undefined): number {
   return Object.values(Game.creeps).reduce(
     (aggregated, creep) =>
