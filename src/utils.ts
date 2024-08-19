@@ -5,47 +5,40 @@ export function isStorage(structure: Structure | Ruin | Tombstone | Resource): s
   if (!("structureType" in structure)) return false;
   return structure.structureType === STRUCTURE_STORAGE;
 }
+
 export function isController(structure: Structure): structure is StructureController {
   if (!("structureType" in structure)) return false;
   return structure.structureType === STRUCTURE_CONTROLLER;
 }
+
 export function isContainer(
   structure: Structure | EnergySource | AnyStoreStructure
 ): structure is StructureContainer {
   if (!("structureType" in structure)) return false;
   return structure.structureType === STRUCTURE_CONTAINER;
 }
+
 export function isDestructibleWall(structure: Structure): structure is StructureWall {
   return structure.structureType === STRUCTURE_WALL && "hits" in structure;
 }
-export function isInvaderCore(structure: Structure): structure is StructureInvaderCore {
+
+function isInvaderCore(structure: Structure): structure is StructureInvaderCore {
   return structure.structureType === STRUCTURE_INVADER_CORE;
 }
+
 export function isLink(structure: Structure | Ruin | Tombstone | Resource): structure is StructureLink {
   if (!("structureType" in structure)) return false;
   return structure.structureType === STRUCTURE_LINK;
 }
+
 export function isTower(structure: Structure): structure is StructureTower {
   return structure.structureType === STRUCTURE_TOWER;
 }
+
 export function isObserver(structure: Structure): structure is StructureObserver {
   return structure.structureType === STRUCTURE_OBSERVER;
 }
-export function isSpawnOrExtension(
-  structure: Structure | null | undefined | Destination
-): structure is StructureSpawn | StructureExtension {
-  if (!structure) return false;
-  if (!("structureType" in structure)) return false;
-  return structure.structureType === STRUCTURE_SPAWN || structure.structureType === STRUCTURE_EXTENSION;
-}
-export function isSpawn(structure: Structure | null | undefined | Destination): structure is StructureSpawn {
-  if (!structure) return false;
-  if (!("structureType" in structure)) return false;
-  return structure.structureType === STRUCTURE_SPAWN;
-}
-export function isRoomPosition(item: RoomPosition): item is RoomPosition {
-  return item instanceof RoomPosition;
-}
+
 export function isStoreStructure(
   item: Structure | undefined | Ruin | Tombstone | Resource | AnyStructure | null
 ): item is AnyStoreStructure {
@@ -71,13 +64,6 @@ export function isFull(object: Structure | Creep | Ruin | Resource | Tombstone):
   const store = getStore(object) as StoreBase<RESOURCE_ENERGY, false>;
   if (!store) return false;
   return store.getFreeCapacity(RESOURCE_ENERGY) <= 0;
-}
-
-export function hasSpace(object: Structure | Creep | Ruin | Resource | Tombstone): boolean {
-  if (!object) return false;
-  const store = getStore(object) as StoreBase<RESOURCE_ENERGY, false>;
-  if (!store) return false;
-  return store.getFreeCapacity(RESOURCE_ENERGY) > 0;
 }
 
 export function getFillRatio(object: Structure | Creep | Resource | Tombstone | Ruin): number {
@@ -109,7 +95,7 @@ export function getPos(obj: RoomPosition | RoomObject | null | undefined): RoomP
   return;
 }
 
-export function getGlobalCoords(pos: RoomPosition): { x: number; y: number } {
+function getGlobalCoords(pos: RoomPosition): { x: number; y: number } {
   if (!pos) throw new Error("Missing pos!");
   const roomCoords = /([WE])(\d+)([NS])(\d+)/g.exec(pos.roomName);
   if (!roomCoords || roomCoords.length < 5) return { x: 0, y: 0 };
@@ -153,7 +139,7 @@ export function cpuInfo(): void {
   }
 }
 
-export function getCpuLog(): string {
+function getCpuLog(): string {
   const sortable = [];
   for (const name in Memory.cpuLog) {
     const entry: CpuLogEntryFinal = { name, cpu: Memory.cpuLog[name].after - Memory.cpuLog[name].before };
@@ -187,13 +173,6 @@ export function msg(
   if (email) Game.notify(finalMsg);
 }
 
-export function shouldMaintainStatsFor(pos: RoomPosition): boolean {
-  // to save CPU, gather stats for only part of the rooms and switch focus after certain interval
-  const sections = 2;
-  const interval = 10000;
-  return pos.x % sections === Math.floor(Game.time / interval) % sections;
-}
-
 export function getAccessiblePositionsAround(
   origin: RoomPosition,
   rangeMin: number,
@@ -222,7 +201,7 @@ export function getAccessiblePositionsAround(
     .map(({ value }) => value); /* remove sort values */
 }
 
-export function getPositionsAround(origin: RoomPosition, rangeMin: number, rangeMax: number): RoomPosition[] {
+function getPositionsAround(origin: RoomPosition, rangeMin: number, rangeMax: number): RoomPosition[] {
   const spots: RoomPosition[] = [];
 
   const minX = Math.max(0, origin.x - rangeMax);
@@ -301,7 +280,7 @@ export function logCpu(name: string): void {
   }
 }
 
-export function blockedByStructure(pos: RoomPosition): boolean {
+function blockedByStructure(pos: RoomPosition): boolean {
   return pos.lookFor(LOOK_STRUCTURES).filter(isObstacle).length > 0;
 }
 
@@ -330,7 +309,7 @@ export function getControllersToReserve(): StructureController[] {
   return sorted;
 }
 
-export function creepsHaveDestination(structure: Structure): boolean {
+function creepsHaveDestination(structure: Structure): boolean {
   if (!structure) return false;
   if (!structure.id) return false;
   if (
@@ -388,17 +367,6 @@ export function setDestinationFlag(name: string, pos: RoomPosition): void {
   }
 }
 
-export function getTotalCreepCapacity(role: Role | undefined): number {
-  return Object.values(Game.creeps).reduce(
-    (aggregated, creep) =>
-      aggregated +
-      (!role || creep.name.startsWith(role.charAt(0).toUpperCase())
-        ? creep.store.getCapacity(RESOURCE_ENERGY)
-        : 0),
-    0 /* initial*/
-  );
-}
-
 export function canOperateInRoom(room: Room): boolean {
   if (!room.controller) return true; // no controller
   if (room.controller.my) return true; // my controller
@@ -425,90 +393,6 @@ export function isRoomSafe(roomName: string): boolean {
   return Memory.rooms[roomName]?.safeForCreeps ?? true;
 }
 
-export function getPosOfLinkByTheController(controller: StructureController): RoomPosition | undefined {
-  let targetPos;
-  const linkFilter = {
-    filter: { structureType: STRUCTURE_LINK }
-  };
-  const link = controller.pos.findClosestByRange(FIND_MY_STRUCTURES, linkFilter);
-  if (link) {
-    targetPos = link.pos;
-  } else {
-    const site = controller.pos.findClosestByRange(FIND_MY_CONSTRUCTION_SITES, linkFilter);
-    if (site) targetPos = site.pos;
-  }
-  if (!targetPos) return;
-  if (targetPos.getRangeTo(controller.pos) > 6) return;
-  return targetPos;
-}
-
-export function getPrimaryPosForLink(room: Room): RoomPosition | undefined {
-  const placesRequiringLink: (StructureStorage | Source)[] = getPlacesRequiringLink(room);
-
-  for (const target of placesRequiringLink) {
-    if (target && !hasStructureInRange(target.pos, STRUCTURE_LINK, 2, true)) {
-      const targetPos = target.pos;
-      let bestScore = Number.NEGATIVE_INFINITY;
-      let bestPos;
-      const creepSpots = getSurroundingPlains(targetPos, 1, 1, true);
-
-      for (const creepSpot of creepSpots) {
-        const linkSpots = getSurroundingPlains(creepSpot, 1, 1, true);
-        for (const linkSpot of linkSpots) {
-          let score = getSurroundingPlains(linkSpot, 1, 1, true).length;
-          if (hasStructureInRange(linkSpot, undefined, 1, true)) score -= 0.1;
-          if (bestScore < score) {
-            bestScore = score;
-            bestPos = linkSpot;
-          }
-        }
-      }
-
-      if (bestPos) return bestPos;
-    }
-  }
-  return;
-}
-
-export function getPosForStorage(room: Room): RoomPosition | undefined {
-  if (
-    !room ||
-    !room.controller ||
-    !room.controller.my ||
-    getStructureCount(room, STRUCTURE_STORAGE, true) > 0
-  )
-    return;
-
-  let bestScore = Number.NEGATIVE_INFINITY;
-  let bestPos;
-
-  for (const pos of getAccessiblePositionsAround(room.controller.pos, 2, 2, true)) {
-    const score =
-      (getSurroundingPlains(pos, 1, 1).length -
-        pos.findInRange(FIND_STRUCTURES, 1).filter(isObstacle).length) *
-        100 +
-      (getSurroundingPlains(pos, 1, 2).length -
-        pos.findInRange(FIND_STRUCTURES, 2).filter(isObstacle).length);
-    if (bestScore < score) {
-      bestScore = score;
-      bestPos = pos;
-    }
-  }
-  return bestPos;
-}
-
-export function getPlacesRequiringLink(room: Room): (StructureStorage | Source)[] {
-  let placesRequiringLink: (StructureStorage | Source)[] = room.find(FIND_MY_STRUCTURES).filter(isStorage);
-  placesRequiringLink = placesRequiringLink.concat(
-    room
-      .find(FIND_SOURCES)
-      .map(value => ({ value, sort: Math.random() })) /* persist sort values */
-      .sort((a, b) => a.sort - b.sort) /* sort */
-      .map(({ value }) => value) /* remove sort values */
-  );
-  return placesRequiringLink;
-}
-
 export function hasStructureInRange(
   pos: RoomPosition,
   structureType: StructureConstant | undefined,
@@ -533,49 +417,6 @@ export function hasStructureInRange(
   return false;
 }
 
-export function adjustConstructionSiteScoreForLink(score: number, pos: RoomPosition): number {
-  // distance to exit decreases the score
-  const penalty = pos.findClosestByRange(FIND_EXIT);
-  if (penalty) {
-    score /= getGlobalRange(pos, penalty);
-    score /= getGlobalRange(pos, penalty);
-  }
-  // distance to other links increases the score
-  let shortestRange;
-  const link = pos.findClosestByRange(FIND_MY_STRUCTURES, { filter: { structureType: STRUCTURE_LINK } });
-  if (link) shortestRange = getGlobalRange(pos, link.pos);
-  const linkSite = pos.findClosestByRange(FIND_MY_CONSTRUCTION_SITES, {
-    filter: { structureType: STRUCTURE_LINK }
-  });
-  if (linkSite) {
-    const range = getGlobalRange(pos, linkSite.pos);
-    if (!shortestRange || shortestRange > range) shortestRange = range;
-  }
-  if (shortestRange) {
-    score *= shortestRange;
-  }
-  return score;
-}
-
-export function getPotentialConstructionSites(room: Room): ScoredPos[] {
-  const sites: ScoredPos[] = [];
-
-  for (let x = 4; x <= 45; x++) {
-    for (let y = 4; y <= 45; y++) {
-      if ((x + y) % 2 === 1) continue; // build in a checkered pattern to allow passage
-      const pos = room.getPositionAt(x, y);
-      if (!pos) continue;
-      if (!isPosSuitableForConstruction(pos)) continue;
-      const score =
-        (hasStructureInRange(pos, STRUCTURE_ROAD, 1, true) ? 10 : 5) -
-        pos.lookFor(LOOK_STRUCTURES).length +
-        getSurroundingPlains(pos, 0, 1).length;
-      sites.push({ score, pos });
-    }
-  }
-  return sites;
-}
-
 export function getSurroundingPlains(
   pos: RoomPosition,
   rangeMin: number,
@@ -590,19 +431,6 @@ export function getSurroundingPlains(
     if (type === 0 || (type === TERRAIN_MASK_SWAMP && allowSwamp)) plains.push(posAround);
   }
   return plains;
-}
-
-export function isPosSuitableForConstruction(pos: RoomPosition): boolean {
-  const contents = pos.look();
-  for (const content of contents) {
-    if (content.type !== "terrain") return false;
-    if (content.terrain === "wall") return false;
-    if (hasStructureInRange(pos, STRUCTURE_STORAGE, 2, true)) return false;
-    if (hasStructureInRange(pos, STRUCTURE_CONTROLLER, 2, true)) return false;
-    if (hasStructureInRange(pos, STRUCTURE_LINK, 2, true)) return false;
-  }
-  if (pos.findInRange(FIND_SOURCES, 2).length) return false;
-  return true;
 }
 
 export function getTarget(
@@ -627,7 +455,7 @@ export function getTarget(
   return best;
 }
 
-export function getTargetScore(pos: RoomPosition, target: Structure | Creep | PowerCreep): number {
+function getTargetScore(pos: RoomPosition, target: Structure | Creep | PowerCreep): number {
   let score = -pos.getRangeTo(target);
   if ("my" in target) {
     if (target.my === false) score += 10;
@@ -635,14 +463,6 @@ export function getTargetScore(pos: RoomPosition, target: Structure | Creep | Po
   }
   if (target instanceof Creep) score += target.getActiveBodyparts(HEAL);
   return score;
-}
-
-export function isEdge(pos: RoomPosition): boolean {
-  if (pos.x <= 0) return true;
-  if (pos.y <= 0) return true;
-  if (pos.x >= 49) return true;
-  if (pos.y >= 49) return true;
-  return false;
 }
 
 export function setDestination(creep: Creep, destination: Destination): void {
@@ -683,7 +503,7 @@ export function handleHostilesInRoom(room: Room): void {
   if (!room.memory.claimIsSafe) activateSafeModeIfNeed(room);
 }
 
-export function isThreatToRoom(target: Creep): boolean {
+function isThreatToRoom(target: Creep): boolean {
   return (
     !target.my &&
     (target.getActiveBodyparts(ATTACK) > 0 ||
@@ -698,7 +518,7 @@ export function isThreatToCreep(target: Creep): boolean {
   );
 }
 
-export function activateSafeModeIfNeed(room: Room): void {
+function activateSafeModeIfNeed(room: Room): void {
   const structureTypesToProtect: StructureConstant[] = [
     STRUCTURE_EXTENSION,
     STRUCTURE_FACTORY,
@@ -738,14 +558,7 @@ export function activateSafeModeIfNeed(room: Room): void {
   }
 }
 
-export function getHostileUsernames(hostileCreeps: Creep[], hostilePowerCreeps: PowerCreep[]): string[] {
-  return hostileCreeps
-    .map(creep => creep.owner.username)
-    .concat(hostilePowerCreeps.map(creep => creep.owner.username))
-    .filter((value, index, self) => self.indexOf(value) === index); // unique
-}
-
-export function getLinkDownstreamPos(room: Room): RoomPosition | undefined {
+function getLinkDownstreamPos(room: Room): RoomPosition | undefined {
   if (room.storage) return room.storage.pos;
   const flagName = room.name + "_EnergyConsumer";
   if (!(flagName in Game.flags)) return;
@@ -780,7 +593,7 @@ export function handleLinks(room: Room): void {
   }
 }
 
-export function getSortedLinks(room: Room, downstreamPos: RoomPosition): StructureLink[] {
+function getSortedLinks(room: Room, downstreamPos: RoomPosition): StructureLink[] {
   const links = room
     .find(FIND_MY_STRUCTURES)
     .filter(isLink)
@@ -791,19 +604,20 @@ export function getSortedLinks(room: Room, downstreamPos: RoomPosition): Structu
   return links;
 }
 
-export function canAttack(myUnit: StructureTower | Creep): boolean {
+function canAttack(myUnit: StructureTower | Creep): boolean {
   if (myUnit instanceof StructureTower) return true;
   if (myUnit.getActiveBodyparts(ATTACK) > 0) return true;
   if (myUnit.getActiveBodyparts(RANGED_ATTACK) > 0) return true;
   return false;
 }
-export function canHeal(myUnit: StructureTower | Creep): boolean {
+
+function canHeal(myUnit: StructureTower | Creep): boolean {
   if (myUnit instanceof StructureTower) return true;
   if (myUnit.getActiveBodyparts(HEAL) > 0) return true;
   return false;
 }
 
-export function getTargetCreep(
+function getTargetCreep(
   myUnit: StructureTower | Creep,
   maxRange: number | undefined
 ): ScoredTarget | undefined {
@@ -831,7 +645,7 @@ export function getTargetCreep(
   return;
 }
 
-export function getTargetPowerCreep(
+function getTargetPowerCreep(
   myUnit: StructureTower | Creep,
   maxRange: number | undefined
 ): ScoredTarget | undefined {
@@ -859,7 +673,7 @@ export function getTargetPowerCreep(
   return;
 }
 
-export function getTargetStructure(
+function getTargetStructure(
   myUnit: StructureTower | Creep,
   maxRange: number | undefined
 ): ScoredTarget | undefined {
@@ -911,14 +725,14 @@ export function getBodyCost(body: BodyPartConstant[]): number {
   }, 0);
 }
 
-export function needStructure(room: Room, structureType: BuildableStructureConstant): boolean {
+function needStructure(room: Room, structureType: BuildableStructureConstant): boolean {
   if (!room.controller) return false; // no controller
   if (!room.controller.my && room.controller.owner) return false; // owned by others
   const targetCount = CONTROLLER_STRUCTURES[structureType][room.controller.level];
   return targetCount > getStructureCount(room, structureType, true);
 }
 
-export function getStructureCount(
+function getStructureCount(
   room: Room,
   structureType: StructureConstant,
   includeConstructionSites: boolean
@@ -939,23 +753,6 @@ export function resetDestination(creep: Creep): void {
   const flag = Game.flags["creep_" + creep.name];
   if (flag) flag.remove();
   return;
-}
-
-export function getOwnedRoomsCount(): number {
-  return Object.values(Game.rooms).filter(room => room.controller?.my).length;
-}
-
-export function getUpgradeableControllerCount(): number {
-  const count = Object.values(Game.rooms).filter(
-    room =>
-      room.controller?.my &&
-      (room.controller?.level < 8 || room.controller?.ticksToDowngrade < 100000) &&
-      room.controller.pos
-        .findInRange(FIND_STRUCTURES, 3)
-        .filter(structure => isStorage(structure) || (isContainer(structure) && getEnergy(structure))).length
-  ).length;
-
-  return count;
 }
 
 export function updateRoomScore(room: Room): void {
@@ -1017,7 +814,7 @@ function resetLayout(room: Room) {
   delete room.memory.resetLayout;
 }
 
-export function getObjectDescription(obj: Destination | undefined | string | Room): string {
+function getObjectDescription(obj: Destination | undefined | string | Room): string {
   if (!obj) return "";
   if (typeof obj === "string") return obj;
   let description = obj.toString();
@@ -1052,7 +849,7 @@ export function isPosEqual(a: RoomPosition, b: RoomPosition): boolean {
   return true;
 }
 
-export function getCachedCostMatrix(roomName: string): CostMatrix {
+function getCachedCostMatrix(roomName: string): CostMatrix {
   const costMem = Memory.rooms[roomName]?.costMatrix;
   if (costMem) return PathFinder.CostMatrix.deserialize(costMem);
   return new PathFinder.CostMatrix();
@@ -1064,19 +861,19 @@ export function getCachedCostMatrixCreeps(roomName: string): CostMatrix {
   return new PathFinder.CostMatrix();
 }
 
-export function getCachedCostMatrixLayout(roomName: string): CostMatrix {
+function getCachedCostMatrixLayout(roomName: string): CostMatrix {
   const costMem = Memory.rooms[roomName]?.costMatrixLayout;
   if (costMem) return PathFinder.CostMatrix.deserialize(costMem);
   return new PathFinder.CostMatrix();
 }
 
-export function getCachedCostMatrixRamparts(roomName: string): CostMatrix {
+function getCachedCostMatrixRamparts(roomName: string): CostMatrix {
   const costMem = Memory.rooms[roomName]?.costMatrixRamparts;
   if (costMem) return PathFinder.CostMatrix.deserialize(costMem);
   return new PathFinder.CostMatrix();
 }
 
-export function getCachedCostMatrixSafe(roomName: string): CostMatrix {
+function getCachedCostMatrixSafe(roomName: string): CostMatrix {
   const costMem = Memory.rooms[roomName]?.costMatrixCreeps;
   if (costMem) {
     const costs = PathFinder.CostMatrix.deserialize(costMem);
@@ -1632,7 +1429,7 @@ function destroyStructuresWithoutFlags(room: Room) {
   return true;
 }
 
-export function getStructurePathCost(struct: AnyStructure | ConstructionSite): number | null {
+function getStructurePathCost(struct: AnyStructure | ConstructionSite): number | null {
   if (struct.structureType === STRUCTURE_ROAD) {
     // Favor roads over plain tiles
     return 1;
@@ -1727,7 +1524,7 @@ export function creepNameToEmoji(name: string): string {
   return initial;
 }
 
-export function formatMilliseconds(milliseconds: number): string {
+function formatMilliseconds(milliseconds: number): string {
   if (milliseconds === Number.POSITIVE_INFINITY) return "∞";
   const seconds = Math.floor(milliseconds / 1000);
   const minutes = Math.floor(seconds / 60);

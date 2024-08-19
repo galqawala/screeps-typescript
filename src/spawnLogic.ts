@@ -1,10 +1,10 @@
 import * as utils from "utils";
 
-export function getBodyPartRatio(body: BodyPartConstant[], type: BodyPartConstant = MOVE): number {
+function getBodyPartRatio(body: BodyPartConstant[], type: BodyPartConstant = MOVE): number {
   return body.filter(part => part === type).length / body.length;
 }
 
-export function getSpawn(
+function getSpawn(
   energyRequired: number,
   targetPos: RoomPosition | undefined,
   maxRange = 100
@@ -21,7 +21,7 @@ export function getSpawn(
     .map(({ spawn }) => spawn) /* remove sort values */[0];
 }
 
-export function getNameForCreep(role: Role): string {
+function getNameForCreep(role: Role): string {
   const characters = "ABCDEFHJKLMNPRTUVWXYZ234789";
   let name = role.substring(0, 1).toUpperCase();
   while (Game.creeps[name]) {
@@ -30,7 +30,7 @@ export function getNameForCreep(role: Role): string {
   return name;
 }
 
-export function getInitialCreepMem(task: Task | undefined, pos: RoomPosition): CreepMemory {
+function getInitialCreepMem(task: Task | undefined, pos: RoomPosition): CreepMemory {
   return {
     destination: task?.destination && "id" in task?.destination ? task?.destination?.id : undefined,
     pos,
@@ -39,7 +39,7 @@ export function getInitialCreepMem(task: Task | undefined, pos: RoomPosition): C
   };
 }
 
-export function getBody(roleToSpawn: Role, energyAvailable: number): BodyPartConstant[] | undefined {
+function getBody(roleToSpawn: Role, energyAvailable: number): BodyPartConstant[] | undefined {
   if (roleToSpawn === "carrier") return getBodyForCarrier(energyAvailable);
   else if (roleToSpawn === "infantry") return getBodyForInfantry(energyAvailable);
   else if (roleToSpawn === "reserver") return getBodyForReserver(energyAvailable);
@@ -111,7 +111,7 @@ function getBodyForInfantry(energyAvailable: number) {
   return body;
 }
 
-export function spawnCreep(
+function spawnCreep(
   roleToSpawn: Role,
   energyRequired?: number,
   body: undefined | BodyPartConstant[] = undefined,
@@ -141,7 +141,7 @@ export function spawnCreep(
   }
 }
 
-export function getHarvestPos(source: Source): RoomPosition {
+function getHarvestPos(source: Source): RoomPosition {
   const positions = utils.getPositionsAroundWithTerrainSpace(source.pos, 1, 1, 1, 1);
   return (
     positions.find(
@@ -156,7 +156,7 @@ export function getHarvestPos(source: Source): RoomPosition {
   );
 }
 
-export function downscaleHarvester(body: BodyPartConstant[]): BodyPartConstant[] | null {
+function downscaleHarvester(body: BodyPartConstant[]): BodyPartConstant[] | null {
   if (body.filter(part => part === "move").length > 1) {
     body.splice(body.indexOf("move"), 1);
     return body;
@@ -187,7 +187,7 @@ export function getSourceToHarvest(): Source | undefined {
   return source;
 }
 
-export function spawnHarvester(): boolean {
+function spawnHarvester(): boolean {
   const roleToSpawn: Role = "harvester";
   const source = getSourceToHarvest();
   if (!source || !(source instanceof Source)) return false;
@@ -226,7 +226,7 @@ function getBodyForHarvester(source: Source): BodyPartConstant[] {
   return body;
 }
 
-export function getTransferrerMem(
+function getTransferrerMem(
   retrieve: Id<StructureLink>,
   transferTo: Id<StructureStorage>,
   pos: RoomPosition
@@ -255,7 +255,7 @@ export function getStoragesRequiringTransferer(): StructureStorage[] {
     );
 }
 
-export function spawnTransferer(): boolean {
+function spawnTransferer(): boolean {
   const roleToSpawn: Role = "transferer";
   const storages = getStoragesRequiringTransferer();
   if (storages.length < 1) return false;
@@ -276,7 +276,7 @@ export function spawnTransferer(): boolean {
   );
 }
 
-export function spawnCreepForRoom(roleToSpawn: Role, targetPos: RoomPosition): boolean {
+function spawnCreepForRoom(roleToSpawn: Role, targetPos: RoomPosition): boolean {
   const spawn = getSpawn(0, targetPos);
   if (!spawn) return false;
 
@@ -289,7 +289,7 @@ export function spawnCreepForRoom(roleToSpawn: Role, targetPos: RoomPosition): b
   return spawnCreep(roleToSpawn, spawn.room.energyAvailable, undefined, undefined, spawn, memory);
 }
 
-export function spawnReserver(): void {
+function spawnReserver(): void {
   let task: Task | undefined;
   const controllerId = Memory.plan?.controllersToReserve?.[0];
   if (!controllerId) return;
@@ -304,7 +304,7 @@ export function spawnReserver(): void {
   spawnCreep("reserver", energy, undefined, task);
 }
 
-export function needExplorers(): boolean {
+function needExplorers(): boolean {
   return (
     utils.getCreepCountByRole("explorer") < 1 &&
     Object.values(Game.rooms).filter(
@@ -331,7 +331,7 @@ export function spawnCreeps(): void {
   }
 }
 
-export function spawnOneCarrier(room: Room): void {
+function spawnOneCarrier(room: Room): void {
   const controller = room.controller;
   if (!controller || !controller.my) return;
   const carriers = Object.values(Game.creeps).filter(
@@ -352,7 +352,7 @@ export function spawnOneCarrier(room: Room): void {
     spawnCreepForRoom("carrier", controller.pos);
 }
 
-export function spawnExtraCarriers(room: Room): void {
+function spawnExtraCarriers(room: Room): void {
   const controller = room.controller;
   if (!controller || !controller.my) return;
   const freshCarriers = Object.values(Game.creeps).filter(
@@ -364,18 +364,33 @@ export function spawnExtraCarriers(room: Room): void {
         (creep.ticksToLive ?? CREEP_LIFE_TIME) > CREEP_LIFE_TIME * 0.9)
   );
   if (freshCarriers.length > 0) return;
-  const fullContainers = room
-    .find(FIND_STRUCTURES)
-    .filter(utils.isContainer)
-    .filter(container => utils.isFull(container) && !utils.isStorageSubstitute(container)).length;
+  const fullContainers = roomHasFullContainers(room) || roomHasFullRemoteContainers(room.name);
   const storage = utils.getStorage(room);
   const energyStored = storage && utils.getEnergy(storage) > 0;
   const spawnsBeenLacking = (room.memory.lackedEnergySinceTime ?? 0) < Game.time - 100;
-  if ((fullContainers > 0 || (energyStored && spawnsBeenLacking)) && utils.gotSpareCpu())
+  if ((fullContainers || (energyStored && spawnsBeenLacking)) && utils.gotSpareCpu())
     spawnCreepForRoom("carrier", controller.pos);
 }
 
-export function spawnByQuota(room: Room, role: Role, max: number): void {
+function roomHasFullRemoteContainers(ownedRoomName: string) {
+  const remoteHarvestRoomNames = Object.values(Game.map.describeExits(ownedRoomName)).filter(exitRoomName =>
+    utils.isRoomReservationOk(exitRoomName)
+  );
+  for (const remoteHarvestRoomName of remoteHarvestRoomNames)
+    if (roomHasFullContainers(Game.rooms[remoteHarvestRoomName])) return true;
+  return false;
+}
+
+function roomHasFullContainers(room: Room) {
+  return (
+    room
+      .find(FIND_STRUCTURES)
+      .filter(utils.isContainer)
+      .filter(container => utils.isFull(container) && !utils.isStorageSubstitute(container)).length > 0
+  );
+}
+
+function spawnByQuota(room: Room, role: Role, max: number): void {
   const controller = room.controller;
   if (!controller) return;
   const count = Object.values(Game.creeps).filter(
@@ -399,7 +414,7 @@ function spawnWorkerIfWorkAvailable(room: Room, max: number): void {
   spawnCreepForRoom(role, controller.pos);
 }
 
-export function spawnCreepWhenStorageFull(room: Room): void {
+function spawnCreepWhenStorageFull(room: Room): void {
   const controller = room.controller;
   if (!controller || !controller.my) return;
   if (room.energyAvailable < room.energyCapacityAvailable) return;
