@@ -1532,7 +1532,7 @@ function repairRoom(creep: Creep, anyHits: boolean) {
   let repairTarget: AnyStructure | undefined = room
     .find(FIND_STRUCTURES)
     .filter(
-      s => (anyHits && s.hits < s.hitsMax) || s.hits <= s.hitsMax - minHitsToRepair || s.hits <= s.hitsMax / 2
+      s => (anyHits && s.hits < s.hitsMax) || s.hits <= s.hitsMax - minHitsToRepair || s.hits < s.hitsMax / 2
     ) /* damage worth moving to */
     .map(target => ({
       target,
@@ -1540,7 +1540,7 @@ function repairRoom(creep: Creep, anyHits: boolean) {
     })) /* persist sort values */
     .sort((a, b) => a.sort - b.sort) /* sort */
     .map(({ target }) => target) /* remove sort values */[0];
-
+  if (creep.name === "WN") console.log(creep, creep.pos, repairTarget);
   const constructionSiteCount = room.find(FIND_MY_CONSTRUCTION_SITES).length;
   if (constructionSiteCount > 0 && repairTarget && repairTarget.hits > minHitsToRepair)
     repairTarget = undefined;
