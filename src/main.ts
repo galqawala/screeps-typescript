@@ -1629,10 +1629,15 @@ function removeConstructionSitesInRoomsWithoutVisibility(): void {
 }
 
 function handleRoads(room: Room): void {
-  const roads = room.find(FIND_STRUCTURES).filter(utils.isRoad);
+  const roads = room.find(FIND_STRUCTURES).filter(isRoad);
   for (const road of roads) {
     road.notifyWhenAttacked(false);
   }
+}
+
+function isRoad(structure: Structure): structure is StructureRoad {
+  if (!("structureType" in structure)) return false;
+  return structure.structureType === STRUCTURE_ROAD;
 }
 
 function engageTarget(myUnit: StructureTower | Creep, target: Structure | Creep | PowerCreep): number {

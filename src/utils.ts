@@ -15,10 +15,6 @@ export function isContainer(
   if (!("structureType" in structure)) return false;
   return structure.structureType === STRUCTURE_CONTAINER;
 }
-export function isRoad(structure: Structure): structure is StructureRoad {
-  if (!("structureType" in structure)) return false;
-  return structure.structureType === STRUCTURE_ROAD;
-}
 export function isDestructibleWall(structure: Structure): structure is StructureWall {
   return structure.structureType === STRUCTURE_WALL && "hits" in structure;
 }
@@ -1732,6 +1728,7 @@ export function creepNameToEmoji(name: string): string {
 }
 
 export function formatMilliseconds(milliseconds: number): string {
+  if (milliseconds === Number.POSITIVE_INFINITY) return "∞";
   const seconds = Math.floor(milliseconds / 1000);
   const minutes = Math.floor(seconds / 60);
   const hours = Math.floor(minutes / 60);
