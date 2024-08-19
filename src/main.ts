@@ -851,12 +851,15 @@ function updateFlagAttack() {
 
   let targets: (Structure | Creep | PowerCreep)[] = [];
   for (const r in Game.rooms) {
-    const controller = Game.rooms[r].controller;
+    const room = Game.rooms[r];
+    const controller = room.controller;
     if (!controller) continue;
     if (!controller.my) continue;
     if (!utils.isReservationOk(controller)) continue;
 
-    targets = targets.concat(getTargetsInRoom(Game.rooms[r]));
+    targets = targets.concat(
+      getTargetsInRoom(room).filter(tgt => tgt.pos.findInRange(FIND_MY_STRUCTURES, 10).length > 0)
+    );
   }
   const target = targets[Math.floor(Math.random() * targets.length)];
   if (target) {
