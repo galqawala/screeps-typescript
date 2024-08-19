@@ -1532,7 +1532,7 @@ function repairLocal(creep: Creep) {
 function repairRoom(creep: Creep, anyHits: boolean) {
   const room = getAssignedRoom(creep);
   if (!room) return false;
-  const minHitsToRepair = 14000;
+  const minHitsToRepair = 16000;
   let repairTarget: AnyStructure | undefined = room
     .find(FIND_STRUCTURES)
     .filter(
