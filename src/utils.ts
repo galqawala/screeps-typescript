@@ -368,6 +368,12 @@ export function isReservationOk(controller: StructureController): boolean {
   return true;
 }
 
+export function isRoomReservationOk(roomName: string): boolean {
+  const controller = Game.rooms[roomName]?.controller;
+  if (!controller) return false;
+  return isReservationOk(controller);
+}
+
 export function isReservedByOthers(controller: StructureController): boolean {
   const reservation = controller.reservation;
   if (!reservation) return false;
@@ -990,24 +996,33 @@ export function updateRoomLayout(room: Room): void {
   if (room.memory.resetLayout) {
     resetLayout(room);
     return;
+  } else if (room.controller?.my && canOperateInRoom(room)) {
+    // design owned room
+    if (!room.controller) return;
+    if (!flagStorage(room)) return;
+    if (!flagStorageSubstituteContainer(room)) return;
+    if (!flagLinkForStorage(room)) return;
+    if (!flagSourceContainers(room)) return;
+    if (!flagSourceLinks(room)) return;
+    if (!flagFillables(room)) return;
+    if (!flagSpawns(room)) return;
+    if (!flagTowers(room)) return;
+    if (!flagObserver(room)) return;
+    if (!flagRoads(room)) return;
+    if (!flagRampartsOnStructures(room)) return;
+    if (!flagRampartsAroundBase(room)) return;
+    if (!unFlagUnnecessaryContainers(room)) return;
+    if (!createConstructionSitesOnFlags(room)) return;
+    if (!removeConstructionSitesWithoutFlags(room)) return;
+    if (!destroyStructuresWithoutFlags(room)) return;
+  } else if (isRoomReservationOk(room.name)) {
+    // design reserved room
+    if (!room.controller) return;
+    if (!flagSourceContainers(room)) return;
+    if (!createConstructionSitesOnFlags(room)) return;
+    if (!removeConstructionSitesWithoutFlags(room)) return;
+    if (!destroyStructuresWithoutFlags(room)) return;
   }
-  if (!room.controller) return;
-  if (!flagStorage(room)) return;
-  if (!flagStorageSubstituteContainer(room)) return;
-  if (!flagLinkForStorage(room)) return;
-  if (!flagSourceContainers(room)) return;
-  if (!flagSourceLinks(room)) return;
-  if (!flagFillables(room)) return;
-  if (!flagSpawns(room)) return;
-  if (!flagTowers(room)) return;
-  if (!flagObserver(room)) return;
-  if (!flagRoads(room)) return;
-  if (!flagRampartsOnStructures(room)) return;
-  if (!flagRampartsAroundBase(room)) return;
-  if (!unFlagUnnecessaryContainers(room)) return;
-  if (!createConstructionSitesOnFlags(room)) return;
-  if (!removeConstructionSitesWithoutFlags(room)) return;
-  if (!destroyStructuresWithoutFlags(room)) return;
 }
 
 function resetLayout(room: Room) {
@@ -1350,9 +1365,18 @@ function flagRoads(room: Room) {
   let fromPositions;
   let toPositions;
   if (Math.random() < 0.5) {
-    // connect storage and container by road
+    // connect storage and containers by road
     fromPositions = getStructureFlags(room, STRUCTURE_STORAGE);
     toPositions = getStructureFlags(room, STRUCTURE_CONTAINER);
+    const remoteHarvestRoomNames = Object.values(Game.map.describeExits(room.name)).filter(exitRoomName =>
+      isRoomReservationOk(exitRoomName)
+    );
+    for (const remoteHarvestRoomName of remoteHarvestRoomNames) {
+      const remoteHarvestRoom = Game.rooms[remoteHarvestRoomName];
+      toPositions = toPositions.concat(getStructureFlags(remoteHarvestRoom, STRUCTURE_CONTAINER));
+      Memory.rooms[remoteHarvestRoomName].costMatrixLayout =
+        getFreshCostMatrixLayout(remoteHarvestRoom).serialize();
+    }
   } else {
     // make sure all roads are connected to each other
     const roads = getStructureFlags(room, structureType);
@@ -1372,13 +1396,12 @@ function flagRoads(room: Room) {
       swampCost: 10,
       roomCallback: getCachedCostMatrixLayout,
       heuristicWeight: 1 /* lower is more accurate, but uses more CPU */,
-      maxRooms: 1
+      maxRooms: 2
     }
   ).path;
   const newRoads = path.filter(
     pos => pos.lookFor(LOOK_FLAGS).filter(flag => flag.name.startsWith(structureType + "_")).length < 1
   );
-  if (newRoads.length > 1) room.memory.polyPoints = path;
   for (const pos of newRoads) {
     flagStructure(pos, structureType);
     const obstacles = pos.lookFor(LOOK_FLAGS).filter(flag => structureFlagIsObstacle(flag));
@@ -1393,9 +1416,17 @@ function getFreshCostMatrixLayout(room: Room) {
   const flags = room.find(FIND_FLAGS);
   const roads = flags.filter(flag => flag.name.startsWith(STRUCTURE_ROAD + "_"));
   for (const road of roads) costs.set(road.pos.x, road.pos.y, 1);
-  const obstacles = flags.filter(flag => structureFlagIsObstacle(flag));
+  const obstacles = flags
+    .filter(flag => structureFlagIsObstacle(flag))
+    .map(f => f.pos)
+    .concat(
+      room
+        .find(FIND_STRUCTURES) /*constructed walls and stuff*/
+        .filter(isObstacle)
+        .map(o => o.pos)
+    );
   // try to avoid structures, but go through them if alternatives are too far
-  for (const structure of obstacles) costs.set(structure.pos.x, structure.pos.y, 20);
+  for (const structure of obstacles) costs.set(structure.x, structure.y, 20);
   return costs;
 }
 
@@ -1567,8 +1598,12 @@ function createConstructionSitesOnFlags(room: Room) {
               content.structure?.structureType === structureType
           ).length < 1 /* Planned position doesn't have the planned structure or construction site for it */
     );
-    if (flag && flag.pos.createConstructionSite(structureType) === OK)
-      return false /* one/tick so that look() returns up-to-date data */;
+    if (flag) {
+      const outcome = flag.pos.createConstructionSite(structureType);
+      if (outcome === OK) return false /* one/tick so that look() returns up-to-date data */;
+      else if (outcome === ERR_INVALID_TARGET) flag.remove();
+      else console.log("createConstructionSite() failed at", flag?.pos, outcome);
+    }
   }
   return true;
 }

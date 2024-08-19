@@ -689,8 +689,7 @@ function handleRoom(room: Room) {
   }
   if (Math.random() < 0.1 && utils.gotSpareCpu()) handleRoomObservers(room);
   utils.handleHostilesInRoom(room);
-  if (room.controller?.my && utils.canOperateInRoom(room) && utils.gotSpareCpu())
-    utils.updateRoomLayout(room);
+  if (utils.gotSpareCpu()) utils.updateRoomLayout(room);
   utils.handleLinks(room);
   if (!room.memory.score) utils.updateRoomScore(room);
   utils.checkRoomCanOperate(room);
