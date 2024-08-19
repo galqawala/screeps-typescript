@@ -464,14 +464,7 @@ function claim(creep: Creep) {
 }
 
 function handleTransferer(creep: Creep) {
-  const upstreamId = creep.memory.retrieve;
-  const downstreamId = creep.memory.transferTo;
-  if (!upstreamId || !downstreamId) {
-    recycleCreep(creep);
-    return;
-  }
-  const upstream = Game.getObjectById(upstreamId);
-  const downstream = Game.getObjectById(downstreamId);
+  const { upstream, downstream } = getTransfererTargets(creep);
   if (!upstream || !downstream) {
     recycleCreep(creep);
     return;
@@ -508,6 +501,17 @@ function handleTransferer(creep: Creep) {
       }
     }
   }
+}
+
+function getTransfererTargets(creep: Creep) {
+  const upstreamId = creep.memory.retrieve;
+  const downstreamId = creep.memory.transferTo;
+  const upstream = upstreamId ? Game.getObjectById(upstreamId) : undefined;
+  const downstream = downstreamId ? Game.getObjectById(downstreamId) : undefined;
+  return {
+    upstream: upstream && utils.isLink(upstream) ? upstream : undefined,
+    downstream: downstream && utils.isStorage(downstream) ? downstream : undefined
+  };
 }
 
 function transfer(creep: Creep, destination: Creep | Structure<StructureConstant>) {
