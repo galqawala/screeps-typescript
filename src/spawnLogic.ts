@@ -384,6 +384,21 @@ export function spawnByQuota(room: Room, role: Role, max: number): void {
   if (count < max) spawnCreepForRoom(role, controller.pos);
 }
 
+function spawnWorkerIfWorkAvailable(room: Room, max: number): void {
+  const role = "worker";
+  const controller = room.controller;
+  if (!controller) return;
+  const count = Object.values(Game.creeps).filter(
+    creep => creep.name.startsWith(role.charAt(0).toUpperCase()) && creep.memory.room === room.name
+  ).length;
+  if (count >= max) return;
+  const gotWork =
+    room.find(FIND_MY_CONSTRUCTION_SITES).length > 0 ||
+    room.find(FIND_STRUCTURES).filter(s => s.hits < s.hitsMax / 2).length > 0;
+  if (!gotWork) return;
+  spawnCreepForRoom(role, controller.pos);
+}
+
 export function spawnCreepWhenStorageFull(room: Room): void {
   const controller = room.controller;
   if (!controller || !controller.my) return;
@@ -410,7 +425,7 @@ export function spawnCreepsInRoom(room: Room): void {
     spawnCreepWhenStorageFull(room);
   } else if (utils.isRoomReservationOk(room.name)) {
     // reserved room
-    spawnByQuota(room, "worker", 1);
+    spawnWorkerIfWorkAvailable(room, 1);
   }
 }
 
