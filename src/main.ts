@@ -276,12 +276,18 @@ function handleUpgrader(creep: Creep) {
 }
 
 function handleWorker(creep: Creep) {
+  const full = utils.isFull(creep);
   if (utils.getEnergy(creep) < 1) delete creep.memory.build;
-  else if (utils.isFull(creep)) delete creep.memory.retrieve;
+  else if (full) delete creep.memory.retrieve;
 
   if (utils.getEnergy(creep) < 1) {
     workerRetrieveEnergy(creep);
     return;
+  } else if (!full) {
+    const energy = creep.pos
+      .findInRange(FIND_STRUCTURES, 1)
+      .filter(s => utils.isStorage(s) || (utils.isContainer(s) && utils.getEnergy(s) > 0))[0];
+    if (energy) retrieveEnergy(creep, energy);
   }
   return (
     repairLocal(creep) ||
