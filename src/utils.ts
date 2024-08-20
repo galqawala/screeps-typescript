@@ -1618,3 +1618,11 @@ export function getControllerText(room: Room): string | undefined {
   const progressRemaining = controller.progressTotal - controller.progress;
   return formatMilliseconds(msPerProgress * progressRemaining);
 }
+
+export function getTargetsInRoom(room: Room): (Structure | Creep | PowerCreep)[] {
+  let targets: (Structure | Creep | PowerCreep)[] = [];
+  targets = targets.concat(room.find(FIND_HOSTILE_STRUCTURES));
+  targets = targets.concat(room.find(FIND_HOSTILE_CREEPS));
+  targets = targets.concat(room.find(FIND_HOSTILE_POWER_CREEPS));
+  return targets;
+}

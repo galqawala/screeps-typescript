@@ -846,7 +846,7 @@ function updateFlagAttack() {
     if (
       flagAttack.room &&
       !getDestructibleWallAt(flagAttack.pos) &&
-      getTargetsInRoom(flagAttack.room).length < 1
+      utils.getTargetsInRoom(flagAttack.room).length < 1
     ) {
       flagAttack.remove(); // have visibility to the room and it's clear of hostiles
     } else {
@@ -864,7 +864,7 @@ function updateFlagAttack() {
     if (!utils.isReservationOk(controller)) continue;
 
     targets = targets.concat(
-      getTargetsInRoom(room).filter(tgt => tgt.pos.findInRange(FIND_MY_STRUCTURES, 10).length > 0)
+      utils.getTargetsInRoom(room).filter(tgt => tgt.pos.findInRange(FIND_MY_STRUCTURES, 10).length > 0)
     );
   }
   const target = targets[Math.floor(Math.random() * targets.length)];
@@ -900,14 +900,6 @@ function updateFlagDismantle() {
       }
     }
   }
-}
-
-function getTargetsInRoom(room: Room) {
-  let targets: (Structure | Creep | PowerCreep)[] = [];
-  targets = targets.concat(room.find(FIND_HOSTILE_STRUCTURES));
-  targets = targets.concat(room.find(FIND_HOSTILE_CREEPS));
-  targets = targets.concat(room.find(FIND_HOSTILE_POWER_CREEPS));
-  return targets;
 }
 
 function getWallToDestroy(room: Room) {
