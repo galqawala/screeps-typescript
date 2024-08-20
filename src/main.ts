@@ -498,7 +498,10 @@ function handleTransferer(creep: Creep) {
   if (!upstream || !downstream) {
     recycleCreep(creep);
     return;
-  } else if (!creep.memory.workStartTime && creep.pos.isNearTo(upstream) && creep.pos.isNearTo(downstream)) {
+  } else if (
+    !creep.memory.workStartTime &&
+    (creep.pos.isNearTo(upstream) || creep.pos.isNearTo(downstream))
+  ) {
     creep.memory.workStartTime = Game.time;
   }
   if (Math.random() < 0.1 && creep.pos.lookFor(LOOK_STRUCTURES).length > 0) {
@@ -514,13 +517,6 @@ function handleTransferer(creep: Creep) {
       }
     }
   } else {
-    const workers = creep.pos
-      .findInRange(FIND_MY_CREEPS, 1)
-      .filter(
-        worker =>
-          (worker.name.startsWith("W") || worker.name.startsWith("U")) && utils.getFillRatio(worker) < 0.5
-      );
-    for (const worker of workers) creep.transfer(worker, RESOURCE_ENERGY);
     if (creep.transfer(downstream, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) {
       if (!utils.isRoomSafe(upstream.pos.roomName) && creep.pos.roomName !== upstream.pos.roomName) {
         recycleCreep(creep);
