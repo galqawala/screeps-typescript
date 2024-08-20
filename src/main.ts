@@ -969,13 +969,18 @@ function getCarrierRoomEnergySource(creep: Creep, minEnergy: number) {
   const room = getAssignedRoom(creep);
   if (!room) return;
   return getCarrierEnergySources(room)
-    .filter(source => utils.getEnergy(source) >= minEnergy)
+    .filter(source => utils.getEnergy(source) >= minEnergy && !isCreepRetrieving(source.id))
     .map(source => ({
       value: source,
       sort: utils.getGlobalRange(creep.pos, source.pos)
     })) /* persist sort values */
     .sort((a, b) => a.sort - b.sort) /* sort */
     .map(({ value }) => value) /* remove sort values */[0];
+}
+
+function isCreepRetrieving(id: string) {
+  if (Object.values(Game.creeps).find(creep => creep.memory.retrieve === id)) return true;
+  return false;
 }
 
 function getCarrierGlobalEnergySource(creep: Creep, minEnergy: number) {
@@ -985,7 +990,7 @@ function getCarrierGlobalEnergySource(creep: Creep, minEnergy: number) {
   for (const room of Object.values(Game.rooms)) sources = sources.concat(getCarrierEnergySources(room));
 
   return sources
-    .filter(source => utils.getEnergy(source) >= minEnergy)
+    .filter(source => utils.getEnergy(source) >= minEnergy && !isCreepRetrieving(source.id))
     .map(source => ({
       value: source,
       sort: utils.getGlobalRange(creep.pos, source.pos)
