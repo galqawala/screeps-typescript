@@ -1534,17 +1534,20 @@ function updateRoomVisuals(room: Room) {
   const polyPoints = room.memory.polyPoints;
   if (polyPoints) new RoomVisual(room.name).poly(polyPoints);
 
+  const textStyle = {
+    color: "#FF0000"
+  };
+
   const repairPos = room.memory.repairPos;
-  if (repairPos) new RoomVisual(room.name).text("🔧", repairPos);
+  if (repairPos) new RoomVisual(room.name).text("🔧", repairPos, textStyle);
 
   for (const spawn of room.find(FIND_MY_SPAWNS))
     if (spawn.spawning)
-      new RoomVisual(room.name).text(utils.creepNameToEmoji(spawn.spawning.name), spawn.pos);
+      new RoomVisual(room.name).text(utils.creepNameToEmoji(spawn.spawning.name), spawn.pos, textStyle);
 
   if (room.controller?.progressTotal) {
     const text = utils.getControllerText(room);
-    if (text && text.length > 0)
-      new RoomVisual(room.name).text(text, room.controller.pos, { color: "#FF0000" });
+    if (text && text.length > 0) new RoomVisual(room.name).text(text, room.controller.pos, textStyle);
   }
 }
 
