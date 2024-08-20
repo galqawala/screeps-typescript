@@ -46,9 +46,7 @@ export function isStoreStructure(
   return "store" in item;
 }
 
-export function isOwnedStoreStructure(
-  item: AnyOwnedStructure
-): item is AnyOwnedStructure & AnyStoreStructure {
+export function isOwnedStoreStructure(item: Structure): item is AnyOwnedStructure & AnyStoreStructure {
   if (!item) return false;
   return "store" in item;
 }
@@ -1509,7 +1507,8 @@ export function isStorageSubstitute(container: AnyStructure | ConstructionSite):
   );
 }
 
-export function getStorage(room: Room): StructureContainer | StructureStorage | undefined | null {
+export function getStorage(room?: Room): StructureContainer | StructureStorage | undefined | null {
+  if (!room) return;
   return (
     room.storage ??
     room.controller?.pos.findInRange(FIND_STRUCTURES, 2).filter(isStorageSubstitute).filter(isContainer)[0]

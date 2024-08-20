@@ -389,10 +389,7 @@ function handleCarrier(creep: Creep) {
     }
   } else {
     // deliver
-    const deliverTo =
-      getStructureToFillHere(creep.pos) ??
-      getMemorizedStructureToFill(creep) ??
-      getStructureToFillInAssignedRoom(creep);
+    const deliverTo = getStructureToFill(creep);
     if (!deliverTo) return;
     const outcome = transfer(creep, deliverTo);
     if (outcome === ERR_NOT_IN_RANGE) {
@@ -402,11 +399,20 @@ function handleCarrier(creep: Creep) {
   }
 }
 
+function getStructureToFill(creep: Creep) {
+  return (
+    getStructureToFillHere(creep.pos) ??
+    getMemorizedStructureToFill(creep) ??
+    getStructureToFillInAssignedRoom(creep) ??
+    utils.getStorage(getAssignedRoom(creep))
+  );
+}
+
 function getMemorizedStructureToFill(creep: Creep) {
   const deliverToId = creep.memory.transferTo;
   if (!deliverToId) return;
   const deliverTo = Game.getObjectById(deliverToId);
-  if (!deliverTo || utils.isFull(deliverTo)) return;
+  if (!deliverTo || !shouldFill(deliverTo)) return;
   return deliverTo;
 }
 
@@ -935,27 +941,6 @@ function purgeFlags() {
   }
 }
 
-function getClusterStructures(clusterPos: RoomPosition) {
-  const room = Game.rooms[clusterPos.roomName];
-  if (!room) return [];
-  const structures = clusterPos
-    .findInRange(FIND_MY_STRUCTURES, 1)
-    .map(value => ({
-      value,
-      sort: Math.random()
-    })) /* persist sort values */
-    .sort((a, b) => a.sort - b.sort) /* sort */
-    .map(({ value }) => value) /* remove sort values */
-    .filter(utils.isOwnedStoreStructure)
-    .filter(
-      /* only fill storage/link when spawns/extensions are full */
-      s =>
-        (!utils.isStorage(s) && !utils.isStorageSubstitute(s) && !utils.isLink(s)) ||
-        room.energyAvailable >= room.energyCapacityAvailable
-    );
-  return structures;
-}
-
 function getCarrierRoomEnergySource(creep: Creep, minEnergy: number) {
   const room = getAssignedRoom(creep);
   if (!room) return;
@@ -1027,35 +1012,23 @@ function checkWipeOut() {
 }
 
 function getStructureToFillHere(pos: RoomPosition) {
-  const structures: AnyStructure[] = getClusterStructures(pos);
-  for (const tgt of structures) {
-    if (!utils.isFull(tgt)) return tgt;
-  }
   const room = Game.rooms[pos.roomName];
-  if (room && room.energyAvailable >= room.energyCapacityAvailable) {
-    const storage = utils.getStorage(room);
-    if (storage && pos.getRangeTo(storage.pos) < 2 && !utils.isFull(storage)) {
-      return storage;
-    }
-  }
-  return null;
+  if (!room) return;
+  const structures = pos.findInRange(FIND_MY_STRUCTURES, 1).filter(shouldFill);
+  const randomIndex = Math.floor(Math.random() * structures.length);
+  return structures[randomIndex]; // random target to reduce traffic jams
 }
 
 function getStructureToFillInAssignedRoom(creep: Creep) {
   const room = getAssignedRoom(creep);
   if (!room) return;
-  const spawnMaxed = room.energyAvailable >= room.energyCapacityAvailable;
-  const targets: AnyStructure[] = room
-    .find(FIND_MY_STRUCTURES)
-    .filter(utils.isStoreStructure)
-    .filter(s => !utils.isFull(s) && !utils.isStorage(s))
-    .filter(s => spawnMaxed || !utils.isLink(s));
-  if (spawnMaxed) {
-    const storage = utils.getStorage(room);
-    if (storage && !utils.isFull(storage)) targets.push(storage);
-  }
-  const randomIndex = Math.floor(Math.random() * targets.length);
-  return targets[randomIndex]; // random target to reduce traffic jams
+  const structures = room.find(FIND_MY_STRUCTURES).filter(shouldFill);
+  const randomIndex = Math.floor(Math.random() * structures.length);
+  return structures[randomIndex]; // random target to reduce traffic jams
+}
+
+function shouldFill(s: Structure) {
+  return utils.isOwnedStoreStructure(s) && !utils.isLink(s) && !utils.isStorage(s) && !utils.isFull(s);
 }
 
 function getNearbyEnergySource(pos: RoomPosition, minEnergy: number) {
