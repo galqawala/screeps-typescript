@@ -1626,3 +1626,8 @@ export function getTargetsInRoom(room: Room): (Structure | Creep | PowerCreep)[]
   targets = targets.concat(room.find(FIND_HOSTILE_POWER_CREEPS));
   return targets;
 }
+
+export function isCreepRetrieving(id: string): boolean {
+  if (Object.values(Game.creeps).find(creep => creep.memory.retrieve === id)) return true;
+  return false;
+}

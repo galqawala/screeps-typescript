@@ -386,7 +386,12 @@ function roomHasFullContainers(room: Room) {
     room
       .find(FIND_STRUCTURES)
       .filter(utils.isContainer)
-      .filter(container => utils.isFull(container) && !utils.isStorageSubstitute(container)).length > 0
+      .filter(
+        container =>
+          utils.isFull(container) &&
+          !utils.isStorageSubstitute(container) &&
+          !utils.isCreepRetrieving(container.id)
+      ).length > 0
   );
 }
 
