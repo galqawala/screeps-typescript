@@ -409,17 +409,17 @@ function handleCarrier(creep: Creep) {
 function getEnergySource(creep: Creep, freeCap: number) {
   return (
     getNearbyEnergySource(creep.pos, freeCap) ??
-    getMemorizedEnergySource(creep) ??
+    getMemorizedEnergySource(creep, freeCap) ??
     getCarrierRoomEnergySource(creep, freeCap) ??
     getCarrierGlobalEnergySource(creep, freeCap)
   );
 }
 
-function getMemorizedEnergySource(creep: Creep) {
+function getMemorizedEnergySource(creep: Creep, freeCap: number) {
   const id = creep.memory.retrieve;
   if (!id) return;
   const target = Game.getObjectById(id);
-  if (target && utils.getEnergy(target) > 0) return target;
+  if (target && utils.getEnergy(target) >= freeCap) return target;
   return;
 }
 
