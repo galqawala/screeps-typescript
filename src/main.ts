@@ -367,6 +367,7 @@ function handleCarrier(creep: Creep) {
 
   if (freeCap < 1) {
     creep.memory.delivering = true;
+    delete creep.memory.retrieve;
   } else if (utils.getEnergy(creep) < 1) {
     creep.memory.delivering = false;
     delete creep.memory.transferTo;
@@ -374,18 +375,17 @@ function handleCarrier(creep: Creep) {
 
   if (isStuck(creep)) {
     moveRandomDirection(creep);
+    delete creep.memory.retrieve;
     delete creep.memory.transferTo;
     delete creep.memory.path;
   } else if (!creep.memory.delivering) {
     // fetch
-    const source = getNearbyEnergySource(creep.pos, freeCap);
-    if (source) {
-      delete creep.memory.path;
-      retrieveEnergy(creep, source);
-    } else {
-      const tgt = getCarrierRoomEnergySource(creep, freeCap) ?? getCarrierGlobalEnergySource(creep, freeCap);
-      if (tgt) creep.moveTo(tgt);
-      else moveRandomDirection(creep);
+    const source = getEnergySource(creep, freeCap);
+    if (!source) return;
+    const outcome = retrieveEnergy(creep, source);
+    if (outcome === ERR_NOT_IN_RANGE) {
+      move(creep, source);
+      creep.memory.retrieve = source.id;
     }
   } else {
     // deliver
@@ -397,6 +397,23 @@ function handleCarrier(creep: Creep) {
       creep.memory.transferTo = deliverTo.id;
     }
   }
+}
+
+function getEnergySource(creep: Creep, freeCap: number) {
+  return (
+    getNearbyEnergySource(creep.pos, freeCap) ??
+    getMemorizedEnergySource(creep) ??
+    getCarrierRoomEnergySource(creep, freeCap) ??
+    getCarrierGlobalEnergySource(creep, freeCap)
+  );
+}
+
+function getMemorizedEnergySource(creep: Creep) {
+  const id = creep.memory.retrieve;
+  if (!id) return;
+  const target = Game.getObjectById(id);
+  if (target && utils.getEnergy(target) > 0) return target;
+  return;
 }
 
 function getStructureToFill(creep: Creep) {
