@@ -1583,7 +1583,8 @@ function updateRoomVisuals(room: Room) {
 
   if (room.controller?.progressTotal) {
     const text = utils.getControllerText(room);
-    if (text) new RoomVisual(room.name).text(text, room.controller.pos, { color: "#FF0000" });
+    if (text && text.length > 0)
+      new RoomVisual(room.name).text(text, room.controller.pos, { color: "#FF0000" });
   }
 }
 
