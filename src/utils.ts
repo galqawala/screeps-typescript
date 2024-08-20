@@ -1249,7 +1249,7 @@ function structureFlagIsObstacle(flag: Flag) {
   return structureTypes.some(type => flag.name.startsWith(type + "_"));
 }
 
-function structureFlagRequiresRampart(flag: Flag) {
+function structureRequiresRampart(structure: Structure) {
   const structureTypes = [
     STRUCTURE_FACTORY,
     STRUCTURE_LAB,
@@ -1258,7 +1258,7 @@ function structureFlagRequiresRampart(flag: Flag) {
     STRUCTURE_TERMINAL,
     STRUCTURE_TOWER
   ];
-  return structureTypes.some(type => flag.name.startsWith(type + "_"));
+  return structureTypes.some(type => type === structure.structureType);
 }
 
 function structureFlagIsBase(flag: Flag) {
@@ -1280,13 +1280,12 @@ function structureFlagIsBase(flag: Flag) {
 function flagRampartsOnStructures(room: Room) {
   const structureType = STRUCTURE_RAMPART;
   const rampartsRequired = room
-    .find(FIND_FLAGS)
+    .find(FIND_MY_STRUCTURES)
     .filter(
-      structureRequiringRampart =>
-        structureFlagRequiresRampart(structureRequiringRampart) &&
-        structureRequiringRampart.pos
-          .lookFor(LOOK_FLAGS)
-          .filter(rampart => rampart.name.startsWith(structureType + "_")).length < 1
+      structure =>
+        structureRequiresRampart(structure) &&
+        structure.pos.lookFor(LOOK_FLAGS).filter(rampart => rampart.name.startsWith(structureType + "_"))
+          .length < 1
     );
   for (const flag of rampartsRequired) flagStructure(flag.pos, structureType);
   return true;
