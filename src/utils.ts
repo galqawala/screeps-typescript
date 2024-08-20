@@ -1009,10 +1009,7 @@ function getRandomColor(): ColorConstant {
 
 function flagFillables(room: Room) {
   // flag spawns, extensions and towers as extensions initially and in a later phase change some into spawns and towers
-  const currentCount =
-    getStructureFlags(room, STRUCTURE_SPAWN).length +
-    getStructureFlags(room, STRUCTURE_EXTENSION).length +
-    getStructureFlags(room, STRUCTURE_TOWER).length;
+  const currentCount = countFlaggedFillables(room);
   if (currentCount >= fillableStructureTargetCount || !room.controller) return true;
 
   const storages = getStructureFlags(room, STRUCTURE_STORAGE);
@@ -1048,6 +1045,14 @@ function flagFillables(room: Room) {
     }
   }
   return false;
+}
+
+function countFlaggedFillables(room: Room) {
+  return (
+    getStructureFlags(room, STRUCTURE_SPAWN).length +
+    getStructureFlags(room, STRUCTURE_EXTENSION).length +
+    getStructureFlags(room, STRUCTURE_TOWER).length
+  );
 }
 
 function roadOrExtension(pos: RoomPosition): string {
