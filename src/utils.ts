@@ -791,7 +791,8 @@ export function updateRoomLayout(room: Room): void {
     if (!flagObserver(room)) return;
     if (!flagRoads(room)) return;
     if (!flagRampartsOnStructures(room)) return;
-    if (!flagRampartsAroundBase(room)) return;
+    if (!flagPerimeterRamparts(room)) return;
+    if (!flagPerimeterAccessRamparts(room)) return;
     if (!unFlagUnnecessaryContainers(room)) return;
     if (!createConstructionSitesOnFlags(room)) return;
     if (!removeConstructionSitesWithoutFlags(room)) return;
@@ -849,6 +850,12 @@ export function isPosEqual(a: RoomPosition, b: RoomPosition): boolean {
 
 function getCachedCostMatrix(roomName: string): CostMatrix {
   const costMem = Memory.rooms[roomName]?.costMatrix;
+  if (costMem) return PathFinder.CostMatrix.deserialize(costMem);
+  return new PathFinder.CostMatrix();
+}
+
+function getCachedCostMatrixPerimeterBuffer(roomName: string): CostMatrix {
+  const costMem = Memory.rooms[roomName]?.costMatrixPerimeterBuffer;
   if (costMem) return PathFinder.CostMatrix.deserialize(costMem);
   return new PathFinder.CostMatrix();
 }
@@ -1291,11 +1298,12 @@ function flagRampartsOnStructures(room: Room) {
         structure.pos.lookFor(LOOK_FLAGS).filter(rampart => rampart.name.startsWith(structureType + "_"))
           .length < 1
     );
-  for (const flag of rampartsRequired) flagStructure(flag.pos, structureType);
+  for (const structure of rampartsRequired)
+    flagStructure(structure.pos, structureType + "_" + structure.structureType);
   return true;
 }
 
-function flagRampartsAroundBase(room: Room) {
+function flagPerimeterRamparts(room: Room) {
   const exits = room.find(FIND_EXIT);
   const randomIndex = Math.floor(Math.random() * exits.length);
   const exit = exits[randomIndex];
@@ -1318,8 +1326,66 @@ function flagRampartsAroundBase(room: Room) {
   });
   if (pathResult.incomplete) return true;
   const rampartPos = pathResult.path[pathResult.path.length - 1];
-  if (rampartPos) flagStructure(rampartPos, STRUCTURE_RAMPART);
+  if (rampartPos) flagStructure(rampartPos, STRUCTURE_RAMPART + "_perimeter");
   return false;
+}
+
+function flagPerimeterAccessRamparts(room: Room) {
+  if (!room.controller) return;
+  const flags = room.find(FIND_FLAGS);
+  const obstacles = flags.filter(structureFlagIsObstacle);
+  const ramparts = flags.filter(r => r.name.startsWith(STRUCTURE_RAMPART + "_"));
+  const perimeter = ramparts.filter(r => r.name.includes("_perimeter_"));
+  const underFireCost = 4;
+  const costMatrixPerimeterBuffer = getFreshCostMatrixPerimeterBuffer(
+    room,
+    obstacles,
+    ramparts,
+    perimeter,
+    underFireCost
+  );
+  room.memory.costMatrixPerimeterBuffer = costMatrixPerimeterBuffer.serialize();
+  const randomIndex = Math.floor(Math.random() * perimeter.length);
+  const target = perimeter[randomIndex];
+  const pathResult = PathFinder.search(room.controller.pos, target.pos, {
+    plainCost: 2,
+    swampCost: 3,
+    roomCallback: getCachedCostMatrixPerimeterBuffer,
+    heuristicWeight: 1 /* lower is more accurate, but uses more CPU */,
+    maxRooms: 1
+  });
+  const accessRamparts = pathResult.path.filter(
+    pos => costMatrixPerimeterBuffer.get(pos.x, pos.y) === underFireCost
+  );
+  if (accessRamparts.length > 0) {
+    room.memory.polyPoints = pathResult.path;
+    for (const pos of accessRamparts) flagStructure(pos, STRUCTURE_RAMPART + "_access");
+    return false;
+  }
+  return true;
+}
+
+function getFreshCostMatrixPerimeterBuffer(
+  room: Room,
+  obstacles: Flag[],
+  ramparts: Flag[],
+  perimeter: Flag[],
+  underFireCost: number
+) {
+  const terrain = new Room.Terrain(room.name);
+  const costs = new PathFinder.CostMatrix();
+
+  for (let x = 0; x <= 49; x++) {
+    for (let y = 0; y <= 49; y++) {
+      if (terrain.get(x, y) === TERRAIN_MASK_WALL) costs.set(x, y, 0xff);
+      else if (obstacles.find(r => r.pos.x === x && r.pos.y === y)) costs.set(x, y, 0xff);
+      else if (ramparts.find(r => r.pos.x === x && r.pos.y === y)) costs.set(x, y, 1);
+      else if (new RoomPosition(x, y, room.name).findInRange(perimeter, 2).length > 0)
+        costs.set(x, y, underFireCost);
+    }
+  }
+
+  return costs;
 }
 
 function unFlagUnnecessaryContainers(room: Room) {

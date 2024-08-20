@@ -74,6 +74,7 @@ declare global {
     costMatrix?: number[];
     costMatrixCreeps?: number[];
     costMatrixLayout?: number[];
+    costMatrixPerimeterBuffer?: number[];
     costMatrixRamparts?: number[];
     energyRatio?: number;
     energyRatioDelta?: number;
