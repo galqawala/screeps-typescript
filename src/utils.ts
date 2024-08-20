@@ -1258,7 +1258,11 @@ function structureRequiresRampart(structure: Structure) {
     STRUCTURE_TERMINAL,
     STRUCTURE_TOWER
   ];
-  return structureTypes.some(type => type === structure.structureType);
+  return (
+    structureTypes.some(type => type === structure.structureType) ||
+    (isContainer(structure) && structure.pos.findInRange(FIND_SOURCES, 1).length > 0) ||
+    (isLink(structure) && structure.pos.findInRange(FIND_SOURCES, 2).length > 0)
+  );
 }
 
 function structureFlagIsBase(flag: Flag) {
@@ -1280,7 +1284,7 @@ function structureFlagIsBase(flag: Flag) {
 function flagRampartsOnStructures(room: Room) {
   const structureType = STRUCTURE_RAMPART;
   const rampartsRequired = room
-    .find(FIND_MY_STRUCTURES)
+    .find(FIND_STRUCTURES)
     .filter(
       structure =>
         structureRequiresRampart(structure) &&
