@@ -1530,7 +1530,10 @@ function formatMilliseconds(milliseconds: number): string {
   const minutes = Math.floor(seconds / 60);
   const hours = Math.floor(minutes / 60);
   const days = Math.floor(hours / 24);
-  return `${days}d${hours % 24}h${minutes % 60}m`;
+  const daysStr = days > 0 ? `${days}d` : "";
+  const hoursStr = hours % 24 > 0 ? `${hours % 24}h` : "";
+  const minutesStr = minutes % 60 > 0 ? `${minutes % 60}m` : "";
+  return `${daysStr}${hoursStr}${minutesStr}`;
 }
 
 export function getControllerText(room: Room): string | undefined {
