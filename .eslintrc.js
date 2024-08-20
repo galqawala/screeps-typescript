@@ -88,7 +88,7 @@ module.exports = {
     "id-match": "error",
     "linebreak-style": "off",
     "max-classes-per-file": ["error", 1],
-    "max-lines": ["warn", 1735],
+    "max-lines": ["warn", 1705],
     "max-lines-per-function": ["warn", 41],
     "new-parens": "off",
     "newline-per-chained-call": "off",

@@ -455,3 +455,33 @@ function sourceHasHarvester(source: Source): boolean {
 function getTimeToReplace(creep: Creep) {
   return Math.max(0, (creep.memory.workStartTime ?? 0) - (creep.memory.spawnStartTime ?? 0));
 }
+
+export function needReservers(): boolean {
+  return (
+    (Memory.plan?.controllersToReserve?.length ?? 0) > 0 ||
+    ("claim" in Game.flags && utils.getCreepCountByRole("reserver") < 1)
+  );
+}
+
+export function needInfantry(): boolean {
+  if (!("attack" in Game.flags)) return false;
+
+  return (
+    Object.values(Game.rooms)
+      .filter(room => room.controller?.my)
+      .reduce(
+        (aggregate, room) =>
+          aggregate +
+          Math.max(
+            0,
+            room.find(FIND_HOSTILE_CREEPS).length +
+              room.find(FIND_HOSTILE_POWER_CREEPS).length -
+              room
+                .find(FIND_MY_STRUCTURES)
+                .filter(utils.isTower)
+                .filter(t => utils.getEnergy(t) > 0).length
+          ),
+        0 /* initial*/
+      ) >= utils.getCreepCountByRole("infantry")
+  );
+}

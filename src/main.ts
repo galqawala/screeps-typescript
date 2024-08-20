@@ -179,8 +179,8 @@ function updatePlan() {
   Memory.plan = {
     controllersToReserve: utils.getControllersToReserve().map(controller => controller.id),
     needHarvesters: spawnLogic.getSourceToHarvest() ? true : false,
-    needInfantry: needInfantry(),
-    needReservers: needReservers(),
+    needInfantry: spawnLogic.needInfantry(),
+    needReservers: spawnLogic.needReservers(),
     needTransferers: spawnLogic.getStoragesRequiringTransferer().length > 0,
     maxRoomEnergy: Math.max(...Object.values(Game.rooms).map(r => r.energyAvailable)),
     maxRoomEnergyCap: Math.max(...Object.values(Game.rooms).map(r => r.energyCapacityAvailable)),
@@ -774,13 +774,6 @@ function handleRoomObservers(room: Room) {
   }
 }
 
-function needReservers() {
-  return (
-    (Memory.plan?.controllersToReserve?.length ?? 0) > 0 ||
-    ("claim" in Game.flags && utils.getCreepCountByRole("reserver") < 1)
-  );
-}
-
 function updateFlagClaim() {
   if ("claim" in Game.flags) {
     const room = Game.flags.claim.room;
@@ -809,29 +802,6 @@ function updateFlagClaim() {
   if (!controller) return;
   utils.msg(controller, "Flagging room " + bestRoomName + " to be claimed!", true);
   controller.pos.createFlag("claim", COLOR_WHITE, COLOR_BLUE);
-}
-
-function needInfantry() {
-  if (!("attack" in Game.flags)) return false;
-
-  return (
-    Object.values(Game.rooms)
-      .filter(room => room.controller?.my)
-      .reduce(
-        (aggregate, room) =>
-          aggregate +
-          Math.max(
-            0,
-            room.find(FIND_HOSTILE_CREEPS).length +
-              room.find(FIND_HOSTILE_POWER_CREEPS).length -
-              room
-                .find(FIND_MY_STRUCTURES)
-                .filter(utils.isTower)
-                .filter(t => utils.getEnergy(t) > 0).length
-          ),
-        0 /* initial*/
-      ) >= utils.getCreepCountByRole("infantry")
-  );
 }
 
 function getDestructibleWallAt(pos: RoomPosition) {
