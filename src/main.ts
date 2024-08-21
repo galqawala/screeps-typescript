@@ -1530,7 +1530,8 @@ function updateRoomVisuals(room: Room) {
   if (polyPoints) new RoomVisual(room.name).poly(polyPoints);
 
   const textStyle = {
-    color: "#FF0000"
+    color: "#FF0000",
+    font: "bold 1 monospace"
   };
 
   const repairPos = room.memory.repairPos;
