@@ -729,7 +729,7 @@ function handleRoom(room: Room) {
   spawnLogic.spawnCreepsInRoom(room);
   if (Math.random() < 0.1 && utils.gotSpareCpu()) handleRoads(room);
   updateRoomEnergy(room);
-  if (Math.random() < 0.01) updateControllerProgress(room);
+  if (Math.random() < 0.01) utils.updateControllerProgress(room);
 }
 
 function handleRoomTowers(room: Room) {
@@ -1686,9 +1686,4 @@ function getRoomToClaim(aroundRooms: Room[]): string | undefined {
     }
   }
   return bestRoomName;
-}
-
-function updateControllerProgress(room: Room) {
-  room.memory.controllerProgress = room.controller?.progress;
-  room.memory.controllerProgressTime = new Date().getTime();
 }

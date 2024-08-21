@@ -1605,18 +1605,20 @@ function formatMilliseconds(milliseconds: number): string {
   const days = Math.floor(hours / 24);
   const daysStr = days > 0 ? `${days}d` : "";
   const hoursStr = hours % 24 > 0 ? `${hours % 24}h` : "";
-  const minutesStr = minutes % 60 > 0 ? `${minutes % 60}m` : "";
-  const secondsStr = seconds % 60 > 0 ? `${seconds % 60}s` : "";
+  const minutesStr = days === 0 && minutes % 60 > 0 ? `${minutes % 60}m` : "";
+  const secondsStr = hours === 0 && seconds % 60 > 0 ? `${seconds % 60}s` : "";
   return `${daysStr}${hoursStr}${minutesStr}${secondsStr}`;
 }
 
 export function getControllerText(room: Room): string | undefined {
   const controller = room.controller;
-  if (!controller || !room.memory.controllerProgress || !room.memory.controllerProgressTime) return;
+  if (!controller || !room.memory.controllerProgress || !room.memory.controllerProgressTime || !controller.my)
+    return;
   const progressDelta = controller.progress - room.memory.controllerProgress;
   const msDelta = new Date().getTime() - room.memory.controllerProgressTime;
   const msPerProgress = msDelta / progressDelta;
   const progressRemaining = controller.progressTotal - controller.progress;
+  if (progressDelta < 0) updateControllerProgress(room);
   return formatMilliseconds(msPerProgress * progressRemaining);
 }
 
@@ -1631,4 +1633,9 @@ export function getTargetsInRoom(room: Room): (Structure | Creep | PowerCreep)[]
 export function isCreepRetrieving(id: string): boolean {
   if (Object.values(Game.creeps).find(creep => creep.memory.retrieve === id)) return true;
   return false;
+}
+
+export function updateControllerProgress(room: Room): void {
+  room.memory.controllerProgress = room.controller?.progress;
+  room.memory.controllerProgressTime = new Date().getTime();
 }
