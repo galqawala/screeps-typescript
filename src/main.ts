@@ -864,10 +864,7 @@ function updateFlagAttack() {
     );
   }
   const target = targets[Math.floor(Math.random() * targets.length)];
-  if (target) {
-    target.pos.createFlag("attack", COLOR_RED, COLOR_BROWN);
-    utils.msg(target, "targeted!");
-  }
+  if (target) target.pos.createFlag("attack", COLOR_RED, COLOR_BROWN);
 }
 
 function updateFlagDismantle() {
