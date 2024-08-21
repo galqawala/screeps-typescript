@@ -1606,7 +1606,8 @@ function formatMilliseconds(milliseconds: number): string {
   const daysStr = days > 0 ? `${days}d` : "";
   const hoursStr = hours % 24 > 0 ? `${hours % 24}h` : "";
   const minutesStr = minutes % 60 > 0 ? `${minutes % 60}m` : "";
-  return `${daysStr}${hoursStr}${minutesStr}`;
+  const secondsStr = seconds % 60 > 0 ? `${seconds % 60}s` : "";
+  return `${daysStr}${hoursStr}${minutesStr}${secondsStr}`;
 }
 
 export function getControllerText(room: Room): string | undefined {
