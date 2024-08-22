@@ -78,6 +78,7 @@ declare global {
     costMatrixRamparts?: number[];
     energyRatio?: number;
     energyRatioDelta?: number;
+    hostilesTotalCost?: number;
     lackedEnergySinceTime?: number;
     maxHitsToRepair?: number /* repair ramparts & stuff evenly */;
     polyPoints?: RoomPosition[] /* visualize paths for debugging etc. */;
@@ -146,7 +147,7 @@ export const loop = ErrorMapper.wrapLoop(() => {
     .sort((a, b) => a.sort - b.sort) /* sort */
     .map(({ value }) => value); /* remove sort values */
   for (const room of rooms) handleRoom(room); // handle rooms in random order to give each a fair change of gotSpareCpu()
-  if ((Memory.maxTickLimit || 0) < Game.cpu.tickLimit) Memory.maxTickLimit = Game.cpu.tickLimit;
+  if ((Memory.maxTickLimit ?? 0) < Game.cpu.tickLimit) Memory.maxTickLimit = Game.cpu.tickLimit;
   if (Math.random() < 0.1) {
     for (const key in Memory.rooms) {
       if (!Game.rooms[key]) {
@@ -567,22 +568,16 @@ function retrieveEnergy(creep: Creep, destination: Structure | Tombstone | Ruin 
 function handleInfantry(creep: Creep) {
   creep.notifyWhenAttacked(false);
   const flag = Game.flags.attack;
-  const bestTarget = utils.getTarget(creep, undefined);
-  if (!flag && !bestTarget && utils.getCreepCountByRole("infantry") > 1) {
-    recycleCreep(creep);
-  } else if (bestTarget) {
-    if ("my" in bestTarget && bestTarget.my) {
-      if (creep.heal(bestTarget) === ERR_NOT_IN_RANGE) move(creep, bestTarget);
+  const target = utils.getTarget(creep, undefined);
+  if (target) {
+    if ("my" in target && target.my) {
+      if (creep.heal(target) === ERR_NOT_IN_RANGE) move(creep, target);
     } else {
-      const rangedAttack = creep.rangedAttack(bestTarget);
-      const attack = creep.attack(bestTarget);
+      const rangedAttack = creep.rangedAttack(target);
+      const attack = creep.attack(target);
       if (creep.hits < creep.hitsMax) creep.heal(creep);
-      if (
-        rangedAttack === ERR_NOT_IN_RANGE ||
-        attack === ERR_NOT_IN_RANGE ||
-        bestTarget instanceof Structure
-      ) {
-        move(creep, bestTarget);
+      if (rangedAttack === ERR_NOT_IN_RANGE || attack === ERR_NOT_IN_RANGE || target instanceof Structure) {
+        move(creep, target);
       } else {
         evadeHostiles(creep);
       }
@@ -740,10 +735,7 @@ function handleRoomTowers(room: Room) {
     if (lastTarget && lastTarget.hits >= room.memory.towerLastTargetHits) room.memory.towerMaxRange -= 1;
   }
 
-  const towers = room
-    .find(FIND_MY_STRUCTURES)
-    .filter(utils.isTower)
-    .filter(tower => utils.getEnergy(tower) > 0);
+  const towers = utils.getAvailableTowers(room);
   if (towers.length < 1) return;
   if (towers.filter(tower => utils.isFull(tower)).length > 0) room.memory.towerMaxRange = defaultRange;
 
@@ -837,6 +829,7 @@ function getDestructibleWallAt(pos: RoomPosition) {
 }
 
 function updateFlagAttack() {
+  // time to remove?
   const flagAttack = Game.flags.attack;
   if (flagAttack) {
     if (
@@ -849,19 +842,12 @@ function updateFlagAttack() {
       return; // current flag is still valid (to the best of our knowledge)
     }
   }
-  // no flag, find new targets
 
+  // no flag, find new targets
   let targets: (Structure | Creep | PowerCreep)[] = [];
   for (const r in Game.rooms) {
     const room = Game.rooms[r];
-    const controller = room.controller;
-    if (!controller) continue;
-    if (!controller.my) continue;
-    if (!utils.isReservationOk(controller)) continue;
-
-    targets = targets.concat(
-      utils.getTargetsInRoom(room).filter(tgt => tgt.pos.findInRange(FIND_MY_STRUCTURES, 10).length > 0)
-    );
+    if (utils.isOwnedOrReservedByMe(room)) targets = targets.concat(utils.getTargetsInRoom(room));
   }
   const target = targets[Math.floor(Math.random() * targets.length)];
   if (target) target.pos.createFlag("attack", COLOR_RED, COLOR_BROWN);
@@ -1617,7 +1603,7 @@ function isOwnedStructure(structure: Structure): structure is AnyOwnedStructure 
 }
 
 function isStuck(creep: Creep): boolean {
-  return (creep.memory.lastMoveTime || 0) < Game.time - 8;
+  return (creep.memory.lastMoveTime ?? 0) < Game.time - 8;
 }
 
 function moveRandomDirection(creep: Creep): void {

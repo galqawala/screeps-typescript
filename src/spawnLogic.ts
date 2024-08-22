@@ -306,7 +306,7 @@ function spawnReserver(): void {
 
 function needExplorers(): boolean {
   return (
-    utils.getCreepCountByRole("explorer") < 1 &&
+    utils.getCreepsByRole("explorer").length < 1 &&
     Object.values(Game.rooms).filter(
       room =>
         room.controller &&
@@ -464,7 +464,7 @@ function getTimeToReplace(creep: Creep) {
 export function needReservers(): boolean {
   return (
     (Memory.plan?.controllersToReserve?.length ?? 0) > 0 ||
-    ("claim" in Game.flags && utils.getCreepCountByRole("reserver") < 1)
+    ("claim" in Game.flags && utils.getCreepsByRole("reserver").length < 1)
   );
 }
 
@@ -473,20 +473,13 @@ export function needInfantry(): boolean {
 
   return (
     Object.values(Game.rooms)
-      .filter(room => room.controller?.my)
-      .reduce(
-        (aggregate, room) =>
-          aggregate +
-          Math.max(
-            0,
-            room.find(FIND_HOSTILE_CREEPS).length +
-              room.find(FIND_HOSTILE_POWER_CREEPS).length -
-              room
-                .find(FIND_MY_STRUCTURES)
-                .filter(utils.isTower)
-                .filter(t => utils.getEnergy(t) > 0).length
-          ),
-        0 /* initial*/
-      ) >= utils.getCreepCountByRole("infantry")
+      .filter(
+        room =>
+          utils.isOwnedOrReservedByMe(room) &&
+          !room.memory.claimIsSafe &&
+          (utils.getAvailableTowers(room).length < 1 || (room.memory.towerMaxRange ?? 0) < 40)
+      )
+      .reduce((total, room) => total + (room.memory.hostilesTotalCost ?? 0), 0 /* initial*/) >
+    utils.getTotalCreepCostByRole("infantry")
   );
 }

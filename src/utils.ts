@@ -340,6 +340,10 @@ export function isReservationOk(controller: StructureController): boolean {
   return true;
 }
 
+export function isOwnedOrReservedByMe(room: Room): boolean {
+  return room.controller?.my || room.controller?.reservation?.username === Memory.username;
+}
+
 export function isRoomReservationOk(roomName: string): boolean {
   const controller = Game.rooms[roomName]?.controller;
   if (!controller) return false;
@@ -486,14 +490,20 @@ export function checkRoomCanOperate(room: Room): void {
 }
 
 export function handleHostilesInRoom(room: Room): void {
-  const hostileBody = room.find(FIND_HOSTILE_CREEPS)[0]?.body.map(part => part.type);
-  if (hostileBody) Memory.hostileCreepCost = getBodyCost(hostileBody);
+  const hostiles = room.find(FIND_HOSTILE_CREEPS);
+  let hostilesTotalCost = 0;
+  for (const hostile of hostiles) {
+    const cost = getBodyCost(hostile.body.map(part => part.type));
+    Memory.hostileCreepCost = cost;
+    hostilesTotalCost += cost;
+  }
+  room.memory.hostilesTotalCost = hostilesTotalCost;
+
   room.memory.claimIsSafe =
-    (room.controller?.safeMode || 0) > 300 ||
-    room.find(FIND_HOSTILE_CREEPS).filter(hostile => isThreatToRoom(hostile)).length < 1;
+    (room.controller?.safeMode ?? 0) > 300 || hostiles.filter(hostile => isThreatToRoom(hostile)).length < 1;
   room.memory.safeForCreeps =
-    (room.controller?.safeMode || 0) > 300 ||
-    (room.find(FIND_HOSTILE_CREEPS).filter(hostile => isThreatToCreep(hostile)).length < 1 &&
+    (room.controller?.safeMode ?? 0) > 300 ||
+    (hostiles.filter(hostile => isThreatToCreep(hostile)).length < 1 &&
       room
         .find(FIND_HOSTILE_STRUCTURES)
         .filter(isTower)
@@ -706,15 +716,20 @@ export function shouldHarvestRoom(room: Room): boolean {
   );
 }
 
-export function getCreepCountByRole(role: Role, minTicksToLive = 120): number {
-  const count = Object.values(Game.creeps).filter(function (creep) {
+export function getCreepsByRole(role: Role, minTicksToLive = 120): Creep[] {
+  return Object.values(Game.creeps).filter(function (creep) {
     return (
       creep.name.startsWith(role.charAt(0).toUpperCase()) &&
       (!creep.ticksToLive || creep.ticksToLive >= minTicksToLive)
     );
-  }).length;
+  });
+}
 
-  return count;
+export function getTotalCreepCostByRole(role: Role, minTicksToLive = 120): number {
+  return getCreepsByRole(role, minTicksToLive).reduce(
+    (total, creep) => total + getBodyCost(creep.body.map(part => part.type)),
+    0
+  );
 }
 
 export function getBodyCost(body: BodyPartConstant[]): number {
@@ -1638,4 +1653,11 @@ export function isCreepRetrieving(id: string): boolean {
 export function updateControllerProgress(room: Room): void {
   room.memory.controllerProgress = room.controller?.progress;
   room.memory.controllerProgressTime = new Date().getTime();
+}
+
+export function getAvailableTowers(room: Room): StructureTower[] {
+  return room
+    .find(FIND_MY_STRUCTURES)
+    .filter(isTower)
+    .filter(tower => getEnergy(tower) > 0);
 }
