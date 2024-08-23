@@ -409,8 +409,8 @@ function handleCarrier(creep: Creep) {
 
 function getEnergySource(creep: Creep, freeCap: number) {
   return (
-    getNearbyEnergySource(creep.pos, freeCap) ??
     getMemorizedEnergySource(creep, freeCap) ??
+    getNearbyEnergySource(creep.pos, freeCap) ??
     getCarrierRoomEnergySource(creep, freeCap) ??
     getCarrierGlobalEnergySource(creep, freeCap)
   );
