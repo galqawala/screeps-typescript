@@ -1376,8 +1376,6 @@ function getRandomCoolText(): string {
     "We are unbreakable!",
     "We can work without the perks just you and me. Thug it out 'til we get it right.",
     "We fight for Rock and Stone!",
-    "We have long await'd you, slayer of Demons.",
-    "We rock!",
     "WE'RE RICH!",
     "We're the best!",
     "We're welcome here as long as we keep slashing up Demons. Hahahahah…",
