@@ -1118,10 +1118,10 @@ function getCarrierEnergySources(
 
 function getBuildSitePriority(site: ConstructionSite<BuildableStructureConstant>) {
   const prioritizedTypes = [
+    STRUCTURE_CONTAINER,
     STRUCTURE_SPAWN,
     STRUCTURE_TOWER,
     STRUCTURE_STORAGE,
-    STRUCTURE_CONTAINER,
     STRUCTURE_LINK,
     STRUCTURE_EXTENSION,
     STRUCTURE_ROAD,
