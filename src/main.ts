@@ -267,10 +267,8 @@ function handleUpgrader(creep: Creep) {
   }
 
   if (utils.getEnergy(creep) < 1) {
-    const storage = utils.getStorage(room);
-    if (!storage) return;
-    const withdrawOutcome = creep.withdraw(storage, RESOURCE_ENERGY);
-    if (withdrawOutcome === ERR_NOT_IN_RANGE) move(creep, getUpgraderSpot(room) ?? storage.pos);
+    workerRetrieveEnergy(creep);
+    return;
   } else {
     const outcome = creep.upgradeController(controller);
     if (outcome === ERR_NOT_IN_RANGE) move(creep, getUpgraderSpot(room) ?? controller.pos);
@@ -1490,15 +1488,24 @@ function repairRoom(creep: Creep, anyHits: boolean) {
 function workerRetrieveEnergy(creep: Creep) {
   const room = getAssignedRoom(creep);
   if (!room) return;
-  const source = room
-    .find(FIND_STRUCTURES)
-    .filter(s => (utils.isStorage(s) || utils.isContainer(s)) && utils.getEnergy(s) > 0)
-    .map(value => ({
-      value,
-      sort: utils.getGlobalRange(creep.pos, value.pos)
-    })) /* persist sort values */
-    .sort((a, b) => a.sort - b.sort) /* sort */
-    .map(({ value }) => value) /* remove sort values */[0];
+  const source =
+    room
+      .find(FIND_STRUCTURES)
+      .filter(s => (utils.isStorage(s) || utils.isContainer(s)) && utils.getEnergy(s) > 0)
+      .map(value => ({
+        value,
+        sort: utils.getGlobalRange(creep.pos, value.pos)
+      })) /* persist sort values */
+      .sort((a, b) => a.sort - b.sort) /* sort */
+      .map(({ value }) => value) /* remove sort values */[0] ??
+    room
+      .find(FIND_DROPPED_RESOURCES)
+      .map(value => ({
+        value,
+        sort: utils.getGlobalRange(creep.pos, value.pos)
+      })) /* persist sort values */
+      .sort((a, b) => a.sort - b.sort) /* sort */
+      .map(({ value }) => value) /* remove sort values */[0];
   if (!source) return;
   if (retrieveEnergy(creep, source) === ERR_NOT_IN_RANGE) move(creep, source);
 }

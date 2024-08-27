@@ -441,7 +441,7 @@ export function spawnCreepsInRoom(room: Room): void {
     spawnOneCarrier(room);
     spawnExtraCarriers(room);
     spawnByQuota(room, "worker", 1);
-    spawnByQuota(room, "upgrader", 1);
+    if (utils.getStorage(room)) spawnByQuota(room, "upgrader", 1);
     spawnCreepWhenStorageFull(room);
   } else if (utils.isRoomReservationOk(room.name)) {
     // reserved room
