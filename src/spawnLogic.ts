@@ -7,7 +7,7 @@ function getBodyPartRatio(body: BodyPartConstant[], type: BodyPartConstant = MOV
 function getSpawn(
   energyRequired: number,
   targetPos: RoomPosition | undefined,
-  maxRange = 100
+  maxRange = 200
 ): StructureSpawn {
   return Object.values(Game.spawns)
     .filter(spawn => spawn.room.energyAvailable >= energyRequired && !spawn.spawning)
@@ -181,7 +181,10 @@ export function getSourceToHarvest(): Source | undefined {
   }
   if (sources.length < 1) return;
   const source = sources
-    .map(value => ({ value, sort: value.energy + value.energyCapacity })) /* persist sort values */
+    .map(value => ({
+      value,
+      sort: value.energy + value.energyCapacity + Math.random()
+    })) /* persist sort values */
     .sort((a, b) => b.sort - a.sort) /* sort */
     .map(({ value }) => value) /* remove sort values */[0];
   return source;
