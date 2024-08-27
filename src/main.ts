@@ -812,13 +812,12 @@ function updateFlagClaim() {
   const myRooms = Object.values(Game.rooms).filter(room => room.controller && room.controller.my);
   if (myRooms.length >= Game.gcl.level) return;
 
-  const bestRoomName = getRoomToClaim(myRooms);
+  const roomToClaim = getRoomToClaim();
 
-  if (!bestRoomName) return;
-  if (!(bestRoomName in Game.rooms)) return;
-  const controller = Game.rooms[bestRoomName].controller;
+  if (!roomToClaim) return;
+  const controller = roomToClaim.controller;
   if (!controller) return;
-  utils.msg(controller, "Flagging room " + bestRoomName + " to be claimed!", true);
+  utils.msg(controller, "Claiming room: " + roomToClaim.name, true);
   controller.pos.createFlag("claim", COLOR_WHITE, COLOR_BLUE);
 }
 
@@ -1220,7 +1219,6 @@ function getRandomCoolText(): string {
     "Him and his crew are known around as one of the best.",
     "Hm? I haven't seen you around these parts. Bah, what does it matter?",
     "Hold it friend! Going so soon?",
-    "How do you do it? I can't imagine what it takes to slay a Demon…If only I could assist in this fight",
     "How many nights I prayed for this, to let my work begin",
     "I ain't got no Visa. I ain't got no Red American Express.",
     "I ain't never crossed a man that didn't deserve it",
@@ -1237,7 +1235,6 @@ function getRandomCoolText(): string {
     "I guess they front, that's why I know my life is out of luck, fool",
     "I have always been here in this Nexus.",
     "I have no business with your kind. I'm busy, begone with you!",
-    "I keep the candles lit and serve the brave Demon slayers who are trapped here.",
     "I love your body and your spirit and your clothes",
     "I see. You wish to train yourself in stoicism. Very well. I pray we meet again.",
     "I shall lull the Old One back to slumber.",
@@ -1253,9 +1250,9 @@ function getRandomCoolText(): string {
     "I'm a educated fool with money on my mind. Got my ten in my hand and a gleam in my eye.",
     "I'm a loc'd out gangsta, set trippin' banger. And my homies is down, so don't arouse my anger.",
     "I'm coming now, I'm coming to reward them. First we take Manhattan, then we take Berlin.",
-    "I'm guided by a signal in the heavens (Guided, guided)",
-    "I'm guided by the beauty of our weapons (Ooh, ooh)",
-    "I'm guided by this birthmark on my skin (I am guided by)",
+    "I'm guided by a signal in the heavens",
+    "I'm guided by the beauty of our weapons",
+    "I'm guided by this birthmark on my skin",
     "I'm not afraid! I'll tear you limb from limb!",
     "I'm sorry. I cannot die. Not while the Nexus binds me…",
     "I'm surprised it got so far. Things aren't the way they were before.",
@@ -1357,8 +1354,6 @@ function getRandomCoolText(): string {
     "The King? He's gone mad like the rest of them. Or perhaps he was mad in the first place.",
     "The monkey and the plywood violin. I practiced every night, now I'm ready.",
     "The Old One and I shall slumber interminably. That is the way it must be.",
-    "The Old One, without Demons to feed it souls, will a new servant seek, and lure you to its bosom.",
-    "There are no secrets here; only a tired, emaciated frame.",
     "There's only one thing you should know. I tried so hard and got so far.",
     "There's only one thing you should know. I've put my trust in you.",
     "They say I gotta learn, but nobody's here to teach me",
@@ -1646,27 +1641,15 @@ function pickup(creep: Creep, destination: Destination): -8 | CreepActionReturnC
   return ERR_INVALID_TARGET;
 }
 
-function getRoomToClaim(aroundRooms: Room[]): string | undefined {
-  let bestScore = Number.NEGATIVE_INFINITY;
-  let bestRoomName;
-
-  for (const room of aroundRooms) {
-    const exits = Game.map.describeExits(room.name);
-    const claimableRoomNames = Object.values(exits).filter(
-      roomName =>
-        utils.isRoomSafe(roomName) &&
-        Memory.rooms[roomName]?.canOperate &&
-        utils.getRoomStatus(roomName) === utils.getRoomStatus(room.name) &&
-        !aroundRooms.map(roomAround => roomAround.name).includes(roomName) &&
-        utils.canOperateInSurroundingRooms(roomName)
-    );
-    for (const nearRoomName of claimableRoomNames) {
-      const score = Memory.rooms[nearRoomName].score;
-      if (score && bestScore < score) {
-        bestScore = score;
-        bestRoomName = nearRoomName;
-      }
-    }
-  }
-  return bestRoomName;
+function getRoomToClaim(): Room | undefined {
+  return Object.values(Game.rooms)
+    .filter(
+      room =>
+        !utils.isOwnedOrReservedByMe(room) &&
+        utils.isRoomSafe(room.name) &&
+        Memory.rooms[room.name]?.canOperate &&
+        utils.getRoomStatus(room.name) === utils.getRoomStatus(room.name) &&
+        utils.canOperateInSurroundingRooms(room.name)
+    )
+    .sort((a, b) => (b.memory.score ?? 0) - (a.memory.score ?? 0))[0];
 }
