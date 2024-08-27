@@ -1412,8 +1412,7 @@ function getRandomCoolText(): string {
     "You may be a great Demon hunter, but I fear you may not be ready.",
     "You must lull the Old One back to Its slumber, and seal it away for all eternity.",
     "You there…I can sense it. You can hear the voice of God. And you are battling those terrible Demons.",
-    "You wouldn't even recognize me anymore. Not that you knew me back then.",
-    "You're simply unlucky. Worry not. Stay by me, and my luck'll rub off on you soon enough!"
+    "You wouldn't even recognize me anymore. Not that you knew me back then."
   ];
   if (Memory.signTexts) texts = texts.concat(Memory.signTexts);
   const randomIndex = Math.floor(Math.random() * texts.length);
