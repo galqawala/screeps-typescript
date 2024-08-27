@@ -1540,7 +1540,7 @@ function creepTalk(creep: Creep) {
     if (nextPart) creep.say(nextPart, true);
   } else if (Math.random() < 0.1) {
     creep.say(utils.creepNameToEmoji(creep.name), true);
-  } else if (Math.random() < 0.004) {
+  } else if (Math.random() < 0.003) {
     creep.memory.say = splitTextToSay(getRandomCoolText());
   }
 }
