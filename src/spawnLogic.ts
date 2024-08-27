@@ -438,11 +438,13 @@ function spawnCreepWhenStorageFull(room: Room): void {
 export function spawnCreepsInRoom(room: Room): void {
   if (room.controller?.my && utils.canOperateInRoom(room)) {
     // owned room
-    spawnOneCarrier(room);
-    spawnExtraCarriers(room);
+    if (utils.getStorage(room)) {
+      spawnOneCarrier(room);
+      spawnExtraCarriers(room);
+      spawnByQuota(room, "upgrader", 1);
+      spawnCreepWhenStorageFull(room);
+    }
     spawnByQuota(room, "worker", 1);
-    if (utils.getStorage(room)) spawnByQuota(room, "upgrader", 1);
-    spawnCreepWhenStorageFull(room);
   } else if (utils.isRoomReservationOk(room.name)) {
     // reserved room
     spawnWorkerIfRequired(room, 1);
