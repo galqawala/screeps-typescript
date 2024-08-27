@@ -256,6 +256,7 @@ function handleExplorer(creep: Creep) {
 }
 
 function handleUpgrader(creep: Creep) {
+  if (followMemorizedPath(creep)) return;
   const room = getAssignedRoom(creep);
   if (!room) return;
   const controller = room.controller;
@@ -1082,7 +1083,7 @@ function followMemorizedPath(creep: Creep) {
       if (!tgt) return;
       move(creep, tgt);
     }
-  } else if (outcome === OK) {
+  } else if (outcome === OK || outcome === ERR_TIRED) {
     if (isStuck(creep)) {
       delete creep.memory.path; // replan
       moveRandomDirection(creep);
@@ -1525,7 +1526,10 @@ function workerRetrieveEnergy(creep: Creep) {
       .sort((a, b) => a.sort - b.sort) /* sort */
       .map(({ value }) => value) /* remove sort values */[0];
   if (!source) return;
-  if (retrieveEnergy(creep, source) === ERR_NOT_IN_RANGE) move(creep, source);
+  if (retrieveEnergy(creep, source) === ERR_NOT_IN_RANGE) {
+    creep.memory.path = utils.getPath(creep.pos, source.pos, 1, true);
+    followMemorizedPath(creep);
+  }
 }
 
 function updateRoomVisuals(room: Room) {
