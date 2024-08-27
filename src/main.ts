@@ -260,6 +260,10 @@ function handleUpgrader(creep: Creep) {
   if (!room) return;
   const controller = room.controller;
   if (!controller) return;
+  if (isStuck(creep) && Math.random() < 0.02) {
+    moveRandomDirection(creep); // yield
+    return;
+  }
 
   if (Math.random() < 0.1 && creep.pos.lookFor(LOOK_STRUCTURES).length > 0) {
     move(creep, getUpgraderSpot(room) ?? controller.pos); // stay out of roads and stuff
