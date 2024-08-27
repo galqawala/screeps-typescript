@@ -1125,11 +1125,11 @@ function getBuildSitePriority(site: ConstructionSite<BuildableStructureConstant>
   const prioritizedTypes = [
     STRUCTURE_CONTAINER,
     STRUCTURE_SPAWN,
+    STRUCTURE_ROAD,
     STRUCTURE_TOWER,
     STRUCTURE_STORAGE,
     STRUCTURE_LINK,
     STRUCTURE_EXTENSION,
-    STRUCTURE_ROAD,
     STRUCTURE_WALL,
     STRUCTURE_RAMPART,
     STRUCTURE_EXTRACTOR,
