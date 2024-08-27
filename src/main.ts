@@ -1558,9 +1558,11 @@ function creepTalk(creep: Creep) {
   if (creep.memory.say && creep.memory.say.length > 0) {
     const nextPart = creep.memory.say.shift();
     if (nextPart) creep.say(nextPart, true);
+  } else if (creep.fatigue > 0) {
+    creep.say("😓", true);
   } else if (Math.random() < 0.1) {
     creep.say(utils.creepNameToEmoji(creep.name), true);
-  } else if (Math.random() < 0.003) {
+  } else if (Math.random() < 0.002) {
     creep.memory.say = splitTextToSay(getRandomCoolText());
   }
 }
