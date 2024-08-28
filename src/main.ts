@@ -80,6 +80,7 @@ declare global {
     energyRatioDelta?: number;
     hostilesTotalCost?: number;
     lackedEnergySinceTime?: number;
+    lastSeen?: number;
     maxHitsToRepair?: number /* repair ramparts & stuff evenly */;
     polyPoints?: RoomPosition[] /* visualize paths for debugging etc. */;
     repairPos?: RoomPosition;
@@ -161,6 +162,7 @@ export const loop = ErrorMapper.wrapLoop(() => {
     }
     purgeFlags();
     purgeFlagsMemory();
+    purgeRoomsMemory();
     removeConstructionSitesInRoomsWithoutVisibility();
   }
   if (!Memory.username) utils.setUsername();
@@ -281,6 +283,7 @@ function handleUpgrader(creep: Creep) {
 }
 
 function handleWorker(creep: Creep) {
+  if (followMemorizedPath(creep)) return;
   const full = utils.isFull(creep);
   if (utils.getEnergy(creep) < 1) delete creep.memory.build;
   else if (full) delete creep.memory.retrieve;
@@ -714,6 +717,7 @@ function harvesterSpendEnergy(creep: Creep) {
 }
 
 function handleRoom(room: Room) {
+  room.memory.lastSeen = Game.time;
   updateRoomVisuals(room);
   handleRoomTowers(room);
   if (!room.memory.costMatrix || utils.gotSpareCpu()) {
@@ -1686,4 +1690,17 @@ function getRoomToClaim(): Room | undefined {
         utils.canOperateInSurroundingRooms(room.name)
     )
     .sort((a, b) => (b.memory.score ?? 0) - (a.memory.score ?? 0))[0];
+}
+
+function purgeRoomsMemory() {
+  const roomNames = Object.keys(Memory.rooms);
+  for (const roomName of roomNames) {
+    if ((Memory.rooms[roomName].lastSeen ?? 0) < Game.time - 100) {
+      delete Memory.rooms[roomName].costMatrix;
+      delete Memory.rooms[roomName].costMatrixCreeps;
+      delete Memory.rooms[roomName].costMatrixLayout;
+      delete Memory.rooms[roomName].costMatrixPerimeterBuffer;
+      delete Memory.rooms[roomName].costMatrixRamparts;
+    }
+  }
 }

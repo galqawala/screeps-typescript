@@ -923,7 +923,7 @@ function getCachedCostMatrixSafe(roomName: string): CostMatrix {
 }
 
 export function getPath(from: RoomPosition, to: RoomPosition, range = 0, safe = true): RoomPosition[] {
-  return PathFinder.search(
+  const result = PathFinder.search(
     from,
     { pos: to, range },
     {
@@ -931,7 +931,10 @@ export function getPath(from: RoomPosition, to: RoomPosition, range = 0, safe = 
       swampCost: 10,
       roomCallback: safe ? getCachedCostMatrixSafe : getCachedCostMatrix
     }
-  ).path;
+  );
+  if (result.incomplete)
+    Memory.rooms[from.roomName].costMatrixCreeps = getFreshCostMatrixCreeps(from.roomName).serialize();
+  return result.path;
 }
 
 export function getPosBetween(pos1: RoomPosition, pos2: RoomPosition): RoomPosition {
