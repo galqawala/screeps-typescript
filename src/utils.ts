@@ -789,13 +789,12 @@ const fillableStructureTargetCount =
 export function updateRoomLayout(room: Room): void {
   // only move on to the next phase once earlier phases are complete (we don't want to build ramparts around partial base for example)
   // Game.rooms.E53S2.memory.resetLayout=true;
-  if (!removeHostileConstructionSites(room)) return;
-
   if (room.memory.resetLayout) {
     resetLayout(room);
     return;
   } else if (room.controller?.my && canOperateInRoom(room)) {
     // design owned room
+    if (!removeHostileConstructionSites(room)) return;
     if (!room.controller) return;
     if (!flagStorage(room)) return;
     if (!flagStorageSubstituteContainer(room)) return;
@@ -816,6 +815,7 @@ export function updateRoomLayout(room: Room): void {
     if (!destroyStructuresWithoutFlags(room)) return;
   } else if (isRoomReservationOk(room.name)) {
     // design reserved room
+    if (!removeHostileConstructionSites(room)) return;
     if (!room.controller) return;
     if (!flagSourceContainers(room)) return;
     if (!createConstructionSitesOnFlags(room)) return;
@@ -1669,6 +1669,6 @@ export function getAvailableTowers(room: Room): StructureTower[] {
 
 function removeHostileConstructionSites(room: Room) {
   const sitesToRemove = room.find(FIND_HOSTILE_CONSTRUCTION_SITES);
-  for (const site of sitesToRemove) console.log(site, site.pos, site.remove());
+  for (const site of sitesToRemove) site.remove();
   return sitesToRemove.length < 1;
 }
