@@ -789,6 +789,8 @@ const fillableStructureTargetCount =
 export function updateRoomLayout(room: Room): void {
   // only move on to the next phase once earlier phases are complete (we don't want to build ramparts around partial base for example)
   // Game.rooms.E53S2.memory.resetLayout=true;
+  if (!removeHostileConstructionSites(room)) return;
+
   if (room.memory.resetLayout) {
     resetLayout(room);
     return;
@@ -1660,4 +1662,10 @@ export function getAvailableTowers(room: Room): StructureTower[] {
     .find(FIND_MY_STRUCTURES)
     .filter(isTower)
     .filter(tower => getEnergy(tower) > 0);
+}
+
+function removeHostileConstructionSites(room: Room) {
+  const sitesToRemove = room.find(FIND_HOSTILE_CONSTRUCTION_SITES);
+  for (const site of sitesToRemove) console.log(site, site.pos, site.remove());
+  return sitesToRemove.length < 1;
 }

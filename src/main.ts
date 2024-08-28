@@ -681,10 +681,13 @@ function handleHarvester(creep: Creep) {
   }
   // move
   const flag = Game.flags[flagName];
-  if (!utils.isPosEqual(creep.pos, flag.pos)) move(creep, flag);
+  if (!utils.isPosEqual(creep.pos, flag.pos) && !followMemorizedPath(creep)) {
+    creep.memory.path = utils.getPath(creep.pos, flag.pos, 0, true);
+    followMemorizedPath(creep);
+  }
   if (!creep.memory.workStartTime && utils.getGlobalRange(creep.pos, flag.pos) <= 1)
     /* count as working, even if we have to wait for the previous harvester to die */
-    creep.memory.workStartTime = Game.time;
+    creep.memory.workStartTime = Game.time + 1;
   if (utils.getFillRatio(creep) > 0.5) harvesterSpendEnergy(creep);
   // harvest
   const sourceId = creep.memory.sourceId;
